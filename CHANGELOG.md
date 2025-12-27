@@ -5,13 +5,19 @@
 ## [1.4.0] - 2024-12-28
 
 ### Added
-- **MCP (Model Context Protocol) 옵션화**
+- **MCP (Model Context Protocol) 완전 통합** (`mcp/mcp_client.py`)
+  - 2개 MCP 서버 동시 지원:
+    - `mcp-server-fetch`: URL 콘텐츠 가져오기 (uvx)
+    - `tavily-mcp`: AI 웹 검색 (npx)
+  - `MCPToolkit` 클래스로 통합 관리
+  - Fallback 모드 지원 (MCP 없이도 동작)
+- **MCP 옵션화**
   - `MCP_ENABLED=true`: 실제 MCP 프로토콜 사용
   - `MCP_ENABLED=false`: Fallback 모드 (기본값, requests + DuckDuckGo)
-  - 환경에 따라 자동 선택 가능
 - **MCP 설정 환경변수**
-  - `MCP_FETCH_COMMAND`: MCP 서버 실행 명령어 (기본: uvx)
-  - `MCP_FETCH_SERVER`: MCP 서버 이름 (기본: mcp-server-fetch)
+  - `TAVILY_API_KEY`: Tavily API 키
+  - `MCP_FETCH_COMMAND`: Fetch 서버 실행 명령어 (기본: uvx)
+  - `MCP_TAVILY_COMMAND`: Tavily 서버 실행 명령어 (기본: npx)
 
 ### Changed
 - `WebClient` 생성자에 `use_mcp` 파라미터 추가

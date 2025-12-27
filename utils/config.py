@@ -72,11 +72,18 @@ class Config:
     # =========================================================================
     # MCP (Model Context Protocol) 설정
     # =========================================================================
-    # MCP_ENABLED=true: 실제 MCP 프로토콜 사용 (mcp-server-fetch 필요)
+    # MCP_ENABLED=true: 실제 MCP 프로토콜 사용 (mcp-server-fetch + tavily-mcp)
     # MCP_ENABLED=false: Fallback 모드 (requests + DuckDuckGo)
     MCP_ENABLED = os.getenv("MCP_ENABLED", "false").lower() == "true"
+    
+    # Fetch MCP 서버 설정
     MCP_FETCH_COMMAND = os.getenv("MCP_FETCH_COMMAND", "uvx")
     MCP_FETCH_SERVER = os.getenv("MCP_FETCH_SERVER", "mcp-server-fetch")
+    
+    # Tavily MCP 서버 설정 (웹 검색)
+    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+    MCP_TAVILY_COMMAND = os.getenv("MCP_TAVILY_COMMAND", "npx")
+    MCP_TAVILY_SERVER = os.getenv("MCP_TAVILY_SERVER", "tavily-mcp")
     
     @classmethod
     def setup_langsmith(cls) -> bool:
