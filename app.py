@@ -185,8 +185,17 @@ def show_plan_dialog():
             section_count = len(draft.get("sections", []))
 
         # [개선] 핵심 기능 수 계산: analysis가 없으면 마크다운에서 추정
-        analysis = state.get("analysis") or {}
-        key_features = analysis.get("key_features", [])
+        analysis = state.get("analysis")
+        key_features = []
+        
+        if analysis:
+            # Pydantic 객체인 경우
+            if hasattr(analysis, "key_features"):
+                 key_features = analysis.key_features
+            # 딕셔너리인 경우
+            elif isinstance(analysis, dict):
+                 key_features = analysis.get("key_features", [])
+        
         feature_count = len(key_features)
         
         # 만약 메타데이터 상 0개라면, 마크다운 본문에서 추정 (간이 계산)
