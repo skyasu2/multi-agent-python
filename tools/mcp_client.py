@@ -197,19 +197,70 @@ class MCPToolkit:
     
     def _fallback_search(self, query: str, max_results: int = 5) -> Dict[str, Any]:
         """
-        Fallback 검색 (MCP 실패 시)
+        Tavily Python SDK를 사용한 웹 검색
         
-        DuckDuckGo 제거됨 - MCP(Tavily) 전용
-        MCP 연결 실패 시 빈 결과 반환
+        MCP 없이도 Tavily API로 직접 검색합니다.
         """
-        return {
-            "success": False,
-            "query": query,
-            "results": [],
-            "formatted": "[웹 검색 사용 불가 - MCP 연결 필요]",
-            "error": "MCP not initialized. Set MCP_ENABLED=true and ensure Tavily API key is configured.",
-            "source": "no-search-available"
-        }
+        try:
+            from tavily import TavilyClient
+            from utils.config import Config
+            
+            if not Config.TAVILY_API_KEY:
+                return {
+                    "success": False,
+                    "query": query,
+                    "results": [],
+                    "error": "TAVILY_API_KEY not configured",
+                    "source": "no-api-key"
+                }
+            
+            # Tavily 클라이언트 생성
+            client = TavilyClient(api_key=Config.TAVILY_API_KEY)
+            
+            # 검색 수행
+            response = client.search(query, max_results=max_results)
+            
+            # 결과 포맷팅
+            results = []
+            formatted_parts = []
+            
+            for i, result in enumerate(response.get("results", [])[:max_results], 1):
+                result_item = {
+                    "title": result.get("title", ""),
+                    "url": result.get("url", ""),
+                    "snippet": result.get("content", "")[:300]
+                }
+                results.append(result_item)
+                formatted_parts.append(
+                    f"[{i}] {result_item['title']}\n"
+                    f"    URL: {result_item['url']}\n"
+                    f"    {result_item['snippet']}..."
+                )
+            
+            return {
+                "success": True,
+                "query": query,
+                "results": results,
+                "formatted": "\n\n".join(formatted_parts),
+                "source": "tavily-python-sdk"
+            }
+            
+        except ImportError:
+            return {
+                "success": False,
+                "query": query,
+                "results": [],
+                "error": "tavily-python not installed. Run: pip install tavily-python",
+                "source": "import-error"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "query": query,
+                "results": [],
+                "error": str(e),
+                "source": "tavily-error"
+            }
     
     def get_tools(self) -> List[Any]:
         """로드된 MCP 도구 목록 반환"""

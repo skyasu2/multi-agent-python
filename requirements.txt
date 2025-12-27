@@ -26,9 +26,10 @@ markdown>=3.5.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 
-# MCP (Model Context Protocol)
+# MCP (Model Context Protocol) & Web Search
 langchain-mcp-adapters>=0.0.1
 nest-asyncio>=1.5.0
+tavily-python>=0.3.0
 
 # Observability
 langsmith>=0.1.0
