@@ -12,7 +12,7 @@ PlanCraft Agent는 사용자의 아이디어를 입력받아 자동으로 **웹/
 - **Robust Multi-Agent System**: 6개 전문 Agent가 협업하는 모듈형 아키텍처
 - **Type-Safe State Management**: **Pydantic BaseModel**을 사용한 강력한 타입 검증 및 상태 관리 (New!)
 - **Human-in-the-loop**: 불명확한 요구사항에 대해 사용자에게 역으로 질문하여 방향성을 조율
-- **Adaptive Web Search**: 필요할 때만 웹을 검색하여 비용 효율성 및 정확도 최적화
+- **MCP (Model Context Protocol)**: 표준 프로토콜 기반 외부 도구 연동 (Tavily 검색, URL Fetch)
 - **Automated Quality Control**: Reviewer → Refiner 루프를 통한 품질 자동 개선
 - **Fault Tolerance**: 각 단계별 Fallback 로직으로 LLM 오류 시에도 중단 없는 서비스 제공
 - **RAG Integration**: 내부 가이드 문서를 참조하여 회사/팀 표준에 맞는 기획서 작성
@@ -25,7 +25,7 @@ PlanCraft Agent는 사용자의 아이디어를 입력받아 자동으로 **웹/
 - **Test**: **Interactive Unit Testing** (Dev Tools in Sidebar)
 - **Vector DB**: FAISS (Local)
 - **Embedding**: text-embedding-3-large
-- **Web Search**: DuckDuckGo API
+- **MCP Servers**: mcp-server-fetch (URL), tavily-mcp (AI 검색)
 - **UI**: Streamlit
 
 ## 📁 프로젝트 구조
@@ -47,9 +47,10 @@ PlanCraft Agent는 사용자의 아이디어를 입력받아 자동으로 **웹/
 │   ├── documents/            # 지식 베이스 (가이드 문서)
 │   ├── vectorstore.py        # FAISS 관리
 │   └── retriever.py          # 맥락 기반 검색
-├── mcp/                      # [External Tool Layer]
+├── mcp/                      # [MCP Layer - Model Context Protocol]
+│   ├── mcp_client.py         # MCP 통합 클라이언트 (Fetch + Tavily)
 │   ├── web_search.py         # 조건부 검색 로직
-│   └── web_client.py         # URL 콘텐츠 Fetcher
+│   └── web_client.py         # URL 콘텐츠 Fetcher (Fallback)
 ├── utils/                    # [Common Utilities]
 │   ├── config.py             # 환경 변수 및 설정 검증
 │   ├── llm.py                # LLM 인스턴스 팩토리
@@ -84,6 +85,10 @@ AOAI_DEPLOY_EMBED_3_LARGE=text-embedding-3-large
 # LangSmith (Optional - 모니터링용)
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_API_KEY=your_langchain_api_key
+
+# MCP (Model Context Protocol)
+MCP_ENABLED=true
+TAVILY_API_KEY=your_tavily_api_key
 ```
 
 ### 3. RAG 벡터스토어 초기화

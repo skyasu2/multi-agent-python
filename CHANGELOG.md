@@ -23,6 +23,10 @@
 - `WebClient` 생성자에 `use_mcp` 파라미터 추가
 - MCP 연결 실패 시 명확한 에러 메시지 출력
 
+### Removed
+- **DuckDuckGo 검색 제거**: Tavily MCP로 완전 대체
+- `duckduckgo-search` 패키지 의존성 제거
+
 ## [1.3.0] - 2024-12-27
 
 ### Added
