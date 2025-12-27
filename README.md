@@ -22,6 +22,7 @@ PlanCraft Agent는 사용자의 아이디어를 입력받아 자동으로 **웹/
 - **Core**: Python 3.10+, LangChain, **LangGraph**
 - **LLM**: Azure OpenAI (gpt-4o, gpt-4o-mini)
 - **State Management**: **Pydantic** (TypedDict를 대체하여 타입 안정성 확보)
+- **Test**: **Interactive Unit Testing** (Dev Tools in Sidebar)
 - **Vector DB**: FAISS (Local)
 - **Embedding**: text-embedding-3-large
 - **Web Search**: DuckDuckGo API
@@ -127,6 +128,15 @@ streamlit run app.py
 | **일반 기획 요청** | "점심 메뉴 추천 앱" → 내부 지식으로 충분 |
 | **RAG 컨텍스트 충분** | 이미 관련 문서가 검색됨 |
 
-## 📝 License
+## � Future Roadmap
+
+실제 프로덕션 레벨 도약을 위한 향후 고도화 계획입니다:
+
+- **Automated CI/CD**: GitHub Actions를 활용한 파이프라인 자동화 (현재는 UI 기반 테스트 제공)
+- **Observability**: **LangSmith** 연동을 통한 Trace 추적 및 데이터셋 기반 성능 평가
+- **Advanced Routing**: `RunnableBranch` 패턴을 적용한 동적 라우팅 및 확장성 확보
+- **Feedback Loop**: 사용자 피드백 데이터를 저장하고 학습에 활용하는 파이프라인 구축
+
+## �📝 License
 
 MIT License
