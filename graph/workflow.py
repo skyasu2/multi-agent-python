@@ -146,29 +146,45 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
             from tools.mcp_client import search_sync
             from tools.web_search import should_search_web
 
-            # 검색 필요 여부 판단
+            # 검색 필요 여부 판단 (항상 True에 가깝게 변경됨)
             decision = should_search_web(user_input, rag_context if rag_context else "")
 
             if decision["should_search"]:
-                search_result = search_sync(decision["search_query"])
+                base_query = decision["search_query"]
                 
-                if search_result["success"]:
-                    # 결과 포맷팅
-                    source = search_result.get("source", "unknown")
-                    if "formatted" in search_result:
-                        context = search_result["formatted"]
-                    else:
-                        context = str(search_result.get("results", ""))
-                    
-                    web_contents.append(
-                        f"[웹 검색 결과 - {decision['reason']}]\n"
-                        f"검색어: {decision['search_query']}\n"
-                        f"출처: {source}\n\n"
-                        f"{context}"
-                    )
-                    print(f"[INFO] 웹 검색 수행 ({source}): {decision['reason']}")
+                # 검색 쿼리 확장 (기본 2~3회 검색)
+                # 1. 기본 쿼리 (예: "2025 헬스케어 트렌드")
+                # 2. 시장 규모/통계 (예: "헬스케어 시장 규모 통계")
+                # 3. 사례 (예: "헬스케어 서비스 성공 사례")
+                queries = [base_query]
+                
+                # 확장 쿼리 생성
+                if "트렌드" in base_query:
+                    queries.append(base_query.replace("트렌드", "시장 규모 통계"))
                 else:
-                    print(f"[WARN] 웹 검색 실패: {search_result.get('error', 'unknown')}")
+                    queries.append(f"{base_query} 시장 규모 및 경쟁사")
+                
+                print(f"[INFO] 다중 웹 검색 수행 (총 {len(queries)}회): {queries}")
+                
+                for i, q in enumerate(queries):
+                    search_result = search_sync(q)
+                    
+                    if search_result["success"]:
+                        # 결과 포맷팅
+                        source = search_result.get("source", "unknown")
+                        if "formatted" in search_result:
+                            context = search_result["formatted"]
+                            formatted_result = search_result["formatted"] # search_sync 리턴값 확인 필요, formatted 키 사용
+                        else:
+                            formatted_result = str(search_result.get("results", ""))
+                        
+                        web_contents.append(
+                            f"[웹 검색 결과 {i+1} - {q}]\n"
+                            f"출처: {source}\n"
+                            f"{formatted_result}"
+                        )
+                    else:
+                        print(f"[WARN] 검색 실패 ({q}): {search_result.get('error')}")
             else:
                 print(f"[INFO] 웹 검색 스킵: {decision['reason']}")
 

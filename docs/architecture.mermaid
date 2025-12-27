@@ -1,0 +1,52 @@
+graph TD
+    %% 스타일 정의
+    classDef agent fill:#e1f5fe,stroke:#01579b,stroke-width:2px,rx:10,ry:10;
+    classDef tool fill:#fff3e0,stroke:#ff6f00,stroke-width:2px,rx:5,ry:5,stroke-dasharray: 5 5;
+    classDef db fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,rx:5,ry:5;
+    classDef decision fill:#fff,stroke:#333,stroke-width:2px,rx:5,ry:5,shape:rhombus;
+    classDef user fill:#e0f2f1,stroke:#00695c,stroke-width:2px,shape:circle;
+
+    %% 사용자 및 UI
+    User((User)):::user -->|Topic/Request| UI[Streamlit UI]
+    UI -->|PlanCraftState| Start((Start))
+
+    %% [Sub-graph 1] Context & Analysis
+    subgraph "Context Sub-graph"
+        Start --> Analyzer[Analyzer Agent]:::agent
+        
+        Analyzer --"Need More Info?"--> Decision1{Need Info}:::decision
+        Decision1 --Yes--> AskUser[Ask User]:::tool
+        AskUser --> User
+        
+        Analyzer --"Keywords (2025/Trend)"--> SearchCheck{Web Search?}:::decision
+        SearchCheck --Yes--> MCP[MCP Toolkit<br/>(Tavily / Fetch)]:::tool
+        
+        MCP --"Web Context"--> Analyzer
+    end
+
+    %% [Sub-graph 2] Generation
+    subgraph "Generation Sub-graph"
+        Analyzer --> Structurer[Structurer Agent]:::agent
+        
+        RAG[(RAG VectorDB<br/>Templates/Guides)]:::db -.-> Structurer
+        
+        Structurer --"Section List"--> Writer[Writer Agent]:::agent
+        RAG -.-> Writer
+        MCP -.-> Writer
+    end
+
+    %% [Sub-graph 3] Quality Assurance (QA)
+    subgraph "QA Sub-graph"
+        Writer --"Draft Text"--> Reviewer[Reviewer Agent]:::agent
+        
+        Reviewer --> Verdict{Verdict}:::decision
+        
+        Verdict --"Revise / Fail"--> Refiner[Refiner Agent]:::agent
+        Refiner --"Updated Draft"--> Reviewer
+        
+        Verdict --"Pass"--> Formatter[Formatter Agent]:::agent
+    end
+
+    %% 최종 출력
+    Formatter -->|Output + References| Final[Final Document]
+    Final --> UI
