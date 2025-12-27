@@ -9,60 +9,50 @@ PlanCraft Agent는 사용자의 아이디어를 입력받아 자동으로 **웹/
 
 ## 🚀 주요 기능
 
-- **Multi-Agent 시스템**: 6개 Agent 협업 (Analyzer, Structurer, Writer, Reviewer, Refiner, Formatter)
-- **자율 판단 기획**: 질문 없이 RAG/웹 검색을 활용하여 베스트 프랙티스로 기획서 작성
-- **자동 개선**: Reviewer 피드백을 Refiner가 직접 반영하여 완성본 출력
-- **사용자 친화적 요약**: Formatter가 채팅에 적합한 요약 생성
-- **RAG 기반 품질 향상**: 기획서 작성 가이드 문서를 참조
-- **조건부 웹 검색**: 최신 정보 필요 시에만 DuckDuckGo 검색 수행
-- **LangGraph 워크플로우**: 조건부 분기와 순차 실행을 지원하는 유연한 파이프라인
-- **Streamlit UI**: 채팅 스타일의 직관적인 웹 인터페이스
+- **Robust Multi-Agent System**: 6개 전문 Agent가 협업하는 모듈형 아키텍처
+- **Type-Safe State Management**: **Pydantic BaseModel**을 사용한 강력한 타입 검증 및 상태 관리 (New!)
+- **Human-in-the-loop**: 불명확한 요구사항에 대해 사용자에게 역으로 질문하여 방향성을 조율
+- **Adaptive Web Search**: 필요할 때만 웹을 검색하여 비용 효율성 및 정확도 최적화
+- **Automated Quality Control**: Reviewer → Refiner 루프를 통한 품질 자동 개선
+- **Fault Tolerance**: 각 단계별 Fallback 로직으로 LLM 오류 시에도 중단 없는 서비스 제공
+- **RAG Integration**: 내부 가이드 문서를 참조하여 회사/팀 표준에 맞는 기획서 작성
 
 ## 🛠 기술 스택
 
+- **Core**: Python 3.10+, LangChain, **LangGraph**
 - **LLM**: Azure OpenAI (gpt-4o, gpt-4o-mini)
-- **Framework**: LangChain, LangGraph
-- **Vector DB**: FAISS
-- **UI**: Streamlit
+- **State Management**: **Pydantic** (TypedDict를 대체하여 타입 안정성 확보)
+- **Vector DB**: FAISS (Local)
 - **Embedding**: text-embedding-3-large
-- **Web Search**: DuckDuckGo
+- **Web Search**: DuckDuckGo API
+- **UI**: Streamlit
 
 ## 📁 프로젝트 구조
 
 ```
-├── app.py                    # Streamlit 메인 앱
+├── app.py                    # Streamlit 메인 앱 (UI Layer)
 ├── requirements.txt          # 의존성 패키지
-├── agents/                   # Agent 정의
-│   ├── analyzer.py           # 입력 분석 (질문 없이 자율 판단)
-│   ├── structurer.py         # 구조 설계
-│   ├── writer.py             # 내용 작성
-│   ├── reviewer.py           # 검토 피드백
-│   ├── refiner.py            # 피드백 반영 개선
-│   └── formatter.py          # 사용자 친화적 요약
-├── prompts/                  # 프롬프트 템플릿
-│   ├── analyzer_prompt.py
-│   ├── structurer_prompt.py
-│   ├── writer_prompt.py
-│   ├── reviewer_prompt.py
-│   ├── refiner_prompt.py
-│   └── formatter_prompt.py
-├── rag/                      # RAG 관련
-│   ├── documents/            # RAG용 가이드 문서
-│   ├── vectorstore.py        # FAISS 벡터스토어
-│   └── retriever.py          # 검색 로직
-├── graph/                    # LangGraph 워크플로우
-│   ├── state.py              # 상태 정의
-│   └── workflow.py           # 그래프 정의
-├── mcp/                      # 웹 조회
-│   ├── web_search.py         # 조건부 DuckDuckGo 검색
-│   ├── web_client.py         # URL 콘텐츠 fetch
-│   └── file_utils.py         # 파일 저장 유틸리티
-├── utils/                    # 유틸리티
-│   ├── config.py             # 설정 로드
-│   ├── llm.py                # Azure OpenAI 클라이언트
-│   └── schemas.py            # Pydantic 스키마
-└── docs/                     # 문서
-    └── architecture.md       # 아키텍처 설명
+├── agents/                   # [Agent Layer] 단일 책임 원칙 준수
+│   ├── analyzer.py           # 요구사항 분석 및 불분명시 질문 생성
+│   ├── structurer.py         # 기획서 목차/구조 설계
+│   ├── writer.py             # 섹션별 상세 내용 작성 (초안)
+│   ├── reviewer.py           # 품질 검토 및 개선점 도출 (Judge)
+│   ├── refiner.py            # 피드백 반영 및 최종본 완성
+│   └── formatter.py          # 사용자 친화적 요약 생성
+├── graph/                    # [Workflow Layer]
+│   ├── state.py              # Pydantic 기반 상태 모델 (PlanCraftState)
+│   └── workflow.py           # LangGraph StateGraph 정의
+├── rag/                      # [RAG Layer]
+│   ├── documents/            # 지식 베이스 (가이드 문서)
+│   ├── vectorstore.py        # FAISS 관리
+│   └── retriever.py          # 맥락 기반 검색
+├── mcp/                      # [External Tool Layer]
+│   ├── web_search.py         # 조건부 검색 로직
+│   └── web_client.py         # URL 콘텐츠 Fetcher
+├── utils/                    # [Common Utilities]
+│   ├── config.py             # 환경 변수 및 설정 검증
+│   ├── llm.py                # LLM 인스턴스 팩토리
+│   └── schemas.py            # 입출력 Pydantic 스키마 정의
 ```
 
 ## ⚙️ 설치 및 실행
@@ -78,87 +68,47 @@ pip install -r requirements.txt
 cp .env.example .env.local
 ```
 
-`.env.local` 파일을 열어 실제 API 키 입력:
-```
+`.env.local` 필수 설정:
+```ini
 AOAI_ENDPOINT=https://your-endpoint.openai.azure.com/
 AOAI_API_KEY=your_api_key_here
 AOAI_DEPLOY_GPT4O_MINI=gpt-4o-mini
 AOAI_DEPLOY_GPT4O=gpt-4o
 AOAI_DEPLOY_EMBED_3_LARGE=text-embedding-3-large
+# LangSmith (Optional - 모니터링용)
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=your_langchain_api_key
 ```
 
-### 3. RAG 벡터스토어 초기화 (최초 1회)
+### 3. RAG 벡터스토어 초기화
 ```bash
 python -c "from rag.vectorstore import init_vectorstore; init_vectorstore()"
 ```
 
-### 4. Streamlit 실행
+### 4. 앱 실행
 ```bash
 streamlit run app.py
 ```
 
-## 📖 사용 방법
+## 📖 사용 시나리오
 
-1. 웹 브라우저에서 Streamlit 앱 접속
-2. 아이디어나 기획 요청 입력 (예: "점심 메뉴 추천 앱")
-3. AI Agent가 자동으로 기획서 생성
-4. 생성된 기획서 확인 및 다운로드
+1. **단순 요청**: "점심 메뉴 추천 앱 기획해줘"
+    - 내부 지식으로 즉시 분석 → 구조 설계 → 작성 → 완성
+2. **복합 요청**: "최신 AI 트렌드를 반영한 가계부 앱"
+    - "최신 AI 트렌드" 키워드 감지 → **웹 검색 수행** → 정보 반영하여 기획
+3. **불명확한 요청**: "앱 하나 만들어줘"
+    - Analyzer가 정보 부족 판단 → "어떤 종류의 앱인가요? (예: 커뮤니티, 커머스 등)" **역질문(Human-in-the-loop)** → 사용자 답변 후 진행
 
-## 🔄 워크플로우
+## 🤖 Agent 상세 역할
 
-```
-┌─────────────┐
-│   START     │
-└──────┬──────┘
-       ▼
-┌─────────────┐
-│  retrieve   │  ← RAG 검색
-└──────┬──────┘
-       ▼
-┌─────────────┐
-│ fetch_web   │  ← 조건부 웹 검색
-└──────┬──────┘
-       ▼
-┌─────────────┐     need_more_info=True    ┌─────────┐
-│   analyze   │ ─────────────────────────▶ │   END   │
-└──────┬──────┘                             └─────────┘
-       │ need_more_info=False
-       ▼
-┌─────────────┐
-│  structure  │  ← 기획서 구조 설계
-└──────┬──────┘
-       ▼
-┌─────────────┐
-│    write    │  ← 내용 작성
-└──────┬──────┘
-       ▼
-┌─────────────┐
-│   review    │  ← 검토 및 피드백
-└──────┬──────┘
-       ▼
-┌─────────────┐
-│   refine    │  ← 피드백 반영 개선
-└──────┬──────┘
-       ▼
-┌─────────────┐
-│   format    │  ← 사용자 친화적 요약
-└──────┬──────┘
-       ▼
-┌─────────────┐
-│     END     │
-└─────────────┘
-```
-
-## 🤖 Agent 역할
-
-| Agent | 역할 | 출력 |
-|-------|------|------|
-| **Analyzer** | 입력 분석, 자율 판단으로 기획 방향 결정 | `analysis` |
-| **Structurer** | 기획서 섹션 구조 설계 | `structure` |
-| **Writer** | 섹션별 내용 작성 | `draft` |
-| **Reviewer** | 검토 및 개선점 도출 | `review` |
-| **Refiner** | 개선점 직접 반영하여 완성본 생성 | `final_output` |
-| **Formatter** | 채팅용 요약 메시지 생성 | `chat_summary` |
+| Agent | 역할 | 구현 특징 |
+|-------|------|-----------|
+| **Analyzer** | 입력 분석, 검색 필요 여부 판단 | `AnalysisResult` 스키마로 구조화된 분석, 필요 시 `options` 생성 |
+| **Structurer** | 기획서 섹션 구조(목차) 설계 | 논리적인 흐름(Why-What-How) 설계 |
+| **Writer** | 각 섹션별 본문 작성 | 구조에 맞춰 상세 내용 생성 (Markdown) |
+| **Reviewer** | 품질 검토 (Pass/Revise/Fail) | 명확한 기준에 따른 채점 및 `action_items` 도출 |
+| **Refiner** | 피드백 반영 및 개선 | Reviewer의 지적 사항을 반영하여 최종본 완성 |
+| **Formatter** | 최종 요약 및 포맷팅 | Streamlit 채팅 UI에 최적화된 메시지 변환 |
 
 ## 🌐 웹 검색 동작 조건
 
