@@ -31,6 +31,18 @@ from utils.schemas import AnalysisResult
 from graph.state import PlanCraftState
 from prompts.analyzer_prompt import ANALYZER_SYSTEM_PROMPT, ANALYZER_USER_PROMPT
 
+# LangSmith 트레이싱 (선택적 - 없으면 무시)
+try:
+    from langsmith import traceable
+    LANGSMITH_AVAILABLE = True
+except ImportError:
+    LANGSMITH_AVAILABLE = False
+    def traceable(*args, **kwargs):
+        """Fallback decorator when langsmith is not available"""
+        def decorator(func):
+            return func
+        return decorator
+
 
 class AnalyzerAgent:
     """
@@ -65,6 +77,7 @@ class AnalyzerAgent:
         # - 더 안정적인 출력
         self.llm = base_llm.with_structured_output(AnalysisResult)
 
+    @traceable(name="AnalyzerAgent.run", run_type="chain")
     def run(self, state: PlanCraftState) -> PlanCraftState:
         """
         사용자 입력을 분석합니다.

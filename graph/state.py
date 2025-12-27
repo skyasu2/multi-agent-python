@@ -5,8 +5,8 @@ LangGraph 워크플로우에서 사용하는 상태(State) 타입을 Pydantic Ba
 런타임 타입 검증과 IDE 자동완성을 지원하며, 더욱 견고한 파이프라인을 구성합니다.
 """
 
-from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any, Union, Self
+from pydantic import BaseModel, Field, model_validator
 from utils.schemas import (
     AnalysisResult, 
     StructureResult, 
@@ -59,6 +59,36 @@ class PlanCraftState(BaseModel):
     # 9. 메타데이터 (Metadata)
     current_step: str = Field(default="start", description="현재 실행 중인 단계")
     error: Optional[str] = Field(default=None, description="에러 메시지")
+
+    @model_validator(mode='after')
+    def sync_analysis_fields(self) -> Self:
+        """
+        Cross-field validation: analysis 객체와 상위 필드 동기화
+        
+        - analysis.need_more_info -> self.need_more_info 동기화
+        - analysis.options -> self.options 동기화
+        - error 발생 시 current_step 보정
+        """
+        # analysis 객체가 있으면 need_more_info, options 동기화
+        if self.analysis is not None:
+            if hasattr(self.analysis, 'need_more_info'):
+                # analysis의 need_more_info가 True면 상위 상태도 동기화
+                if self.analysis.need_more_info and not self.need_more_info:
+                    self.need_more_info = True
+            
+            if hasattr(self.analysis, 'options') and self.analysis.options:
+                if not self.options:
+                    self.options = self.analysis.options
+            
+            if hasattr(self.analysis, 'option_question') and self.analysis.option_question:
+                if not self.option_question:
+                    self.option_question = self.analysis.option_question
+        
+        # error가 있으면 current_step에 "_error" suffix 추가 (이미 없는 경우)
+        if self.error and not self.current_step.endswith("_error"):
+            self.current_step = f"{self.current_step}_error"
+        
+        return self
 
 
 def create_initial_state(user_input: str, file_content: str = None) -> PlanCraftState:
