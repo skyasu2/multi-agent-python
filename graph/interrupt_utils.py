@@ -50,9 +50,9 @@ def create_option_interrupt(state: PlanCraftState) -> Dict[str, Any]:
     """
     PlanCraftState에서 인터럽트 페이로드를 생성합니다.
     """
-    question = getattr(state, "option_question", "추가 정보가 필요합니다.") or "추가 정보가 필요합니다."
-    options = getattr(state, "options", [])
-    input_schema = getattr(state, "input_schema_name", None)
+    question = state.get("option_question") or "추가 정보가 필요합니다."
+    options = state.get("options", [])
+    input_schema = state.get("input_schema_name")
     
     interrupt_type = "form" if input_schema else "option"
     
@@ -79,8 +79,8 @@ def create_option_interrupt(state: PlanCraftState) -> Dict[str, Any]:
         input_schema_name=input_schema,
         interrupt_type=interrupt_type,
         metadata={
-            "user_input": getattr(state, "user_input", ""),
-            "need_more_info": getattr(state, "need_more_info", False)
+            "user_input": state.get("user_input", ""),
+            "need_more_info": state.get("need_more_info", False)
         }
     )
 
@@ -89,27 +89,28 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
     """
     사용자 응답(Command resume)을 처리하여 상태를 업데이트합니다.
     """
+    from graph.state import update_state
+
     # 1. 폼 데이터 처리 (input_schema_name이 있었던 경우)
-    # response 자체가 폼 데이터 dict일 수 있음
-    if state.input_schema_name and isinstance(response, dict):
-        # 폼 데이터를 컨텍스트에 추가하는 방식으로 처리 (간단히 user_input에 추가)
+    if state.get("input_schema_name") and isinstance(response, dict):
         form_summary = "\n".join([f"- {k}: {v}" for k, v in response.items()])
-        new_input = f"{state.user_input}\n\n[추가 정보 입력]\n{form_summary}"
+        original_input = state.get("user_input", "")
+        new_input = f"{original_input}\n\n[추가 정보 입력]\n{form_summary}"
         
-        return state.model_copy(update={
-            "user_input": new_input,
-            "need_more_info": False,
-            "input_schema_name": None # 초기화
-        })
+        return update_state(
+            state,
+            user_input=new_input,
+            need_more_info=False,
+            input_schema_name=None
+        )
 
     # 2. 옵션 선택 처리
     selected = response.get("selected_option")
     text_input = response.get("text_input")
     
-    original_input = state.user_input
+    original_input = state.get("user_input", "")
     
     if selected:
-        # selected가 dict형태로 옴
         title = selected.get("title", "")
         description = selected.get("description", "")
         new_input = f"{original_input}\n\n[선택: {title} - {description}]"
@@ -118,23 +119,25 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
     else:
         new_input = original_input
     
-    return state.model_copy(update={
-        "user_input": new_input,
-        "need_more_info": False,
-        "options": [],
-        "option_question": None
-    })
+    return update_state(
+        state,
+        user_input=new_input,
+        need_more_info=False,
+        options=[],
+        option_question=None
+    )
 
 
 # =============================================================================
-# 인터럽트 유형별 핸들러 (향후 확장용)
+# 인터럽트 유형별 핸들러 (Update State Helper 사용)
 # =============================================================================
+from graph.state import update_state
 
 INTERRUPT_HANDLERS = {
     "option_select": lambda state, resp: handle_user_response(state, {"selected_option": resp}),
     "text_input": lambda state, resp: handle_user_response(state, {"text_input": resp}),
-    "confirmation": lambda state, resp: state.model_copy(update={"confirmed": resp}),
-    "file_upload": lambda state, resp: state.model_copy(update={"uploaded_content": resp}),
+    "confirmation": lambda state, resp: update_state(state, confirmed=resp),
+    "file_upload": lambda state, resp: update_state(state, uploaded_content=resp),
 }
 
 

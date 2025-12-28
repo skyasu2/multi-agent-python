@@ -129,80 +129,69 @@ def get_qa_app():
 
 def run_context_subgraph(state: PlanCraftState) -> PlanCraftState:
     """
-    Context Sub-graph 최적화 실행 (Async Parallel Wrapper)
+    컨텍스트 수집 서브그래프 (Context Sub-graph)
     
-    RAG 검색과 웹 검색을 병렬로 실행하여 응답 속도를 단축합니다.
-    Streamlit 동기 환경 호환을 위해 내부적으로 asyncio.run을 사용합니다.
+    RAG 검색과 웹 검색을 병렬(또는 순차)로 수행하여 컨텍스트를 풍부하게 만듭니다.
+    LangGraph에서는 같은 State를 공유하는 노드들을 묶어 Sub-graph로 구성할 수 있습니다.
     """
-    import asyncio
     from graph.workflow import retrieve_context, fetch_web_context
-
-    async def _run_parallel():
-        # 병렬 실행 (Thread Pool)
-        task_rag = asyncio.to_thread(retrieve_context, state)
-        task_web = asyncio.to_thread(fetch_web_context, state)
-        
-        # 두 작업이 모두 완료될 때까지 대기
-        res_rag, res_web = await asyncio.gather(task_rag, task_web)
-        
-        return res_rag, res_web
-
-    # 비동기 실행
-    res_rag, res_web = asyncio.run(_run_parallel())
+    from graph.state import update_state
     
-    # -------------------------------------------------------------------------
-    # 결과 병합 (State Merge Strategy)
-    # -------------------------------------------------------------------------
+    # 1. 초기 상태 로깅
+    current_history = state.get("step_history", []) or []
+    base_len = len(current_history)
+    print(f"[Subgraph] Context Gathering Started (History: {base_len} steps)")
     
-    # 1. 실행 이력 병합
-    base_len = len(state.step_history)
-    new_rag_hist = res_rag.step_history[base_len:]
-    new_web_hist = res_web.step_history[base_len:]
+    # 2. 노드 실행 (순차 실행 예시)
     
-    merged_history = list(state.step_history) + new_rag_hist + new_web_hist
+    # Retrieve 수행
+    state_after_rag = retrieve_context(state)
     
-    # 2. 에러 병합
-    combined_error = res_rag.error or res_web.error or None
+    # Web Fetch 수행
+    state_after_web = fetch_web_context(state_after_rag)
     
-    # 3. 컨텍스트 병합
+    # 3. 결과 집계 및 반환
+    
+    # 업데이트할 필드 추출
     updates = {
-        "rag_context": res_rag.rag_context,
-        "web_context": res_web.web_context,
-        "web_urls": res_web.web_urls,
-        "step_history": merged_history,
-        "error": combined_error,
-        "step_status": "FAILED" if combined_error else state.step_status,
-        "current_step": "context_gathering"
+        "rag_context": state_after_web.get("rag_context"),
+        "web_context": state_after_web.get("web_context"),
+        "web_urls": state_after_web.get("web_urls"),
+        "current_step": "context_gathering",
+        # History 병합
+        "step_history": state_after_web.get("step_history")
     }
     
-    return state.model_copy(update=updates)
+    return update_state(state, **updates)
 
 
 def run_generation_subgraph(state: PlanCraftState) -> PlanCraftState:
-    """
-    Generation Sub-graph 실행 래퍼
+    """생성 서브그래프 (분석 -> 구조화 -> 작성)"""
+    from graph.workflow import run_analyzer_node, run_structurer_node, run_writer_node
+    from graph.state import update_state
     
-    메인 Graph에서 단일 노드로 호출됩니다.
-    내부적으로 분석 → 구조 → 작성을 순차 실행합니다.
-    """
-    app = get_generation_app()
-    result = app.invoke(state)
+    s1 = run_analyzer_node(state)
     
-    if hasattr(result, "model_copy"):
-        return result
-    return state.model_copy(update=result)
+    # 분기 로직 처리 (Interrupt 등)은 Main Graph에서 담당하므로
+    # 여기서는 순차적으로 Happy Path만 시뮬레이션하거나, 
+    # 실제로는 Graph를 리턴해야 함. (구조 변경 필요)
+    
+    # 현재 구조상 함수 직접 호출로 진행
+    if s1.get("need_more_info"):
+        return s1 # 인터럽트 필요 시 바로 반환
+        
+    s2 = run_structurer_node(s1)
+    s3 = run_writer_node(s2)
+    
+    return s3
 
 
 def run_qa_subgraph(state: PlanCraftState) -> PlanCraftState:
-    """
-    QA Sub-graph 실행 래퍼
+    """QA 서브그래프 (검토 -> 개선 -> 포맷)"""
+    from graph.workflow import run_reviewer_node, run_refiner_node, run_formatter_node
     
-    메인 Graph에서 단일 노드로 호출됩니다.
-    내부적으로 검토 → 개선 → 포맷을 순차 실행합니다.
-    """
-    app = get_qa_app()
-    result = app.invoke(state)
+    s1 = run_reviewer_node(state)
+    s2 = run_refiner_node(s1)
+    s3 = run_formatter_node(s2)
     
-    if hasattr(result, "model_copy"):
-        return result
-    return state.model_copy(update=result)
+    return s3
