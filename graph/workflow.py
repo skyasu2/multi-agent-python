@@ -275,16 +275,15 @@ def should_ask_user(state: PlanCraftState) -> str:
     Returns:
         str: "option_pause", "general_response", "continue"
     """
-    # 조건 1: 추가 정보 요청 (옵션 선택 필요)
-    if state.need_more_info:
+    # 1. 휴먼 인터럽트 필요 여부 확인
+    if is_human_interrupt_required(state):
         return "option_pause"
     
-    # 조건 2: 일반 질의 (기획 요청이 아님)
-    is_general = state.analysis.is_general_query if state.analysis else False
-    if is_general:
+    # 2. 일반 질의 여부 확인
+    if is_general_query(state):
         return "general_response"
     
-    # 기본: 기획서 생성 계속
+    # 3. 기본: 기획서 생성 계속
     return "continue"
 
 
