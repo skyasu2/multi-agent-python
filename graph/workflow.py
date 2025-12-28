@@ -60,6 +60,7 @@ Best Practice 적용:
 """
 
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver  # [NEW] 체크포인터 추가
 from graph.state import PlanCraftState
 from agents import analyzer, structurer, writer, reviewer, refiner, formatter
 from utils.config import Config
@@ -438,9 +439,12 @@ def create_subgraph_workflow() -> StateGraph:
 
 def compile_workflow(use_subgraphs: bool = False):
     """워크플로우 컴파일"""
+    # [NEW] 인메모리 체크포인터 사용 (Time-Travel 가능)
+    checkpointer = MemorySaver()
+    
     if use_subgraphs:
-        return create_subgraph_workflow().compile()
-    return create_workflow().compile()
+        return create_subgraph_workflow().compile(checkpointer=checkpointer)
+    return create_workflow().compile(checkpointer=checkpointer)
 
 
 # 전역 앱 인스턴스
@@ -456,13 +460,11 @@ def run_plancraft(
     file_content: str = None, 
     refine_count: int = 0, 
     previous_plan: str = None,
-    callbacks: list = None
+    callbacks: list = None,
+    thread_id: str = "default_thread"  # [NEW] 스레드 ID 지원
 ) -> dict:
     """
     PlanCraft Agent 워크플로우 실행
-    
-    UI 계층과의 호환성을 위해 최종 결과는 dict 형태로 반환합니다.
-    Refinement 상황일 경우 previous_plan을 전달합니다.
     """
     from graph.state import create_initial_state
 
@@ -473,7 +475,9 @@ def run_plancraft(
     initial_state.refine_count = refine_count
 
     # 워크플로우 실행 (invoke는 dict 또는 BaseModel을 받음)
-    config = {}
+    # [NEW] Config에 thread_id 추가 (Checkpointer가 이를 식별)
+    config = {"configurable": {"thread_id": thread_id}}
+    
     if callbacks:
         config["callbacks"] = callbacks
 

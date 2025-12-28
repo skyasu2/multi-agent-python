@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import sys
 import random
+import uuid
 from datetime import datetime
 
 # Add project root to path
@@ -130,6 +131,9 @@ def init_session_state():
         st.session_state.chat_history = []  # 채팅 히스토리 [{role, content, type}]
     if "plan_history" not in st.session_state:
         st.session_state.plan_history = [] # [{timestamp, content, version}]
+    if "thread_id" not in st.session_state:
+        # [NEW] Time-Travel을 위한 고유 스레드 ID 생성
+        st.session_state.thread_id = str(uuid.uuid4())
     if "current_state" not in st.session_state:
         st.session_state.current_state = None
     if "generated_plan" not in st.session_state:
@@ -403,100 +407,128 @@ def show_history_dialog():
 @st.dialog("🛠️ Dev Tools", width="large")
 def render_dev_tools():
     """개발자 도구 (모달)"""
-    st.markdown("### Agent 단위 테스트")
-    st.info("각 Agent를 개별적으로 실행하여 로직을 검증합니다.")
-    st.markdown("---")
+    tab_test, tab_graph, tab_history = st.tabs(["🧪 Agent Unit Test", "📊 Workflow Graph", "🕰️ State History"])
     
-    # Agent 선택
-    agent_type = st.selectbox(
-        "Agent 테스트",
-        ["None", "Analyzer", "Structurer", "Writer", "Reviewer"]
-    )
-    
-    if agent_type != "None":
-        st.write(f"**Target:** `{agent_type}` Agent")
+    with tab_test:
+        st.markdown("### Agent 단위 테스트")
+        st.info("각 Agent를 개별적으로 실행하여 로직을 검증합니다.")
+        st.markdown("---")
         
-        # 테스트용 더미 데이터 설정
-        test_input = "점심 메뉴 추천 앱"
-        if agent_type == "Writer":
-            test_input = st.text_area("입력 (가상 시나리오)", value="점심 메뉴 추천 서비스 기획해줘", height=70)
+        # Agent 선택
+        agent_type = st.selectbox(
+            "Agent 테스트",
+            ["None", "Analyzer", "Structurer", "Writer", "Reviewer"]
+        )
         
-        if st.button("🚀 테스트 실행", key="test_run_btn", use_container_width=True):
-            with st.spinner(f"{agent_type} Agent 실행 중..."):
-                try:
-                    from graph.state import PlanCraftState
-                    
-                    # Mock State 생성
-                    mock_state = PlanCraftState(
-                        user_input=test_input,
-                        current_step="start"
-                    )
-                    
-                    result_state = None
-                    
-                    if agent_type == "Analyzer":
-                        from agents.analyzer import run
-                        result_state = run(mock_state)
-                        st.subheader("결과 (AnalysisResult)")
-                        st.json(result_state.analysis.model_dump())
+        if agent_type != "None":
+            st.write(f"**Target:** `{agent_type}` Agent")
+            
+            # 테스트용 더미 데이터 설정
+            test_input = "점심 메뉴 추천 앱"
+            if agent_type == "Writer":
+                test_input = st.text_area("입력 (가상 시나리오)", value="점심 메뉴 추천 서비스 기획해줘", height=70)
+            
+            if st.button("🚀 테스트 실행", key="test_run_btn", use_container_width=True):
+                with st.spinner(f"{agent_type} Agent 실행 중..."):
+                    try:
+                        from graph.state import PlanCraftState
                         
-                    elif agent_type == "Structurer":
-                        from agents.structurer import run
-                        from utils.schemas import AnalysisResult
-                        mock_state.analysis = AnalysisResult(
-                            topic="점심 추천 앱",
-                            purpose="직장인 점심 고민 해결",
-                            target_users="직장인",
-                            key_features=["랜덤 추천", "주변 식당 지도"],
-                            need_more_info=False
+                        # Mock State 생성
+                        mock_state = PlanCraftState(
+                            user_input=test_input,
+                            current_step="start"
                         )
-                        result_state = run(mock_state)
-                        st.subheader("결과 (StructureResult)")
-                        st.json(result_state.structure.model_dump())
                         
-                    elif agent_type == "Writer":
-                        from agents.writer import run
-                        from utils.schemas import StructureResult, SectionStructure
-                        mock_state.structure = StructureResult(
-                            title="점심 추천 앱 기획서",
-                            sections=[
-                                SectionStructure(id=1, name="개요", description="앱 소개", key_points=["목적 설명"]),
-                                SectionStructure(id=2, name="기능", description="주요 기능", key_points=["기능 나열"])
-                            ]
-                        )
-                        result_state = run(mock_state)
-                        st.subheader("결과 (DraftResult)")
-                        st.json(result_state.draft.model_dump())
+                        result_state = None
                         
-                    elif agent_type == "Reviewer":
-                        from agents.reviewer import run
-                        from utils.schemas import DraftResult, SectionContent
-                        mock_state.draft = DraftResult(
-                            sections=[
-                                SectionContent(id=1, name="개요", content="이 앱은 점심을 추천해줍니다."),
-                                SectionContent(id=2, name="기능", content="랜덤 추천 기능이 있습니다.")
-                            ]
-                        )
-                        result_state = run(mock_state)
-                        st.subheader("결과 (JudgeResult)")
-                        st.json(result_state.review.model_dump())
+                        if agent_type == "Analyzer":
+                            from agents.analyzer import run
+                            result_state = run(mock_state)
+                            st.subheader("결과 (AnalysisResult)")
+                            st.json(result_state.analysis.model_dump())
+                            
+                        elif agent_type == "Structurer":
+                            from agents.structurer import run
+                            from utils.schemas import AnalysisResult
+                            mock_state.analysis = AnalysisResult(
+                                topic="점심 추천 앱",
+                                purpose="직장인 점심 고민 해결",
+                                target_users="직장인",
+                                key_features=["랜덤 추천", "주변 식당 지도"],
+                                need_more_info=False
+                            )
+                            result_state = run(mock_state)
+                            st.subheader("결과 (StructureResult)")
+                            st.json(result_state.structure.model_dump())
+                            
+                        elif agent_type == "Writer":
+                            from agents.writer import run
+                            from utils.schemas import StructureResult, SectionStructure
+                            mock_state.structure = StructureResult(
+                                title="점심 추천 앱 기획서",
+                                sections=[
+                                    SectionStructure(id=1, name="개요", description="앱 소개", key_points=["목적 설명"]),
+                                    SectionStructure(id=2, name="기능", description="주요 기능", key_points=["기능 나열"])
+                                ]
+                            )
+                            result_state = run(mock_state)
+                            st.subheader("결과 (DraftResult)")
+                            st.json(result_state.draft.model_dump())
+                            
+                        elif agent_type == "Reviewer":
+                            from agents.reviewer import run
+                            from utils.schemas import DraftResult, SectionContent
+                            mock_state.draft = DraftResult(
+                                sections=[
+                                    SectionContent(id=1, name="개요", content="이 앱은 점심을 추천해줍니다."),
+                                    SectionContent(id=2, name="기능", content="랜덤 추천 기능이 있습니다.")
+                                ]
+                            )
+                            result_state = run(mock_state)
+                            st.subheader("결과 (JudgeResult)")
+                            st.json(result_state.review.model_dump())
 
-                    if result_state:
-                        st.success("✅ 테스트 성공")
-                    
-                except Exception as e:
-                    st.error(f"❌ 테스트 실패: {str(e)}")
-                    st.exception(e)
+                        if result_state:
+                            st.success("✅ 테스트 성공")
+                        
+                    except Exception as e:
+                        st.error(f"❌ 테스트 실패: {str(e)}")
+                        st.exception(e)
     
-    st.markdown("---")
-    st.subheader("📊 Workflow Visualization")
-    try:
-        from graph.workflow import app as workflow_app
-        mermaid_code = workflow_app.get_graph().draw_mermaid()
-        st.markdown(f"```mermaid\n{mermaid_code}\n```")
-    except Exception as e:
-        st.warning(f"Graph Visualization unavailable: {e}")
+    with tab_graph:
+        st.markdown("---")
+        st.subheader("📊 Workflow Visualization")
+        try:
+            from graph.workflow import app as workflow_app
+            mermaid_code = workflow_app.get_graph().draw_mermaid()
+            st.markdown(f"```mermaid\n{mermaid_code}\n```")
+        except Exception as e:
+            st.warning(f"Graph Visualization unavailable: {e}")
 
+    with tab_history:
+        st.subheader("Time-Travel Debugger")
+        st.info(f"Current Thread ID: `{st.session_state.get('thread_id', 'unknown')}`")
+        
+        if st.button("🔄 Refresh History", key="btn_refresh_hist"):
+            try:
+                from graph.workflow import app as workflow_app
+                if "thread_id" in st.session_state:
+                    config = {"configurable": {"thread_id": st.session_state.thread_id}}
+                    history = list(workflow_app.get_state_history(config))
+                    
+                    if not history:
+                        st.info("아직 저장된 실행 이력이 없습니다.")
+                    else:
+                        for i, h in enumerate(history):
+                            ts = h.created_at[:19] if h.created_at else "Unknown"
+                            with st.expander(f"#{i+1} Snapshot ({ts})", expanded=(i==0)):
+                                st.write(f"**Next Step:** `{h.next}`")
+                                st.json(h.values)
+                else:
+                    st.warning("Thread ID가 초기화되지 않았습니다.")
+            except Exception as e:
+                st.error(f"히스토리 조회 실패: {str(e)}")
+    
     st.markdown("---")
     st.caption("Pydantic State Architecture v2.0")
 
@@ -595,6 +627,7 @@ def render_main():
                 st.session_state.current_state = None
                 st.session_state.generated_plan = None
                 st.session_state.input_key += 1
+                st.session_state.thread_id = str(uuid.uuid4()) # 새 대화 시작 시 thread_id 재생성
                 st.rerun()
                 
             if st.button("📜 대화 히스토리", use_container_width=True):
@@ -794,44 +827,45 @@ def render_main():
     # Pending Input 처리 (실제 실행 로직)
     # =========================================================================
     if st.session_state.pending_input:
-        pending = st.session_state.pending_input
+        pending_text = st.session_state.pending_input
         st.session_state.pending_input = None
-        next_count = st.session_state.get("next_refine_count", 0)
+        current_refine_count = st.session_state.get("next_refine_count", 0)
+        previous_plan = st.session_state.generated_plan
 
         from utils.streamlit_callback import StreamlitStatusCallback
 
         with st.status("🚀 기획서를 생성하고 있습니다...", expanded=True) as status:
             try:
-                st_callback = StreamlitStatusCallback(status)
+                streamlit_callback = StreamlitStatusCallback(status)
                 
                 file_content = st.session_state.get("uploaded_content", None)
-                current_plan = st.session_state.generated_plan
                 
-                result = run_plancraft(
-                    pending, 
-                    file_content, 
-                    refine_count=next_count, 
-                    previous_plan=current_plan,
-                    callbacks=[st_callback]
+                final_result = run_plancraft(
+                    user_input=pending_text, 
+                    file_content=file_content,
+                    refine_count=current_refine_count,
+                    previous_plan=previous_plan,
+                    callbacks=[streamlit_callback],
+                    thread_id=st.session_state.thread_id # [NEW]
                 )
                 
                 status.update(label="✅ 과정 완료!", state="complete", expanded=False)
                 
-                st.session_state.current_state = result
+                st.session_state.current_state = final_result
 
                 # 개선 횟수 초기화
-                if next_count > 0:
-                     result["refine_count"] = next_count
+                if current_refine_count > 0:
+                     final_result["refine_count"] = current_refine_count
                      st.session_state.next_refine_count = 0
 
                 # (결과 처리 로직)
-                analysis_res = result.get("analysis")
-                generated_plan = result.get("final_output", "")
-                need_more_info = result.get("need_more_info", False)
+                analysis_res = final_result.get("analysis")
+                generated_plan = final_result.get("final_output", "")
+                need_more_info = final_result.get("need_more_info", False)
 
                 if need_more_info:
-                    q = result.get("option_question", "추가 정보가 필요합니다.")
-                    opts = result.get("options", [])
+                    q = final_result.get("option_question", "추가 정보가 필요합니다.")
+                    opts = final_result.get("options", [])
                     msg_content = f"🤔 **{q}**\n\n"
                     for o in opts:
                         msg_content += f"- **{o.get('title')}**: {o.get('description')}\n"
@@ -853,7 +887,7 @@ def render_main():
                             "content": generated_plan
                          })
 
-                    chat_summary = result.get("chat_summary", "")
+                    chat_summary = final_result.get("chat_summary", "")
                     if chat_summary:
                         st.session_state.chat_history.append({"role": "assistant", "content": chat_summary, "type": "summary"})
                 
