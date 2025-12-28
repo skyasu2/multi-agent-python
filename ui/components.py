@@ -29,77 +29,69 @@ def render_mermaid(code: str, height: int = 400):
 
 def render_visual_timeline(step_history: list):
     """
-    실행 이력을 Mermaid Flowchart로 시각화
-    
-    분기, 루프, 상태(성공/실패)를 그래프 형태로 보여줍니다.
+    실행 이력 시각화 (텍스트 타임라인 + Mermaid 그래프)
     """
     if not step_history:
         return
 
-    # Mermaid 코드 생성 시작
-    mermaid_code = ["graph TD"]
-    mermaid_code.append("    Start((Start))")
-    
-    last_node_id = "Start"
-    
-    for i, item in enumerate(step_history):
-        step = item.get("step", "").replace(" ", "_").replace("-", "_")
-        status = item.get("status", "UNKNOWN")
-        summary = item.get("summary", "")[:20].replace("\"", "'") + "..." if len(item.get("summary", "")) > 20 else item.get("summary", "")
-        
-        # 노드 ID 생성 (유니크하게)
-        node_id = f"{step}_{i}"
-        
-        # 노드 정의 및 스타일링
-        # 도형: 일반=[], 분기/옵션={{}}, 종료=(())
-        shape_open = "["
-        shape_close = "]"
-        
-        if step in ["option_pause", "ask_user"]:
-             shape_open = "{{"
-             shape_close = "}}"
-        elif status == "FAILED":
-             shape_open = "[/"
-             shape_close = "/]"
+    # 1. 텍스트 기반 타임라인 (안정적)
+    render_timeline(step_history)
 
-        # 라벨에 이모지 및 요약 추가
-        label = f"{step}\\n{summary}"
+    # 2. Mermaid 그래프 (시각적 보조, 환경에 따라 렌더링 이슈 가능성 있음)
+    with st.expander("🧬 실행 흐름 그래프 보기 (Beta)", expanded=False):
+        # Mermaid 코드 생성
+        mermaid_code = ["graph TD"]
+        mermaid_code.append("    Start((Start))")
         
-        mermaid_code.append(f"    {node_id}{shape_open}\"{label}\"{shape_close}")
+        last_node_id = "Start"
         
-        # 스타일링 클래스
-        style_class = ""
-        if status == "SUCCESS":
-            style_class = "fill:#e6fffa,stroke:#00b894,stroke-width:2px"
-        elif status == "FAILED":
-            style_class = "fill:#fff5f5,stroke:#ff7675,stroke-width:2px"
-        elif status == "PAUSED" or step == "option_pause":
-            style_class = "fill:#fffce6,stroke:#fdcb6e,stroke-width:2px,stroke-dasharray: 5 5"
-        elif status == "RUNNING":
-             style_class = "fill:#e3f2fd,stroke:#74b9ff,stroke-width:4px"
-        else:
-             style_class = "fill:#f1f2f6,stroke:#ced6e0,stroke-width:1px"
-             
-        mermaid_code.append(f"    style {node_id} {style_class}")
-        
-        # 이전 노드와 연결
-        mermaid_code.append(f"    {last_node_id} --> {node_id}")
-        last_node_id = node_id
-        
-        # 에러 발생 시
-        if item.get("error"):
-             error_node_id = f"Error_{i}"
-             mermaid_code.append(f"    {error_node_id}>\"❌ {item['error'][:20]}...\"]")
-             mermaid_code.append(f"    style {error_node_id} fill:#ffadad,color:white")
-             mermaid_code.append(f"    {node_id} -.-> {error_node_id}")
+        for i, item in enumerate(step_history):
+            step = item.get("step", "").replace(" ", "_").replace("-", "_")
+            status = item.get("status", "UNKNOWN")
+            summary = item.get("summary", "")[:20].replace("\"", "'") + "..." if len(item.get("summary", "")) > 20 else item.get("summary", "")
+            
+            node_id = f"{step}_{i}"
+            
+            shape_open = "["
+            shape_close = "]"
+            
+            if step in ["option_pause", "ask_user"]:
+                 shape_open = "{{"
+                 shape_close = "}}"
+            elif status == "FAILED":
+                 shape_open = "[/"
+                 shape_close = "/]"
 
-    # 렌더링
-    st.markdown("##### 🧬 실행 흐름 시각화 (Live Graph)")
-    diagram = "\n".join(mermaid_code)
-    render_mermaid(diagram, height=300)
+            label = f"{step}\\n{summary}"
+            mermaid_code.append(f"    {node_id}{shape_open}\"{label}\"{shape_close}")
+            
+            style_class = ""
+            if status == "SUCCESS":
+                style_class = "fill:#e6fffa,stroke:#00b894,stroke-width:2px"
+            elif status == "FAILED":
+                style_class = "fill:#fff5f5,stroke:#ff7675,stroke-width:2px"
+            elif status == "PAUSED" or step == "option_pause":
+                style_class = "fill:#fffce6,stroke:#fdcb6e,stroke-width:2px,stroke-dasharray: 5 5"
+            elif status == "RUNNING":
+                 style_class = "fill:#e3f2fd,stroke:#74b9ff,stroke-width:4px"
+            else:
+                 style_class = "fill:#f1f2f6,stroke:#ced6e0,stroke-width:1px"
+                 
+            mermaid_code.append(f"    style {node_id} {style_class}")
+            mermaid_code.append(f"    {last_node_id} --> {node_id}")
+            last_node_id = node_id
+            
+            if item.get("error"):
+                 error_node_id = f"Error_{i}"
+                 mermaid_code.append(f"    {error_node_id}>\"❌ {item['error'][:20]}...\"]")
+                 mermaid_code.append(f"    style {error_node_id} fill:#ffadad,color:white")
+                 mermaid_code.append(f"    {node_id} -.-> {error_node_id}")
+
+        diagram = "\n".join(mermaid_code)
+        render_mermaid(diagram, height=400)
     
-    # 원본 데이터는 접어서 보여줌
-    with st.expander("📊 원본 데이터 보기"):
+    # 원본 데이터 보기 (디버깅용)
+    with st.expander("📊 원본 JSON 데이터", expanded=False):
          st.json(step_history)
 
 
