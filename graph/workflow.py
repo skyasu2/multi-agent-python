@@ -388,36 +388,66 @@ def create_routing_branch():
 # [NEW] Interrupt 스타일 노드 (휴먼 인터럽트 처리)
 # =============================================================================
 
+# ... (기존 임포트 유지)
+
+try:
+    from langgraph.types import interrupt, Command
+except ImportError:
+    # LangGraph 구버전 또는 로컬 환경 호환성용 Mock
+    def interrupt(value): return None
+    class Command: pass
+
+
+# ... (중간 코드 유지)
+
+
 def option_pause_node(state: PlanCraftState) -> PlanCraftState:
     """
-    휴먼 인터럽트 처리 노드 (옵션 선택 대기)
+    휴먼 인터럽트 처리 노드 (LangGraph 공식 패턴 적용)
     
-    이 노드는 사용자 입력이 필요할 때 실행됩니다.
-    현재는 상태를 그대로 반환하지만, LangGraph Server 환경에서는
-    interrupt()를 호출하여 실제로 실행을 중단할 수 있습니다.
+    이 노드는 실행을 일시 중단하고 사용자 입력을 기다립니다.
     
-    LangGraph Server 환경에서의 사용:
-        from langgraph.types import interrupt
-        user_response = interrupt({
-            "question": state.option_question,
-            "options": state.options
-        })
+    동작 방식:
+    1. interrupt(payload) 호출 → 실행 중단 (SUSPEND)
+    2. 클라이언트(프론트엔드)에서 payload 확인 및 입력 UI 표시
+    3. 사용자 입력 후 Command(resume=input)으로 재개
+    4. interrupt()가 사용자 입력을 반환하며 실행 재개
     
     Returns:
-        PlanCraftState: 업데이트된 상태
+        PlanCraftState: 사용자 입력이 반영된 상태
     """
-    from graph.interrupt_utils import create_option_interrupt
+    from graph.interrupt_utils import create_option_interrupt, handle_user_response
     
-    # 인터럽트 페이로드 생성 (로깅/디버깅용)
+    # 1. 인터럽트 페이로드 생성
     payload = create_option_interrupt(state)
+    payload["type"] = "option_selector"
     
-    # 현재 단계 업데이트
+    # 2. 실행 중단 및 사용자 응답 대기 (공식 패턴)
+    #    로컬 Streamlit 앱의 경우, 여기서 중단되지 않고(Mock) None을 반환할 수 있음
+    #    이 경우 기존 방식(status update)으로 fallback 처리
+    try:
+        user_response = interrupt(payload)
+    except Exception:
+        # interrupt가 지원되지 않는 환경이거나 에러 발생 시
+        user_response = None
+        
+    # 3. 사용자 응답 처리 (Resume 후 실행됨)
+    if user_response:
+        # 사용자가 응답을 하고 재개한 경우
+        new_state = handle_user_response(state, user_response)
+        return _update_step_history(
+            new_state,
+            "option_pause",
+            "RESUMED",
+            summary="사용자 입력 수신 완료"
+        )
+    
+    # 4. (Fallback) 아직 응답이 없거나 로컬 모드인 경우 - 기존 방식 유지
     new_state = state.model_copy(update={
         "current_step": "option_pause",
         "step_status": "WAITING_USER_INPUT"
     })
     
-    # 실행 이력 기록
     return _update_step_history(
         new_state, 
         "option_pause", 
