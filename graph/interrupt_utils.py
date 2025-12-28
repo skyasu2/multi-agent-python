@@ -12,11 +12,9 @@ LangGraph 공식 휴먼 인터럽트 패턴을 위한 유틸리티 모듈입니�
         return handle_user_response(state, resp)
 """
 
-from typing import Dict, List, Any, Optional
-from utils.schemas import InterruptPayload, OptionChoice
-# Circular Import 방지를 위해 TYPE_CHECKING을 쓰거나, 
-# 런타임에 필요한 경우 여기서 import (PlanCraftState가 Pydantic 모델이라 타입 힌팅에 필요)
-from graph.state import PlanCraftState
+from typing import Dict, List, Any, Optional, cast
+from utils.schemas import OptionChoice
+from graph.state import PlanCraftState, InterruptPayload, InterruptOption
 
 def create_interrupt_payload(
     question: str,
@@ -26,24 +24,31 @@ def create_interrupt_payload(
     metadata: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """
-    휴먼 인터럽트 페이로드 생성 (Pydantic 모델 -> Dict 변환)
+    휴먼 인터럽트 페이로드 생성 (TypedDict 반환)
     """
-    payload = InterruptPayload(
-        type=interrupt_type,
-        question=question,
-        options=options or [],
-        input_schema_name=input_schema_name,
-        data=metadata or {}
-    )
-    # LangGraph interrupt()는 JSON serializable 객체를 기대하므로 dict로 반환
-    return payload.model_dump()
+    # OptionChoice(Pydantic) -> InterruptOption(TypedDict) 변환
+    formatted_options: List[InterruptOption] = []
+    if options:
+        for opt in options:
+            formatted_options.append({
+                "title": opt.title,
+                "description": opt.description
+            })
+
+    payload: InterruptPayload = {
+        "type": interrupt_type,
+        "question": question,
+        "options": formatted_options,
+        "input_schema_name": input_schema_name,
+        "data": metadata or {}
+    }
+    
+    return payload
 
 
 def create_option_interrupt(state: PlanCraftState) -> Dict[str, Any]:
     """
     PlanCraftState에서 인터럽트 페이로드를 생성합니다.
-    - input_schema_name이 있으면 'form' 타입
-    - options가 있으면 'option' 타입
     """
     question = getattr(state, "option_question", "추가 정보가 필요합니다.") or "추가 정보가 필요합니다."
     options = getattr(state, "options", [])
@@ -51,26 +56,26 @@ def create_option_interrupt(state: PlanCraftState) -> Dict[str, Any]:
     
     interrupt_type = "form" if input_schema else "option"
     
-    # 옵션 데이터 정규화 (Dict or OptionChoice -> OptionChoice)
-    formatted_options = []
+    # state.options는 [OptionChoice] (Pydantic) 일 수도 있고 [dict] 일 수도 있음
+    # OptionChoice(Pydantic) 리스트로 정규화
+    normalized_options: List[OptionChoice] = []
+    
     for opt in options:
         if isinstance(opt, dict):
-            formatted_options.append(OptionChoice(
+            normalized_options.append(OptionChoice(
                 title=opt.get("title", ""),
                 description=opt.get("description", "")
             ))
-        elif isinstance(opt, OptionChoice):
-            formatted_options.append(opt)
         elif hasattr(opt, "title") and hasattr(opt, "description"):
-            # Mock 객체 등 호환성
-            formatted_options.append(OptionChoice(
+            # OptionChoice object via duck typing check
+            normalized_options.append(OptionChoice(
                 title=opt.title,
                 description=opt.description
             ))
     
     return create_interrupt_payload(
         question=question,
-        options=formatted_options,
+        options=normalized_options,
         input_schema_name=input_schema,
         interrupt_type=interrupt_type,
         metadata={

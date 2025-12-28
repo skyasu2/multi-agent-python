@@ -40,6 +40,23 @@ class PlanCraftOutput(TypedDict):
     error_message: Optional[str]
     retry_count: int
 
+# =============================================================================
+# Interrupt Payload Schema (Human-in-the-loop Interface)
+# =============================================================================
+
+class InterruptOption(TypedDict):
+    """인터럽트 선택지 스키마"""
+    title: str
+    description: str
+
+class InterruptPayload(TypedDict):
+    """휴먼 인터럽트 페이로드 스키마"""
+    type: str  # "option", "form", "confirm"
+    question: str
+    options: List[InterruptOption]
+    input_schema_name: Optional[str]
+    data: Optional[dict]
+
 
 # =============================================================================
 # Overall State (Internal State)
