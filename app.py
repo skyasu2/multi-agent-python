@@ -402,7 +402,6 @@ def render_main():
     # 4. 사이드바 (워크플로우 시각화)
     # =========================================================================
     with st.sidebar:
-        render_dev_tools()
         if st.session_state.current_state:
             hist = st.session_state.current_state.get("step_history", [])
             render_visual_timeline(hist)
