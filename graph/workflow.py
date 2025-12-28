@@ -388,7 +388,13 @@ app = compile_workflow()
 # 실행 함수
 # =============================================================================
 
-def run_plancraft(user_input: str, file_content: str = None, refine_count: int = 0, previous_plan: str = None) -> dict:
+def run_plancraft(
+    user_input: str, 
+    file_content: str = None, 
+    refine_count: int = 0, 
+    previous_plan: str = None,
+    callbacks: list = None
+) -> dict:
     """
     PlanCraft Agent 워크플로우 실행
     
@@ -404,7 +410,11 @@ def run_plancraft(user_input: str, file_content: str = None, refine_count: int =
     initial_state.refine_count = refine_count
 
     # 워크플로우 실행 (invoke는 dict 또는 BaseModel을 받음)
-    final_state = app.invoke(initial_state)
+    config = {}
+    if callbacks:
+        config["callbacks"] = callbacks
+
+    final_state = app.invoke(initial_state, config=config)
 
     # UI 계층에서는 dict 처리가 되어 있으므로 변환하여 반환
     if hasattr(final_state, "model_dump"):
