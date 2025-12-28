@@ -271,21 +271,21 @@ def should_ask_user(state: PlanCraftState) -> str:
     조건부 라우터 (RunnableBranch 스타일 분기)
     
     분기 조건:
-      1. need_more_info = True → "ask_user" (휴먼 인터럽트)
-      2. is_general_query = True → "ask_user" (일반 응답)
+      1. need_more_info = True → "option_pause" (휴먼 인터럽트)
+      2. is_general_query = True → "general_response" (일반 응답)
       3. 그 외 → "continue" (기획서 생성 계속)
     
     Returns:
-        str: "ask_user" 또는 "continue"
+        str: "option_pause", "general_response", "continue"
     """
     # 조건 1: 추가 정보 요청 (옵션 선택 필요)
     if state.need_more_info:
-        return "ask_user"
+        return "option_pause"
     
     # 조건 2: 일반 질의 (기획 요청이 아님)
     is_general = state.analysis.is_general_query if state.analysis else False
     if is_general:
-        return "ask_user"
+        return "general_response"
     
     # 기본: 기획서 생성 계속
     return "continue"
@@ -523,6 +523,11 @@ def create_workflow() -> StateGraph:
     workflow.add_node("retrieve", retrieve_context)
     workflow.add_node("fetch_web", fetch_web_context)
     workflow.add_node("analyze", run_analyzer_node)
+    
+    # [NEW] 분기 처리용 노드 등록
+    workflow.add_node("option_pause", option_pause_node)
+    workflow.add_node("general_response", general_response_node)
+    
     workflow.add_node("structure", run_structurer_node)
     workflow.add_node("write", run_writer_node)
     workflow.add_node("review", run_reviewer_node)
@@ -534,14 +539,20 @@ def create_workflow() -> StateGraph:
     workflow.add_edge("retrieve", "fetch_web")
     workflow.add_edge("fetch_web", "analyze")
 
+    # [UPDATE] 조건부 분기 개선 (명시적 노드로 라우팅)
     workflow.add_conditional_edges(
         "analyze",
         should_ask_user,
         {
-            "ask_user": END,
+            "option_pause": "option_pause",
+            "general_response": "general_response",
             "continue": "structure"
         }
     )
+    
+    # 분기 노드 후 처리 (Streamlit 앱 제어를 위해 END로 이동)
+    workflow.add_edge("option_pause", END)
+    workflow.add_edge("general_response", END)
 
     workflow.add_edge("structure", "write")
     workflow.add_edge("write", "review")
