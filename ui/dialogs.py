@@ -100,9 +100,9 @@ def show_plan_dialog():
             st.download_button("📥 다운로드", data=selected_plan, file_name="기획서.md",
                 mime="text/markdown", use_container_width=True)
         with col2:
-            if st.button("💾 저장", use_container_width=True):
+            if st.button("💾 서버에 저장", use_container_width=True):
                 saved_path = save_plan(selected_plan)
-                st.success(f"저장됨: {os.path.basename(saved_path)}")
+                st.success(f"서버에 저장됨: {os.path.basename(saved_path)}")
         with col3:
             if st.button("✖️ 닫기", use_container_width=True):
                 st.rerun()
