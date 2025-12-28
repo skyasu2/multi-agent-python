@@ -75,16 +75,75 @@ class StructurerAgent:
         # 단, analysis가 None일 경우를 대비
         analysis_dict = analysis.model_dump() if analysis else {}
         context = state.rag_context
+        
+        # [개선] refine_count에 따른 형식 확장 로직
+        refine_count = getattr(state, "refine_count", 0)
+        extension_instruction = ""
+        
+        if refine_count >= 1:
+            extension_instruction += """
+
+---
+## [중요] 확장 설계 지시 (개선 단계)
+사용자가 더 깊이 있는 기획서를 원합니다. 기존 9개 섹션에 더해, 다음 심화 섹션들을 **반드시 추가**하여 구조를 확장하세요:
+
+10. **상세 기능 명세 (User Flow)**
+    - 주요 기능의 화면 흐름 및 사용자 인터랙션 로직 상세화
+11. **데이터 구조 및 ERD 설계**
+    - 핵심 데이터 엔티티(User, Post, Order 등)와 관계 정의
+"""
+        if refine_count >= 2:
+            extension_instruction += """
+12. **마케팅 및 GTM(Go-to-Market) 전략**
+    - 초기 사용자 1,000명 확보 전략 및 채널별 마케팅 계획
+13. **운영 및 유지보수 계획**
+    - CS 대응 프로세스, 서버 모니터링, 장애 대응 체계
+"""
+        if refine_count >= 3:
+            extension_instruction += """
+14. **글로벌 진출 및 확장 전략**
+    - 다국어 지원, 현지화(L10n) 계획, 국가별 법적 규제 검토
+15. **투자 유치(IR) 및 재무 계획**
+    - 3개년 손익분기점(BEP) 달성 로드맵, 자금 소요 계획
+"""
+
+        # [추가] 사용자 커스텀 요청 처리 지시 (중복 방지 통합)
+        user_input = state.user_input
+        custom_instruction = f"""
+
+---
+## [필수] 사용자 원본 요청 반영 및 중복 방지
+사용자의 **원본 요청**을 검토하여, 특정 내용 추가 요구가 있다면 아래 원칙에 따라 처리하세요.
+
+**사용자 원본 요청:**
+"{user_input}"
+
+**처리 원칙:**
+1. **통합 우선 (Integration First)**: 요청 내용이 '프로젝트 개요', '비즈니스 모델' 등 기존/확장 섹션의 주제와 연관된다면, **새 섹션을 만들지 말고 해당 섹션의 `key_points`에 세부 내용으로 통합**하세요.
+   - 예: "가격표 넣어줘" -> '비즈니스 모델' 섹션에 포함.
+2. **신규 생성 (New Section)**: 기존 섹션 범주에 포함되지 않는 완전히 독자적인 주제인 경우에만, 적절한 위치(논리적 마지막 순서)에 **새로운 커스텀 섹션을 추가**하세요.
+   - 예: "창업 스토리 넣어줘" -> '16. 창업 스토리' 섹션 신설.
+"""
 
         # =====================================================================
         # 2. Structured Output으로 LLM 호출
         # =====================================================================
+        # 기본 프롬프트 포맷팅
+        user_content = STRUCTURER_USER_PROMPT.format(
+            analysis=json.dumps(analysis_dict, ensure_ascii=False, indent=2),
+            context=context if context else "없음"
+        )
+        
+        # 확장 지시사항 추가
+        if extension_instruction:
+            user_content += extension_instruction
+            
+        # 커스텀 처리 지시사항 추가
+        user_content += custom_instruction
+
         messages = [
             {"role": "system", "content": STRUCTURER_SYSTEM_PROMPT},
-            {"role": "user", "content": STRUCTURER_USER_PROMPT.format(
-                analysis=json.dumps(analysis_dict, ensure_ascii=False, indent=2),
-                context=context if context else "없음"
-            )}
+            {"role": "user", "content": user_content}
         ]
 
         try:

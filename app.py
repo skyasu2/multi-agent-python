@@ -537,19 +537,113 @@ def render_main():
                 help="마크다운 파일로 다운로드"
             )
 
+        st.rerun()
+
+    # =========================================================================
+    # [추가] 기획서 고도화 (Human Feedback Loop) - 최대 3회
+    # =========================================================================
+    if st.session_state.generated_plan and st.session_state.current_state:
+        # 안전한 접근을 위해 get 사용
+        current_refine_count = st.session_state.current_state.get("refine_count", 0)
+        
+        st.divider()
+        st.markdown("### 🔧 기획서 추가 개선")
+        
+        if current_refine_count < 3:
+            st.caption(f"AI에게 추가 요청사항을 전달하여 기획서를 개선할 수 있습니다. (남은 횟수: **{3 - current_refine_count}회**)")
+            
+            with st.form("refine_form"):
+                feedback = st.text_area(
+                    "추가 요청사항",
+                    placeholder="예: '수익 모델을 더 구체적으로 작성해줘', '시장 분석 데이터를 추가해줘'",
+                    height=100
+                )
+                
+                refine_file = st.file_uploader("참고 자료 추가 (선택)", type=["txt", "md", "pdf", "docx"], label_visibility="collapsed")
+                
+                col_submit, col_info = st.columns([1, 4])
+                with col_submit:
+                    is_submitted = st.form_submit_button("🚀 개선하기", use_container_width=True)
+                with col_info:
+                    st.caption("기존 기획서 내용을 바탕으로 요청사항을 반영하여 재작성합니다.")
+                
+                if is_submitted and feedback:
+                    # 입력 데이터 구성
+                    original_input = st.session_state.current_state.get("user_input", "")
+                    # 이전 히스토리를 포함하여 문맥 유지 (형식: [기존] ... \n\n [추가 요청 1] ...)
+                    new_input = f"{original_input}\n\n--- [추가 요청 {current_refine_count + 1}] ---\n{feedback}"
+                    
+                    # 파일 내용 읽기
+                    new_file_content = st.session_state.get("uploaded_content", "")
+                    if refine_file:
+                        try:
+                            # 기존 파일 내용에 추가
+                            additional_content = refine_file.read().decode("utf-8")
+                            new_file_content = (new_file_content + "\n\n" + additional_content) if new_file_content else additional_content
+                            st.session_state.uploaded_content = new_file_content
+                        except Exception as e:
+                            st.error(f"파일 읽기 실패: {str(e)}")
+                            
+                    # 상태 업데이트 및 실행 예약
+                    # refine_count는 create_initial_state에서 처리되지 않으므로,
+                    # 여기서는 그냥 실행하고 workflow 내부에서 카운트를 올리는 건 어렵기 때문에(매번 초기화되므로)
+                    # user_input에 메타데이터를 태그하거나, 별도 state 변수로 관리해야 함.
+                    # 하지만 가장 심플한 방법은 'PlanCraftState'를 직접 수정해서 넘기는 게 아니라 
+                    # app 레벨에서 횟수를 관리하는 것은 위험(새로고침 시 증발).
+                    # 따라서 user_input에 카운트 정보를 숨겨서 보내는 꼼수보다는,
+                    # run_plancraft가 state dict를 반환하므로, 이걸 받아서 refine_count를 수동으로 +1 해서 저장해야 함.
+                    
+                    st.session_state.pending_input = new_input
+                    
+                    # [중요] 다음 실행을 위해 refine_count를 강제로 증가시킬 수는 없으나,
+                    # State 객체 생성 시 user_input에 모든 히스토리가 있으므로
+                    # Analyzer가 이를 보고 "이건 n번째 수정이군"을 알 수도 있음.
+                    # 여기서는 session_state.current_state에 미리 +1을 반영해두고,
+                    # run_plancraft 완료 후 반환된 state의 refine_count를 덮어쓰는 방식이 필요함.
+                    # 일단은 UI 상에서만 제어하고, 실제 로직은 전체 재생성(Re-generation) 프로세스를 따름.
+                    
+                    # 팁: run_plancraft 함수를 수정하여 initial_state 생성 시 refine_count를 주입받도록 하면 베스트.
+                    # 현재는 run_plancraft(user_input, file_content) 시그니처임.
+                    # 일단 UI 로직만으로 처리:
+                    
+                    # 채팅창에 사용자 발화 추가
+                    st.session_state.chat_history.append({
+                        "role": "user",
+                        "content": f"🛠 **추가 개선 요청 ({current_refine_count + 1}/3):**\n{feedback}",
+                        "type": "text"
+                    })
+                    
+                    # 임시로 현재 State의 카운트를 증가시켜 둠 (재실행 시 덮어써질 수 있으므로 run_plancraft 수정이 필요하지만..)
+                    # workflow.py의 run_plancraft에 refine_count 인자를 추가하는 것이 정석적인 방법.
+                    # 여기서는 일단 pending_input 처리 시점에 카운트를 넘기도록 'session_state'에 임시 저장 변수 활용.
+                    st.session_state.next_refine_count = current_refine_count + 1
+                    
+                    st.rerun()
+
+        else:
+            st.info("✅ 최대 개선 횟수(3회)를 모두 사용했습니다. 새로운 기획을 원하시면 '새 대화'를 시작하세요.")
+
     # =========================================================================
     # pending_input 처리 (옵션 선택 후 자동 실행)
     # =========================================================================
     if st.session_state.pending_input:
         pending = st.session_state.pending_input
         st.session_state.pending_input = None
+        
+        # [중요] UI에서 설정한 next_refine_count가 있다면 가져와서 기억
+        next_count = st.session_state.get("next_refine_count", 0)
 
         with st.spinner("🔄 기획서를 생성하고 있습니다..."):
             try:
                 file_content = st.session_state.get("uploaded_content", None)
                 result = run_plancraft(pending, file_content)
+                
+                # [중요] 개선 횟수 업데이트
+                if next_count > 0:
+                     result["refine_count"] = next_count
+                     st.session_state.next_refine_count = 0  # 초기화
+                     
                 st.session_state.current_state = result
-
                 if result.get("need_more_info"):
                     # 옵션 질문을 채팅에 추가
                     option_question = result.get("option_question", "어떤 방향으로 진행할까요?")

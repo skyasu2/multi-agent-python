@@ -58,6 +58,7 @@ class PlanCraftState(BaseModel):
 
     # 9. 메타데이터 (Metadata)
     current_step: str = Field(default="start", description="현재 실행 중인 단계")
+    refine_count: int = Field(default=0, description="추가 개선 수행 횟수 (최대 3회)")
     error: Optional[str] = Field(default=None, description="에러 메시지")
 
     @model_validator(mode='after')
