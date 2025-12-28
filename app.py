@@ -379,7 +379,7 @@ def render_main():
              # 메인 액션 버튼 (모달 호출)
              col_act1, col_act2 = st.columns(2)
              with col_act1:
-                 if st.button("📖 최종 기획서 전체 보기", type="primary", use_container_width=True):
+                 if st.button("기획서 보기", type="primary", use_container_width=True):
                      show_plan_dialog()
              with col_act2:
                  if st.button("🔍 분석 내용 확인", use_container_width=True):
