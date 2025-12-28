@@ -406,26 +406,26 @@ def render_main():
             hist = st.session_state.current_state.get("step_history", [])
             render_visual_timeline(hist)
             
-        st.markdown("---")
-        
-        # 사이드바 액션 버튼들
-        c1, c2 = st.columns(2)
-        if c1.button("📖 기획서", use_container_width=True):
-             show_plan_dialog()
-        if c2.button("🔍 분석", use_container_width=True):
-             show_analysis_dialog()
-             
-        # 다운로드
-        if st.session_state.generated_plan:
-             st.download_button(
-                "📥 저장 (.md)",
-                data=st.session_state.generated_plan,
-                file_name=f"plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
-                mime="text/markdown",
-                use_container_width=True
-            )
-             
-        render_refinement_ui()
+            st.markdown("---")
+            
+            # 사이드바 액션 버튼들
+            c1, c2 = st.columns(2)
+            if c1.button("📖 기획서", use_container_width=True):
+                 show_plan_dialog()
+            if c2.button("🔍 분석", use_container_width=True):
+                 show_analysis_dialog()
+                 
+            # 다운로드
+            if st.session_state.generated_plan:
+                 st.download_button(
+                    "📥 저장 (.md)",
+                    data=st.session_state.generated_plan,
+                    file_name=f"plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
+                    mime="text/markdown",
+                    use_container_width=True
+                )
+                 
+            render_refinement_ui()
 
     # =========================================================================
     # 하단 입력 영역
