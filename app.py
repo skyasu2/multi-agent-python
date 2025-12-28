@@ -376,8 +376,8 @@ def render_main():
                  })
 
              st.divider()
-             st.subheader("📄 최종 기획서")
-             st.markdown(state["final_output"])
+             with st.expander("📄 최종 기획서 보기 (접기/펼치기)", expanded=True):
+                 st.markdown(state["final_output"])
                  
              col1, col2 = st.columns(2)
              if col1.button("✨ 다시 개선하기"):
