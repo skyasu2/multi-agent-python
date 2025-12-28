@@ -5,7 +5,9 @@ UI Components Module
 """
 
 import streamlit as st
-import streamlit.components.v1 as components  # [NEW] HTML 컴포넌트용
+import streamlit.components.v1 as components
+from ui.dynamic_form import render_pydantic_form  # [NEW]
+  # [NEW] HTML 컴포넌트용
 
 
 def render_mermaid(code: str, height: int = 400):
@@ -220,6 +222,49 @@ def render_error_state(error_message: str):
              st.session_state.generated_plan = None
              st.session_state.input_key += 1
              st.rerun()
+
+
+def render_human_interaction(current_state):
+    """
+    [통합] 휴먼 인터럽트 UI 렌더링
+    
+    1. 스키마 기반 폼 (input_schema가 있는 경우)
+    2. 옵션 선택 버튼 (options가 있는 경우)
+    3. 일반 텍스트 입력 (Fallback)
+    """
+    if not current_state:
+        return
+
+    # 1. Schema-driven Form (Priority)
+    # PlanCraftState에 저장된 스키마 클래스명(Str)을 이용해 동적으로 폼 생성
+    schema_name = current_state.get("input_schema_name")
+    if schema_name:
+        from utils import schemas
+        model_cls = getattr(schemas, schema_name, None)
+        
+        if model_cls:
+            st.markdown(f"##### 📝 추가 정보 입력 ({model_cls.__name__})")
+            form_data = render_pydantic_form(model_cls, key_prefix="interrupt_form")
+            
+            if form_data:
+                # 폼 제출 처리
+                st.session_state.chat_history.append({
+                    "role": "user", "content": f"[폼 입력 제출]\\n{form_data}", "type": "text"
+                })
+                # JSON 형태로 pending_input 저장
+                import json
+                st.session_state.current_state = None
+                st.session_state.pending_input = f"FORM_DATA:{json.dumps(form_data, ensure_ascii=False)}"
+                st.rerun()
+            return
+
+    # 2. Option Selector
+    if current_state.get("options"):
+        render_option_selector(current_state)
+        return
+
+    # 3. Fallback (If any other interrupt without options)
+    st.info("사용자 입력 대기 중...")
 
 
 def render_option_selector(current_state):

@@ -27,9 +27,11 @@ from ui import (
     show_history_dialog,
     render_dev_tools,
     render_refinement_ui,
+    render_refinement_ui,
     render_error_state,
     render_option_selector,
-    render_visual_timeline  # [NEW]
+    render_visual_timeline,
+    render_human_interaction  # [NEW]
 )
 
 # =============================================================================
@@ -276,7 +278,7 @@ def render_main():
     # 옵션 선택 UI (need_more_info 상태일 때)
     # =========================================================================
     if st.session_state.current_state and st.session_state.current_state.get("need_more_info"):
-        render_option_selector(st.session_state.current_state)
+        render_human_interaction(st.session_state.current_state)
 
     # =========================================================================
     # 기획서 결과 표시

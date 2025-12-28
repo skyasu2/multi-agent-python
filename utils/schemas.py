@@ -218,3 +218,15 @@ class JudgeResult(BaseModel):
 
 # 하위 호환성을 위한 별칭
 ReviewResult = JudgeResult
+
+
+class UserInputSchema(BaseModel):
+    """
+    [NEW] 사용자 입력 처리를 위한 범용 스키마
+    
+    Human Interrupt 시 사용자에게 요구할 입력 형식을 정의합니다.
+    UI 생성기(dynamic_form.py)가 이 스키마를 읽어 자동으로 폼을 렌더링합니다.
+    """
+    user_feedback: str = Field(..., description="사용자 의견이나 피드백을 입력하세요")
+    # 선택지, 파일 등 확장을 위한 필드를 Optional로 정의
+    selected_options: List[str] = Field(default=[], description="선택한 옵션 목록")

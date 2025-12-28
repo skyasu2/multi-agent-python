@@ -33,6 +33,9 @@ class PlanCraftState(BaseModel):
 
     # 3. 분석 단계 (Analysis)
     analysis: Optional[AnalysisResult] = Field(default=None, description="분석 결과 객체")
+    # [NEW] 동적 폼 생성을 위한 스키마 이름 (utils.schemas 내의 클래스명)
+    input_schema_name: Optional[str] = Field(default=None, description="입력 폼 스키마 클래스명")
+    
     need_more_info: bool = Field(default=False, description="추가 정보 필요 여부")
     options: List[OptionChoice] = Field(default_factory=list, description="사용자 선택 옵션들")
     option_question: Optional[str] = Field(default=None, description="옵션 질문")
