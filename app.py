@@ -217,7 +217,7 @@ def render_main():
     if not st.session_state.chat_history:
         st.markdown(
             """
-            <div style="text-align: center; margin-top: 4vh; margin-bottom: 3rem;">
+            <div style="text-align: center; margin-top: 2vh; margin-bottom: 1.5rem;">
                 <h1>💡 무엇을 도와드릴까요?</h1>
                 <p style="color: #666; font-size: 1.1rem; line-height: 1.6;">
                     <b>PlanCraft AI</b>가 아이디어를 구체적인 기획서로 만들어 드립니다.<br>
