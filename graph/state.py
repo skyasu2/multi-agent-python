@@ -7,6 +7,7 @@ LangGraph 워크플로우에서 사용하는 상태(State) 타입을 Pydantic Ba
 
 from typing import Optional, List, Dict, Any, Union, Self, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
+from typing_extensions import TypedDict
 from utils.schemas import (
     AnalysisResult,
     StructureResult,
@@ -19,25 +20,25 @@ from utils.schemas import (
 )
 
 # =============================================================================
-# Input / Output Schema (LangGraph Interface)
+# Input / Output Schema (LangGraph Interface - TypedDict)
 # =============================================================================
 
-class PlanCraftInput(BaseModel):
-    """외부에서 유입되는 입력 데이터 스키마"""
-    user_input: str = Field(description="사용자 요청 사항")
-    file_content: Optional[str] = Field(default=None, description="첨부 파일 내용")
-    refine_count: int = Field(default=0, description="기획서 개선 횟수")
-    previous_plan: Optional[str] = Field(default=None, description="이전 기획서 내용 (개선 시)")
-    thread_id: str = Field(default="default_thread", description="세션 스레드 ID")
+class PlanCraftInput(TypedDict):
+    """외부에서 유입되는 입력 데이터 스키마 (TypedDict)"""
+    user_input: str
+    file_content: Optional[str]
+    refine_count: int
+    previous_plan: Optional[str]
+    thread_id: str
 
-class PlanCraftOutput(BaseModel):
-    """최종적으로 반환되는 출력 데이터 스키마"""
-    final_output: Optional[str] = Field(default=None, description="최종 생성된 기획서")
-    step_history: List[dict] = Field(default_factory=list, description="실행 단계 이력")
-    chat_history: List[dict] = Field(default_factory=list, description="채팅 기록")
-    error: Optional[str] = Field(default=None, description="에러 메시지")
-    error_message: Optional[str] = Field(default=None, description="에러 메시지 (Alias for error)")
-    retry_count: int = Field(default=0, description="재시도 횟수")
+class PlanCraftOutput(TypedDict):
+    """최종적으로 반환되는 출력 데이터 스키마 (TypedDict)"""
+    final_output: Optional[str]
+    step_history: List[dict]
+    chat_history: List[dict]
+    error: Optional[str]
+    error_message: Optional[str]
+    retry_count: int
 
 
 # =============================================================================
