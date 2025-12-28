@@ -83,28 +83,30 @@ class TestWorkflowRouting:
     def test_interrupt_payload_creation(self):
         """인터럽트 페이로드 생성 유틸리티 검증"""
         from graph.interrupt_utils import create_interrupt_payload, create_option_interrupt
+        from utils.schemas import OptionChoice
         
         # 1. 기본 Payload 생성
+        options = [OptionChoice(title="A", description="Desc A")]
         payload = create_interrupt_payload(
             question="질문",
-            options=[{"title": "A", "description": "Desc A"}]
+            options=options
         )
         assert payload["question"] == "질문"
         assert payload["options"][0]["title"] == "A"
-        assert payload["interrupt_type"] == "option_select"
+        assert payload["type"] == "option"
         
         # 2. State 기반 Option Interrupt 생성
         state = PlanCraftState(
             user_input="test",
             option_question="어떤 앱인가요?",
-            options=[{"title": "웹", "description": "Web App"}],
+            options=[OptionChoice(title="웹", description="Web App")],
             need_more_info=True
         )
         
         opt_payload = create_option_interrupt(state)
         assert opt_payload["question"] == "어떤 앱인가요?"
         assert opt_payload["options"][0]["title"] == "웹"
-        assert opt_payload["metadata"]["need_more_info"] is True
+        assert opt_payload["data"]["need_more_info"] is True
 
     def test_handle_user_response(self):
         """사용자 응답 처리 및 상태 업데이트 검증"""
