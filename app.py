@@ -227,13 +227,13 @@ def show_plan_dialog():
                 st.metric("상태", status)
             with col2:
                 st.metric(
-                    "섹션", 
+                    "섹션 (목차 개수)", 
                     f"{section_count}개", 
                     help="기획서의 큰 목차(Chapter) 개수입니다. 내용이 얼마나 체계적으로 구성되었는지 보여줍니다."
                 )
             with col3:
                 st.metric(
-                    "핵심 기능", 
+                    "핵심 기능 (주요 아이디어)", 
                     f"{feature_count}개", 
                     help="AI가 분석한 이 서비스의 주요 기능 및 핵심 아이디어(Key Features)의 개수입니다."
                 )
@@ -248,7 +248,7 @@ def show_plan_dialog():
     # 버튼 (최신 버전일 때만 다운로드/저장 가능하게 함)
     if is_latest:
         st.divider()
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             st.download_button(
                 "📥 다운로드",
@@ -261,6 +261,9 @@ def show_plan_dialog():
             if st.button("💾 저장", use_container_width=True):
                 saved_path = save_plan(selected_plan)
                 st.success(f"저장됨: {os.path.basename(saved_path)}")
+        with col3:
+            if st.button("✖️ 닫기", use_container_width=True):
+                st.rerun()
 
 
 def render_progress_steps(current_step: str = None):
@@ -447,6 +450,15 @@ def render_dev_tools():
                     st.error(f"❌ 테스트 실패: {str(e)}")
                     st.exception(e)
     
+    st.markdown("---")
+    st.subheader("📊 Workflow Visualization")
+    try:
+        from graph.workflow import app as workflow_app
+        mermaid_code = workflow_app.get_graph().draw_mermaid()
+        st.markdown(f"```mermaid\n{mermaid_code}\n```")
+    except Exception as e:
+        st.warning(f"Graph Visualization unavailable: {e}")
+
     st.markdown("---")
     st.caption("Pydantic State Architecture v2.0")
 
