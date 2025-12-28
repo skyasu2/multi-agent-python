@@ -673,21 +673,31 @@ def render_main():
                         "type": "options"
                     })
                 else:
-                    # 완료 메시지를 채팅에 추가 (chat_summary 우선 사용)
-                    st.session_state.generated_plan = result.get("final_output", "")
-                    chat_summary = result.get("chat_summary", "")
-                    if chat_summary:
-                        st.session_state.chat_history.append({
+                    # [추가] 일반 질문 답변 처리
+                    analysis_res = result.get("analysis", {})
+                    if analysis_res and analysis_res.get("is_general_query"):
+                         general_ans = analysis_res.get("general_answer", "죄송합니다, 답변을 생성할 수 없습니다.")
+                         st.session_state.chat_history.append({
                             "role": "assistant",
-                            "content": chat_summary,
-                            "type": "summary"
+                            "content": general_ans,
+                            "type": "text"
                         })
                     else:
-                        st.session_state.chat_history.append({
-                            "role": "assistant",
-                            "content": "✅ 기획서가 완성되었습니다! 아래에서 확인하세요.",
-                            "type": "plan"
-                        })
+                        # 완료 메시지를 채팅에 추가 (chat_summary 우선 사용)
+                        st.session_state.generated_plan = result.get("final_output", "")
+                        chat_summary = result.get("chat_summary", "")
+                        if chat_summary:
+                            st.session_state.chat_history.append({
+                                "role": "assistant",
+                                "content": chat_summary,
+                                "type": "summary"
+                            })
+                        else:
+                            st.session_state.chat_history.append({
+                                "role": "assistant",
+                                "content": "✅ 기획서가 완성되었습니다! 아래에서 확인하세요.",
+                                "type": "plan"
+                            })
             except Exception as e:
                 st.session_state.chat_history.append({
                     "role": "assistant",
@@ -767,21 +777,31 @@ def render_main():
                         "type": "options"
                     })
                 else:
-                    # 완료 메시지 (chat_summary 우선 사용)
-                    st.session_state.generated_plan = result.get("final_output", "")
-                    chat_summary = result.get("chat_summary", "")
-                    if chat_summary:
-                        st.session_state.chat_history.append({
+                    # [추가] 일반 질문 답변 처리
+                    analysis_res = result.get("analysis", {})
+                    if analysis_res and analysis_res.get("is_general_query"):
+                         general_ans = analysis_res.get("general_answer", "죄송합니다, 답변을 생성할 수 없습니다.")
+                         st.session_state.chat_history.append({
                             "role": "assistant",
-                            "content": chat_summary,
-                            "type": "summary"
+                            "content": general_ans,
+                            "type": "text"
                         })
                     else:
-                        st.session_state.chat_history.append({
-                            "role": "assistant",
-                            "content": "✅ 기획서가 완성되었습니다! 아래에서 확인하세요.",
-                            "type": "plan"
-                        })
+                        # 완료 메시지를 채팅에 추가 (chat_summary 우선 사용)
+                        st.session_state.generated_plan = result.get("final_output", "")
+                        chat_summary = result.get("chat_summary", "")
+                        if chat_summary:
+                            st.session_state.chat_history.append({
+                                "role": "assistant",
+                                "content": chat_summary,
+                                "type": "summary"
+                            })
+                        else:
+                            st.session_state.chat_history.append({
+                                "role": "assistant",
+                                "content": "✅ 기획서가 완성되었습니다! 아래에서 확인하세요.",
+                                "type": "plan"
+                            })
             except Exception as e:
                 st.session_state.chat_history.append({
                     "role": "assistant",

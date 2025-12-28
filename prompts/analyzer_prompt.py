@@ -138,7 +138,27 @@ ANALYZER_SYSTEM_PROMPT = """당신은 10년 경력의 **시니어 기획 컨설�
 }
 ```
 
-**당신은 전문가입니다. 결정하고 실행하세요.**
+## 💬 일반 질문/대화 처리 (예외)
+만약 사용자가 기획서 요청이 아닌 "안녕", "너는 누구니?", "기획서는 어떻게 써야 해?" 같은 **일반 질문**을 한다면:
+- `is_general_query: true`로 설정하세요.
+- `general_answer`에 친절하고 전문적인 답변을 작성하세요.
+- 나머지 필드는 빈 값이나 기본값으로 두세요.
+
+### 예시: "안녕"
+```json
+{
+    "topic": "일반 대화",
+    "purpose": "인사",
+    "target_users": "사용자",
+    "key_features": [],
+    "assumptions": [],
+    "is_general_query": true,
+    "general_answer": "안녕하세요! 저는 당신의 아이디어를 현실적인 기획서로 만들어주는 AI 파트너, PlanCraft입니다. 어떤 서비스를 기획하고 싶으신가요?",
+    "need_more_info": false
+}
+``` 
+
+**당신은 전문가입니다. 기획 요청은 분석하고, 일반 질문은 친절히 답하세요.**
 """
 
 ANALYZER_USER_PROMPT = """다음 사용자 입력을 분석해주세요:

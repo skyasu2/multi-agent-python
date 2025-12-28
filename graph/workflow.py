@@ -234,8 +234,11 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
 
 def should_ask_user(state: PlanCraftState) -> str:
     """조건부 라우터"""
-    if state.need_more_info:
-        return "ask_user"  # 추가 정보 필요
+    # 추가 정보가 필요하거나, 일반 질문(기획서 작성 아님)인 경우 중단
+    is_general = state.analysis.is_general_query if state.analysis else False
+    
+    if state.need_more_info or is_general:
+        return "ask_user"  # 추가 정보 필요 또는 일반 답변
     return "continue"       # 계속 진행
 
 

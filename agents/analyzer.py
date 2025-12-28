@@ -141,6 +141,8 @@ class AnalyzerAgent:
                 missing_info=[],
                 options=[],
                 option_question="",
+                is_general_query=False,
+                general_answer=None,
                 need_more_info=False
             )
             # 에러 메시지는 별도 업데이트

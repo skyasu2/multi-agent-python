@@ -114,16 +114,33 @@ class WriterAgent:
             references = []
             
             # 1. URL 참조 추출
-            import re
-            urls = re.findall(r'\[(.*?)\]\((http.*?)\)', web_context)
-            for title, url in urls:
-                references.append(f"- [{title}]({url})")
+            # 출처 추출 및 중복 제거
+            unique_refs = set()
+            references = []
             
-            # 2. 만약 마크다운 링크가 없으면 단순 텍스트로 추가
-            if not references and "http" in web_context:
-                raw_urls = re.findall(r'(https?://[^\s)\]]+)', web_context)
-                for url in raw_urls:
-                    references.append(f"- [웹 검색 결과]({url})")
+            # 1. state.web_urls 활용 (가장 정확한 소스)
+            if hasattr(state, "web_urls") and state.web_urls:
+                for url in state.web_urls:
+                    if url not in unique_refs:
+                        references.append(f"- [웹 참조 URL]({url})")
+                        unique_refs.add(url)
+
+            # 2. web_context 텍스트에서 마크다운 링크 추출 ([제목](링크))
+            import re
+            md_links = re.findall(r'\[(.*?)\]\((http.*?)\)', web_context)
+            for title, url in md_links:
+                if url not in unique_refs:
+                    # 제목이 너무 길면 자르기
+                    safe_title = title[:50] + "..." if len(title) > 50 else title
+                    references.append(f"- [{safe_title}]({url})")
+                    unique_refs.add(url)
+            
+            # 3. 단순 텍스트 URL 추출 (http로 시작하는 것)
+            raw_urls = re.findall(r'(https?://[^\s)\]]+)', web_context)
+            for url in raw_urls:
+                if url not in unique_refs:
+                    references.append(f"- [관련 자료]({url})")
+                    unique_refs.add(url)
             
             if references:
                 from utils.schemas import SectionContent
