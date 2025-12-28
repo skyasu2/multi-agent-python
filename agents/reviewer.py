@@ -6,11 +6,10 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from utils.llm import get_llm
 from utils.schemas import JudgeResult
 from graph.state import PlanCraftState, update_state
-from prompts.reviewer_prompt import REVIEWER_SYSTEM_PROMPT
+from prompts.reviewer_prompt import REVIEWER_SYSTEM_PROMPT, REVIEWER_USER_PROMPT
 
 # LLM 초기화 (Structured Output)
 reviewer_llm = get_llm(temperature=0.1).with_structured_output(JudgeResult)
-
 
 def run(state: PlanCraftState) -> PlanCraftState:
     """
@@ -32,25 +31,19 @@ def run(state: PlanCraftState) -> PlanCraftState:
         
     full_text = "\n\n".join([f"## {s.get('name', '')}\n{s.get('content', '')}" if isinstance(s, dict) else f"## {s.name}\n{s.content}" for s in sections])
     
-    topic = "N/A"
-    analysis = state.get("analysis")
-    if analysis:
-        topic = analysis.get("topic") if isinstance(analysis, dict) else getattr(analysis, "topic", "N/A")
+    rag_context = state.get("rag_context", "")
+    web_context = state.get("web_context", "")
+    context = f"{rag_context}\n{web_context}"
     
     # 2. 프롬프트 구성
+    # REVIEWER_USER_PROMPT는 {draft}, {context}를 요구함
+    
     messages = [
-        SystemMessage(content=REVIEWER_SYSTEM_PROMPT),
-        HumanMessage(content=f"""
-<topic>
-{topic}
-</topic>
-
-<draft>
-{full_text}
-</draft>
-
-위 기획서 초안을 평가하고 수정 보완할 점을 제안해주세요.
-""")
+        {"role": "system", "content": REVIEWER_SYSTEM_PROMPT},
+        {"role": "user", "content": REVIEWER_USER_PROMPT.format(
+            draft=full_text,
+            context=context if context.strip() else "없음"
+        )}
     ]
     
     # 3. LLM 호출

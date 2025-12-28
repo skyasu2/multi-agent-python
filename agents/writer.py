@@ -19,36 +19,45 @@ def run(state: PlanCraftState) -> PlanCraftState:
     structure = state.get("structure")
     rag_context = state.get("rag_context", "")
     web_context = state.get("web_context", "")
+    web_urls = state.get("web_urls", [])
     
     if not structure:
         return update_state(state, error="구조화 데이터가 없습니다.")
     
-    # Structure 정보 추출
-    if isinstance(structure, dict):
-        title = structure.get("title", "")
-        sections = structure.get("sections", [])
-    else:
-        title = getattr(structure, "title", "")
-        sections = getattr(structure, "sections", [])
-
     # Refinement Context
     previous_plan_context = ""
     refine_count = state.get("refine_count", 0)
     previous_plan = state.get("previous_plan")
     
     if refine_count > 0 and previous_plan:
-        previous_plan_context = f"\n<previous_version>\n{previous_plan}\n</previous_version>\n\n위 이전 버전을 참고하여 더 나은 내용으로 개선하세요."
+        previous_plan_context = f"\n<previous_version>\n{previous_plan}\n</previous_version>\n\n위 이전 버전을 참고하여 더 나은 내용으로 개선하세요.\n"
 
     # 2. 프롬프트 구성
+    # WRITER_USER_PROMPT는 {user_input}, {structure}, {web_context}, {web_urls}, {context}를 요구함
+    
+    structure_str = str(structure)
+    
+    try:
+        formatted_prompt = WRITER_USER_PROMPT.format(
+            user_input=user_input,
+            structure=structure_str,
+            web_context=web_context if web_context else "없음",
+            web_urls=str(web_urls) if web_urls else "없음",
+            context=rag_context if rag_context else "없음"
+        )
+    except KeyError as e:
+        # 혹시라도 플레이스홀더 불일치 시 안전장치
+        print(f"[ERROR] Prompt Formatting Failed: {e}")
+        # 최소한의 정보로 대체하거나 에러 리턴
+        return update_state(state, error=f"프롬프트 포맷 오류: {str(e)}")
+
+    # 이전 버전 컨텍스트 추가 (프롬프트 상단에)
+    if previous_plan_context:
+        formatted_prompt = previous_plan_context + "\n" + formatted_prompt
+
     messages = [
         {"role": "system", "content": WRITER_SYSTEM_PROMPT},
-        {"role": "user", "content": WRITER_USER_PROMPT.format(
-            title=title,
-            sections=sections,
-            user_input=user_input,
-            context=f"{rag_context}\n{web_context}",
-            previous_plan_context=previous_plan_context
-        )}
+        {"role": "user", "content": formatted_prompt}
     ]
     
     # 3. LLM 호출
