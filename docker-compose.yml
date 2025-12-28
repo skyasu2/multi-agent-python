@@ -1,0 +1,68 @@
+# =============================================================================
+# PlanCraft Agent - Docker Compose
+# Multi-Agent AI 기획서 생성 서비스
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # PlanCraft 메인 서비스
+  # ---------------------------------------------------------------------------
+  plancraft:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: plancraft-agent
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      # Azure OpenAI 설정 (.env 파일에서 로드)
+      - AOAI_ENDPOINT=${AOAI_ENDPOINT}
+      - AOAI_API_KEY=${AOAI_API_KEY}
+      - AOAI_DEPLOY_GPT4O=${AOAI_DEPLOY_GPT4O:-gpt-4o}
+      - AOAI_DEPLOY_GPT4O_MINI=${AOAI_DEPLOY_GPT4O_MINI:-gpt-4o-mini}
+      - AOAI_DEPLOY_EMBED_3_LARGE=${AOAI_DEPLOY_EMBED_3_LARGE:-text-embedding-3-large}
+      
+      # MCP 설정
+      - MCP_ENABLED=${MCP_ENABLED:-false}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      
+      # LangSmith 설정 (Optional)
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-PlanCraft-Agent}
+      
+      # 애플리케이션 설정
+      - PYTHONPATH=/app
+    volumes:
+      # 로그 및 출력 영속화
+      - ./logs:/app/logs
+      - ./outputs:/app/outputs
+      # RAG 인덱스 영속화 (선택)
+      - ./rag/faiss_index:/app/rag/faiss_index
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - plancraft-network
+
+# -----------------------------------------------------------------------------
+# 네트워크 정의
+# -----------------------------------------------------------------------------
+networks:
+  plancraft-network:
+    driver: bridge
+
+# -----------------------------------------------------------------------------
+# 볼륨 정의 (영속 데이터용)
+# -----------------------------------------------------------------------------
+volumes:
+  plancraft-logs:
+    driver: local
+  plancraft-outputs:
+    driver: local

@@ -1,3 +1,8 @@
+# =============================================================================
+# PlanCraft Agent - Docker Ignore
+# 빌드 컨텍스트에서 제외할 파일/폴더
+# =============================================================================
+
 # Git
 .git
 .gitignore
@@ -5,27 +10,62 @@
 # Python
 __pycache__
 *.py[cod]
+*$py.class
 *.so
-.pytest_cache
+.Python
+*.egg
+*.egg-info
+.eggs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual Environment
 .venv
-env/
-venv/
-ENV/
-
-# Environment variables
-.env
-.env.local
-
-# Logs and Data
-logs/
-streamlit_logs/
-outputs/
-rag/faiss_index/
+venv
+ENV
+env
 
 # IDE
 .vscode
 .idea
+*.swp
+*.swo
+*~
 
-# OS
+# Test & Coverage
+.pytest_cache
+.coverage
+htmlcov
+.tox
+.nox
+
+# Logs & Outputs (런타임 생성)
+logs/*
+!logs/.gitkeep
+outputs/*
+!outputs/.gitkeep
+streamlit_logs/*
+*.log
+
+# Environment Files (보안)
+.env
+.env.local
+.env.*.local
+
+# Documentation (빌드 불필요)
+docs/*.png
+docs/images
+
+# Misc
+*.md
+!README.md
+*.txt
+!requirements.txt
 .DS_Store
 Thumbs.db
+
+# Local Development
+.agent
+.claude
+.gemini
+test_output*.log
