@@ -376,7 +376,7 @@ def render_main():
                  })
 
              st.divider()
-             with st.expander("📄 최종 기획서 보기 (접기/펼치기)", expanded=True):
+             with st.expander("📄 최종 기획서 보기 (클릭하여 펼치기)", expanded=False):
                  st.markdown(state["final_output"])
              
              # 액션 버튼 그룹
