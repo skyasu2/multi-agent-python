@@ -37,12 +37,17 @@ def run(state: PlanCraftState) -> PlanCraftState:
     
     structure_str = str(structure)
     
+    # Web URLs 포맷팅
+    web_urls_str = "없음"
+    if web_urls:
+        web_urls_str = "\n".join([f"- {url}" for url in web_urls])
+        
     try:
         formatted_prompt = WRITER_USER_PROMPT.format(
             user_input=user_input,
             structure=structure_str,
             web_context=web_context if web_context else "없음",
-            web_urls=str(web_urls) if web_urls else "없음",
+            web_urls=web_urls_str,
             context=rag_context if rag_context else "없음"
         )
     except KeyError as e:
