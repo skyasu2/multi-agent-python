@@ -29,8 +29,8 @@ def handle_node_error(func: Callable) -> Callable:
             tb = traceback.format_exc()
             print(f"[ERROR] Node '{func.__name__}' Failed: {error_msg}\n{tb}")
             
-            # 실패 이력 생성
-            current_history = getattr(state, "step_history", []) or []
+            # 실패 이력 생성 - TypedDict dict 접근
+            current_history = state.get("step_history", []) or []
             fail_record = {
                 "step": func.__name__,
                 "status": "FAILED",
@@ -39,24 +39,16 @@ def handle_node_error(func: Callable) -> Callable:
                 "timestamp": datetime.now().isoformat()
             }
             
-            # 에러 상태 업데이트 (Immutable Copy)
-            updates = {
-                "error": error_msg,
-                "error_message": error_msg,
-                "step_status": "FAILED",
-                "last_error": error_msg,
-                "step_history": current_history + [fail_record]
-            }
+            # TypedDict State 업데이트
+            from graph.state import update_state
             
-            # Pydantic 모델의 model_copy 사용
-            if hasattr(state, "model_copy"):
-                return state.model_copy(update=updates)
-            
-            # 만약 dict라면 (드문 경우)
-            if isinstance(state, dict):
-                state.update(updates)
-                return state
-                
-            raise e  # State 객체가 아니면 재발생
+            return update_state(
+                state,
+                error=error_msg,
+                error_message=error_msg,
+                step_status="FAILED",
+                last_error=error_msg,
+                step_history=current_history + [fail_record]
+            )
             
     return wrapper

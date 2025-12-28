@@ -85,6 +85,7 @@ def _update_step_history(state: PlanCraftState, step: str, status: str, summary:
     [Internal] 실행 이력을 State에 기록하고, 파일 로그를 남긴 후 업데이트된 State를 반환합니다.
     """
     from datetime import datetime
+    from graph.state import update_state
     
     # 1. History Item 생성
     history_item = {
@@ -95,18 +96,18 @@ def _update_step_history(state: PlanCraftState, step: str, status: str, summary:
         "timestamp": datetime.now().isoformat()
     }
     
-    # 2. Immutable Update (List append)
-    new_history = list(state.step_history) + [history_item]
+    # 2. Immutable Update (List append) - TypedDict dict 접근
+    current_history = state.get("step_history", []) or []
+    new_history = list(current_history) + [history_item]
     
-    # 3. State 업데이트
-    updates = {
-        "step_history": new_history,
-        "current_step": step,
-        "step_status": status,
-        "last_error": error
-    }
-    
-    updated_state = state.model_copy(update=updates)
+    # 3. State 업데이트 - TypedDict 방식
+    updated_state = update_state(
+        state,
+        step_history=new_history,
+        current_step=step,
+        step_status=status,
+        last_error=error
+    )
     
     # 4. 파일 로깅 (통합)
     get_file_logger().log(step, updated_state)
@@ -122,22 +123,21 @@ def _update_step_history(state: PlanCraftState, step: str, status: str, summary:
 def retrieve_context(state: PlanCraftState) -> PlanCraftState:
     """RAG 검색 노드"""
     from rag.retriever import Retriever
+    from graph.state import update_state
 
     # Retriever 초기화 (상위 3개 문서 검색)
     retriever = Retriever(k=3)
 
     # 사용자 입력으로 관련 문서 검색
-    user_input = state.user_input
+    user_input = state["user_input"]
     context = retriever.get_formatted_context(user_input)
 
-    new_state = state.model_copy(update={
-        "rag_context": context,
-        "current_step": "retrieve"
-    })
+    new_state = update_state(state, rag_context=context, current_step="retrieve")
 
     # [LOG] 실행 결과 로깅 및 히스토리 업데이트
     status = "SUCCESS"
-    summary = f"검색된 문서: {len(new_state.rag_context.split('---')) if new_state.rag_context else 0}건"
+    rag_context = new_state.get("rag_context")
+    summary = f"검색된 문서: {len(rag_context.split('---')) if rag_context else 0}건"
     
     return _update_step_history(new_state, "retrieve", status, summary)
 
