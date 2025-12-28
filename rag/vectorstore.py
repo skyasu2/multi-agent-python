@@ -87,23 +87,46 @@ def init_vectorstore() -> FAISS:
     print(f"  - Documents loaded: {len(raw_docs)}")
 
     # =========================================================================
-    # 3. 텍스트 분할 (Chunking)
+    # 3. 텍스트 분할 (Advanced Chunking)
     # =========================================================================
-    # 마크다운 헤더를 기준으로 분할하여 문맥 유지
+    print("  - Chunking documents...")
+    from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+    
+    # 1단계: Markdown Header 기반 구조적 분할 (Semantic Chunking)
+    # 문서를 단순히 글자 수로 자르는 것이 아니라, # 헤더 단위로 잘라서 '주제'를 모읍니다.
+    headers_to_split_on = [
+        ("#", "Header 1"),
+        ("##", "Header 2"),
+        ("###", "Header 3"),
+    ]
+    markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
+    
+    # TextLoader로 읽은 raw_docs를 하나씩 처리해서 헤더 정보를 메타데이터로 올립니다.
+    md_header_splits = []
+    for doc in raw_docs:
+        # 파일별로 1차 분할 수행
+        splits = markdown_splitter.split_text(doc.page_content)
+        
+        # 쪼개진 조각들에 원본 파일 경로(source) 메타데이터를 다시 붙여줍니다.
+        for split in splits:
+             # 기존 메타데이터(source) + 헤더 메타데이터(Header 1, 2...)
+            split.metadata.update(doc.metadata)
+        
+        md_header_splits.extend(splits)
+    
+    print(f"    > Header-based splits: {len(md_header_splits)}")
+
+    # 2단계: 너무 긴 섹션은 문자 수 기준으로 2차 분할 (Context Window 최적화)
+    # 헤더로 잘랐는데도 본문이 매우 긴 경우(예: 3000자), LLM 컨텍스트 초과 방지를 위해 자릅니다.
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,      # 청크 최대 크기
-        chunk_overlap=200,    # 청크 간 중복 (문맥 연결용)
-        separators=[
-            "\n## ",          # H2 헤더
-            "\n# ",           # H1 헤더
-            "\n### ",         # H3 헤더
-            "\n",             # 줄바꿈
-            " ",              # 공백
-            ""                # 문자
-        ]
+        chunk_size=1000,
+        chunk_overlap=200,
+        separators=["\n\n", "\n", ". ", " ", ""] # 문단 > 줄바꿈 > 문장 > 단어 순
     )
-    docs = text_splitter.split_documents(raw_docs)
-    print(f"  - Chunks created: {len(docs)}")
+    
+    # 헤더로 1차 분할된 문서들을 다시 잘게 쪼갭니다.
+    docs = text_splitter.split_documents(md_header_splits)
+    print(f"    > Final chunks created: {len(docs)}")
 
     # =========================================================================
     # 4. 임베딩 및 벡터스토어 생성

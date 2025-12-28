@@ -81,11 +81,17 @@ class WriterAgent:
         # =====================================================================
         # 2. Structured Output으로 LLM 호출
         # =====================================================================
+        # 웹 검색 결과 추출
+        web_context = getattr(state, "web_context", "")
+        web_urls = getattr(state, "web_urls", [])
+
         messages = [
             {"role": "system", "content": WRITER_SYSTEM_PROMPT},
             {"role": "user", "content": WRITER_USER_PROMPT.format(
                 user_input=user_input,
                 structure=json.dumps(structure_dict, ensure_ascii=False, indent=2),
+                web_context=web_context if web_context else "없음",
+                web_urls=json.dumps(web_urls, ensure_ascii=False, indent=2) if web_urls else "없음",
                 context=context if context else "없음"
             )}
         ]
