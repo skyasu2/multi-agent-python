@@ -376,35 +376,14 @@ def render_main():
                  })
 
              st.divider()
-             if st.button("📖 최종 기획서 전체 보기", type="primary", use_container_width=True):
-                 show_plan_dialog()
-             
-             # 액션 버튼 그룹
-             ca1, ca2, ca3, ca4 = st.columns(4)
-             with ca1:
-                 st.download_button(
-                    "📥 다운로드",
-                    data=state["final_output"],
-                    file_name=f"plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
-                    mime="text/markdown",
-                    use_container_width=True
-                )
-             with ca2:
-                 if st.button("💾 저장", use_container_width=True):
-                     try:
-                         from tools.file_utils import save_plan
-                         saved_path = save_plan(state["final_output"])
-                         st.success(f"저장됨: {os.path.basename(saved_path)}")
-                     except Exception as e:
-                         st.error(f"저장 실패: {str(e)}")
-             with ca3:
-                 if st.button("🔍 분석 내용", use_container_width=True):
+             # 메인 액션 버튼 (모달 호출)
+             col_act1, col_act2 = st.columns(2)
+             with col_act1:
+                 if st.button("📖 최종 기획서 전체 보기", type="primary", use_container_width=True):
+                     show_plan_dialog()
+             with col_act2:
+                 if st.button("🔍 분석 내용 확인", use_container_width=True):
                      show_analysis_dialog()
-             with ca4:
-                 if st.button("✖️ 닫기", use_container_width=True):
-                     st.session_state.generated_plan = None
-                     st.session_state.current_state = None
-                     st.rerun()
 
              # 실행 과정 시각화 (메인 통합)
              with st.expander("📊 실행 과정 상세 보기", expanded=False):
