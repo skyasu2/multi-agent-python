@@ -87,6 +87,20 @@ class RefinerAgent:
         action_items = review.action_items if review else []
 
         # =====================================================================
+        # [수정] 참고 자료 섹션 보존 로직 (Immutable Reference)
+        # WriterAgent가 생성한 '참고 자료' 섹션을 LLM이 건드리지 않도록 분리합니다.
+        # =====================================================================
+        ref_section_content = ""
+        main_sections = []
+        
+        if draft and draft.sections:
+            for section in draft.sections:
+                if "참고 자료" in section.name or "참고문헌" in section.name:
+                    ref_section_content = f"\n\n## {section.name}\n\n{section.content}"
+                else:
+                    main_sections.append(section)
+
+        # =====================================================================
         # 2. PASS 판정 처리 (수정 최소화)
         # =====================================================================
         if verdict == "PASS" and score >= 9 and not action_items:
@@ -100,9 +114,12 @@ class RefinerAgent:
             return new_state
 
         # =====================================================================
-        # 3. draft 문자열 변환
+        # 3. draft 문자열 변환 (참고 자료 제외)
         # =====================================================================
-        draft_str = self._format_draft(draft)
+        # LLM에게는 참고 자료를 제외한 본문만 전달하여 수정을 요청합니다.
+        draft_str = ""
+        for section in main_sections:
+            draft_str += f"## {section.name}\n{section.content}\n\n"
 
         # =====================================================================
         # 4. verdict별 지시사항 선택
@@ -147,6 +164,10 @@ class RefinerAgent:
                 refined_output = refined_output[:-3]
 
             refined_output = refined_output.strip()
+            
+            # [수정] 보존해둔 참고 자료 섹션 다시 붙이기
+            if ref_section_content:
+                refined_output += ref_section_content
 
         except Exception as e:
             # 실패 시 원본 draft 사용

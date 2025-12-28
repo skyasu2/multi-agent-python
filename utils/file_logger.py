@@ -1,0 +1,57 @@
+import os
+import json
+import datetime
+from typing import Any
+
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+
+class FileLogger:
+    def __init__(self):
+        if not os.path.exists(LOG_DIR):
+            os.makedirs(LOG_DIR)
+        
+        # 실행 시마다 새로운 로그 파일 생성 (시간별)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_file = os.path.join(LOG_DIR, f"execution_{timestamp}.jsonl")
+        
+    def log(self, step: str, data: dict):
+        """
+        단계별 로그를 JSONL 형식으로 기록합니다.
+        
+        Args:
+           step: 현재 실행 단계 (예: "retrieve", "analyze")
+           data: 기록할 데이터 (input, output, state 등)
+        """
+        log_entry = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "step": step,
+            "data": self._serialize(data)
+        }
+        
+        with open(self.log_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+
+    def _serialize(self, obj: Any) -> Any:
+        """JSON 직렬화 불가능한 객체 처리"""
+        if hasattr(obj, "model_dump"):
+            return obj.model_dump()
+        if hasattr(obj, "dict"):
+            return obj.dict()
+        if isinstance(obj, (datetime.date, datetime.datetime)):
+            return obj.isoformat()
+        return str(obj)
+
+# 전역 로거 인스턴스 (필요할 때마다 이 인스턴스를 사용하거나 새로 생성)
+# 여기서는 싱글톤처럼 파일 하나에 계속 쓰기 위해 모듈 레벨에서 초기화하지 않고,
+# 워크플로우 실행 시마다 생성하거나 관리하는 것이 좋지만,
+# 편의상 모듈 로딩 시 파일이 생성되게 하거나, 
+# 함수 호출 시 get_logger() 패턴을 사용할 수 있음.
+# 간단하게 전역 인스턴스 제공.
+
+_logger_instance = None
+
+def get_file_logger():
+    global _logger_instance
+    if _logger_instance is None:
+        _logger_instance = FileLogger()
+    return _logger_instance

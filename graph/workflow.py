@@ -63,16 +63,13 @@ from langgraph.graph import StateGraph, END
 from graph.state import PlanCraftState
 from agents import analyzer, structurer, writer, reviewer, refiner, formatter
 from utils.config import Config
+from utils.file_logger import get_file_logger  # 로거 추가
 
 # =============================================================================
 # LangSmith 트레이싱 활성화 (Observability)
 # =============================================================================
 Config.setup_langsmith()
 
-
-# =============================================================================
-# 노드 함수 정의 (모두 PlanCraftState 타입 명시)
-# =============================================================================
 
 # =============================================================================
 # 노드 함수 정의 (모두 PlanCraftState Pydantic 모델 사용)
@@ -102,15 +99,15 @@ def retrieve_context(state: PlanCraftState) -> PlanCraftState:
             "error": f"RAG 검색 실패: {str(e)}"
         })
 
+    # [LOG] 실행 결과 로깅
+    get_file_logger().log("retrieve", new_state)
+    
     return new_state
 
 
 def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
     """
     조건부 웹 정보 수집 노드
-    
-    MCP_ENABLED=true: MCPToolkit (Fetch + Tavily) 사용
-    MCP_ENABLED=false: Fallback 모드 (requests + DuckDuckGo)
     """
     import re
     from utils.config import Config
@@ -152,13 +149,8 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
             if decision["should_search"]:
                 base_query = decision["search_query"]
                 
-                # 검색 쿼리 확장 (기본 2~3회 검색)
-                # 1. 기본 쿼리 (예: "2025 헬스케어 트렌드")
-                # 2. 시장 규모/통계 (예: "헬스케어 시장 규모 통계")
-                # 3. 사례 (예: "헬스케어 서비스 성공 사례")
+                # 검색 쿼리 확장
                 queries = [base_query]
-                
-                # 확장 쿼리 생성
                 if "트렌드" in base_query:
                     queries.append(base_query.replace("트렌드", "시장 규모 통계"))
                 else:
@@ -196,9 +188,6 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
                 print(f"[INFO] 웹 검색 스킵: {decision['reason']}")
 
         # 3. 상태 업데이트
-        
-        # [수정] 기존 컨텍스트 보존 (정보 누적)
-        # 추가 요청 시 이전 검색 결과가 사라지지 않도록 합니다.
         existing_context = state.web_context
         existing_urls = state.web_urls or []
         
@@ -211,7 +200,7 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
             else:
                 final_context = new_context_str
                 
-        # URL 합치기 (순서 유지하며 중복 제거)
+        # URL 합치기
         final_urls = list(dict.fromkeys(existing_urls + web_urls))
         
         new_state = state.model_copy(update={
@@ -221,7 +210,6 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
         })
 
     except Exception as e:
-        # 웹 조회 실패 시에도 계속 진행
         print(f"[WARN] 웹 조회 단계 오류: {e}")
         new_state = state.model_copy(update={
             "web_context": None,
@@ -229,17 +217,54 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
             "error": f"웹 조회 오류: {str(e)}"
         })
 
+    # [LOG] 실행 결과 로깅
+    get_file_logger().log("fetch_web", new_state)
+
     return new_state
 
 
 def should_ask_user(state: PlanCraftState) -> str:
     """조건부 라우터"""
-    # 추가 정보가 필요하거나, 일반 질문(기획서 작성 아님)인 경우 중단
     is_general = state.analysis.is_general_query if state.analysis else False
     
     if state.need_more_info or is_general:
-        return "ask_user"  # 추가 정보 필요 또는 일반 답변
-    return "continue"       # 계속 진행
+        return "ask_user"
+    return "continue"
+
+
+# =============================================================================
+# Agent 래퍼 함수 (Logging Wrapper)
+# =============================================================================
+
+def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
+    new_state = analyzer.run(state)
+    get_file_logger().log("analyze", new_state)
+    return new_state
+
+def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
+    new_state = structurer.run(state)
+    get_file_logger().log("structure", new_state)
+    return new_state
+
+def run_writer_node(state: PlanCraftState) -> PlanCraftState:
+    new_state = writer.run(state)
+    get_file_logger().log("write", new_state)
+    return new_state
+
+def run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
+    new_state = reviewer.run(state)
+    get_file_logger().log("review", new_state)
+    return new_state
+
+def run_refiner_node(state: PlanCraftState) -> PlanCraftState:
+    new_state = refiner.run(state)
+    get_file_logger().log("refine", new_state)
+    return new_state
+
+def run_formatter_node(state: PlanCraftState) -> PlanCraftState:
+    new_state = formatter.run(state)
+    get_file_logger().log("format", new_state)
+    return new_state
 
 
 # =============================================================================
@@ -251,15 +276,15 @@ def create_workflow() -> StateGraph:
     # Pydantic 모델을 State로 사용
     workflow = StateGraph(PlanCraftState)
 
-    # 노드 등록
+    # 노드 등록 (래퍼 함수 사용)
     workflow.add_node("retrieve", retrieve_context)
     workflow.add_node("fetch_web", fetch_web_context)
-    workflow.add_node("analyze", analyzer.run)
-    workflow.add_node("structure", structurer.run)
-    workflow.add_node("write", writer.run)
-    workflow.add_node("review", reviewer.run)
-    workflow.add_node("refine", refiner.run)
-    workflow.add_node("format", formatter.run)
+    workflow.add_node("analyze", run_analyzer_node)
+    workflow.add_node("structure", run_structurer_node)
+    workflow.add_node("write", run_writer_node)
+    workflow.add_node("review", run_reviewer_node)
+    workflow.add_node("refine", run_refiner_node)
+    workflow.add_node("format", run_formatter_node)
 
     # 엣지 정의
     workflow.set_entry_point("retrieve")
