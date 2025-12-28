@@ -313,6 +313,44 @@ def render_progress_steps(current_step: str = None):
         st.markdown(f"<div style='text-align:center; color:#666; font-size:0.9rem; margin-top:1rem; background-color:#f8f9fa; padding:0.5rem; border-radius:8px;'>{step_descriptions[current_step]}</div>", unsafe_allow_html=True)
 
 
+def render_timeline(step_history: list):
+    """LangGraph 실행 이력 타임라인 렌더링"""
+    if not step_history:
+        return
+
+    st.markdown("##### ⏱️ 실행 타임라인")
+    with st.expander("상세 실행 이력 보기", expanded=False):
+        for i, item in enumerate(step_history):
+            # 상태 아이콘
+            status = item.get("status", "UNKNOWN")
+            icon = "🟢" if status == "SUCCESS" else "🔴" if status == "FAILED" else "⚪"
+            
+            # 시간 포맷 (HH:MM:SS)
+            ts = item.get("timestamp", "")
+            time_str = ts.split("T")[1][:8] if "T" in ts else ts
+            
+            # 단계 이름 (첫 글자 대문자)
+            step_name = item.get("step", "").upper()
+            
+            # 요약 및 에러
+            summary = item.get("summary", "")
+            error = item.get("error")
+            
+            # Markdown 렌더링
+            col1, col2 = st.columns([0.1, 0.9])
+            with col1:
+                st.markdown(f"<div style='font-size:1.2em; text-align:center;'>{icon}</div>", unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"**{step_name}** <small style='color:gray'>({time_str})</small>", unsafe_allow_html=True)
+                if summary:
+                    st.caption(f"└ {summary}")
+                if error:
+                    st.error(f"Error: {error}")
+            
+            if i < len(step_history) - 1:
+                st.divider()
+
+
 def render_chat_message(role: str, content: str, msg_type: str = "text"):
     """채팅 메시지 렌더링"""
     if role == "user":
@@ -669,6 +707,13 @@ def render_main():
     # 기획서 결과 표시 (generated_plan 있을 때)
     # =========================================================================
     if st.session_state.generated_plan:
+        # [NEW] 실행 이력 타임라인 표시
+        if st.session_state.current_state:
+            hist = st.session_state.current_state.get("step_history", [])
+            if hist:
+                render_timeline(hist)
+                st.markdown("---")
+
         col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
 
         with col1:

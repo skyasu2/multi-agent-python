@@ -5,7 +5,7 @@ LangGraph 워크플로우에서 사용하는 상태(State) 타입을 Pydantic Ba
 런타임 타입 검증과 IDE 자동완성을 지원하며, 더욱 견고한 파이프라인을 구성합니다.
 """
 
-from typing import Optional, List, Dict, Any, Union, Self
+from typing import Optional, List, Dict, Any, Union, Self, Literal
 from pydantic import BaseModel, Field, model_validator
 from utils.schemas import (
     AnalysisResult, 
@@ -62,6 +62,11 @@ class PlanCraftState(BaseModel):
     # [추가] 이전 기획서 스냅샷 (Refinement 시 참고)
     previous_plan: Optional[str] = Field(default=None, description="이전 회차의 기획서 (Markdown)")
     error: Optional[str] = Field(default=None, description="에러 메시지")
+
+    # [NEW] 운영 가시성 (Operational Visibility)
+    step_history: List[Dict[str, Any]] = Field(default_factory=list, description="실행 단계별 상태 이력 (Timeline)")
+    step_status: Literal["RUNNING", "SUCCESS", "FAILED"] = Field(default="RUNNING", description="현재 단계 수행 상태")
+    last_error: Optional[str] = Field(default=None, description="마지막 발생 에러")
 
     @model_validator(mode='after')
     def sync_analysis_fields(self) -> Self:

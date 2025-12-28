@@ -119,8 +119,19 @@ class AnalyzerAgent:
         # =====================================================================
         # 3. Structured Output으로 LLM 호출
         # =====================================================================
+        # [NEW] 현재 시간 정보 주입 (시계열 추론 기준점 설정)
+        from datetime import datetime
+        current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # 시스템 프롬프트 최상단에 시간 정보 강제 주입
+        system_msg_content = (
+            f"Current System Time: {current_time_str}\n"
+            "NOTE: All analysis and reasoning MUST be based on this current time.\n\n"
+            f"{ANALYZER_SYSTEM_PROMPT}"
+        )
+
         messages = [
-            {"role": "system", "content": ANALYZER_SYSTEM_PROMPT},
+            {"role": "system", "content": system_msg_content},
             {"role": "user", "content": ANALYZER_USER_PROMPT.format(
                 user_input=user_input,
                 previous_plan=previous_plan if previous_plan else "없음",

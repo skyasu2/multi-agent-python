@@ -72,6 +72,44 @@ Config.setup_langsmith()
 
 
 # =============================================================================
+# Helper: 실행 이력 기록 및 로깅 통합
+# =============================================================================
+
+def _update_step_history(state: PlanCraftState, step: str, status: str, summary: str = "", error: str = None) -> PlanCraftState:
+    """
+    [Internal] 실행 이력을 State에 기록하고, 파일 로그를 남긴 후 업데이트된 State를 반환합니다.
+    """
+    from datetime import datetime
+    
+    # 1. History Item 생성
+    history_item = {
+        "step": step,
+        "status": status,
+        "summary": summary,
+        "error": error,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # 2. Immutable Update (List append)
+    new_history = list(state.step_history) + [history_item]
+    
+    # 3. State 업데이트
+    updates = {
+        "step_history": new_history,
+        "current_step": step,
+        "step_status": status,
+        "last_error": error
+    }
+    
+    updated_state = state.model_copy(update=updates)
+    
+    # 4. 파일 로깅 (통합)
+    get_file_logger().log(step, updated_state)
+    
+    return updated_state
+
+
+# =============================================================================
 # 노드 함수 정의 (모두 PlanCraftState Pydantic 모델 사용)
 # =============================================================================
 
@@ -99,10 +137,11 @@ def retrieve_context(state: PlanCraftState) -> PlanCraftState:
             "error": f"RAG 검색 실패: {str(e)}"
         })
 
-    # [LOG] 실행 결과 로깅
-    get_file_logger().log("retrieve", new_state)
+    # [LOG] 실행 결과 로깅 및 히스토리 업데이트
+    status = "FAILED" if new_state.error else "SUCCESS"
+    summary = f"검색된 문서: {len(new_state.rag_context.split('---')) if new_state.rag_context else 0}건"
     
-    return new_state
+    return _update_step_history(new_state, "retrieve", status, summary, new_state.error)
 
 
 def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
@@ -217,10 +256,12 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
             "error": f"웹 조회 오류: {str(e)}"
         })
 
-    # [LOG] 실행 결과 로깅
-    get_file_logger().log("fetch_web", new_state)
-
-    return new_state
+    # [LOG] 실행 결과 로깅 및 히스토리 업데이트
+    status = "FAILED" if new_state.error else "SUCCESS"
+    url_count = len(new_state.web_urls) if new_state.web_urls else 0
+    summary = f"웹 정보 수집: {url_count}개 URL 참조"
+    
+    return _update_step_history(new_state, "fetch_web", status, summary, new_state.error)
 
 
 def should_ask_user(state: PlanCraftState) -> str:
@@ -238,33 +279,55 @@ def should_ask_user(state: PlanCraftState) -> str:
 
 def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
     new_state = analyzer.run(state)
-    get_file_logger().log("analyze", new_state)
-    return new_state
+    
+    status = "FAILED" if new_state.error else "SUCCESS"
+    topic = new_state.analysis.topic if new_state.analysis else "분석 실패"
+    summary = f"주제 분석: {topic}"
+    
+    return _update_step_history(new_state, "analyze", status, summary, new_state.error)
 
 def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
     new_state = structurer.run(state)
-    get_file_logger().log("structure", new_state)
-    return new_state
+    
+    status = "FAILED" if new_state.error else "SUCCESS"
+    sec_count = len(new_state.structure.sections) if new_state.structure else 0
+    summary = f"구조 설계: {sec_count}개 섹션"
+    
+    return _update_step_history(new_state, "structure", status, summary, new_state.error)
 
 def run_writer_node(state: PlanCraftState) -> PlanCraftState:
     new_state = writer.run(state)
-    get_file_logger().log("write", new_state)
-    return new_state
+    
+    status = "FAILED" if new_state.error else "SUCCESS"
+    draft_status = "작성 완료" if new_state.draft else "작성 실패"
+    summary = f"초안 작성: {draft_status}"
+    
+    return _update_step_history(new_state, "write", status, summary, new_state.error)
 
 def run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
     new_state = reviewer.run(state)
-    get_file_logger().log("review", new_state)
-    return new_state
+    
+    status = "FAILED" if new_state.error else "SUCCESS"
+    verdict = new_state.review.verdict if new_state.review else "UNKNOWN"
+    summary = f"품질 검토: {verdict}"
+    
+    return _update_step_history(new_state, "review", status, summary, new_state.error)
 
 def run_refiner_node(state: PlanCraftState) -> PlanCraftState:
     new_state = refiner.run(state)
-    get_file_logger().log("refine", new_state)
-    return new_state
+    
+    status = "FAILED" if new_state.error else "SUCCESS"
+    summary = f"기획서 개선: {state.refine_count}회차 수행"
+    
+    return _update_step_history(new_state, "refine", status, summary, new_state.error)
 
 def run_formatter_node(state: PlanCraftState) -> PlanCraftState:
     new_state = formatter.run(state)
-    get_file_logger().log("format", new_state)
-    return new_state
+    
+    status = "FAILED" if new_state.error else "SUCCESS"
+    summary = "최종 포맷팅 및 요약 완료"
+    
+    return _update_step_history(new_state, "format", status, summary, new_state.error)
 
 
 # =============================================================================
