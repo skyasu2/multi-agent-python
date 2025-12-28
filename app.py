@@ -602,6 +602,20 @@ def render_refinement_ui():
 
             else:
                 st.info("✅ 최대 개선 횟수(3회)를 모두 사용했습니다. 새로운 기획을 원하시면 '새 대화'를 시작하세요.")
+        
+        # [NEW] 새 대화 시작 버튼 (개선 UI 아래)
+        st.markdown("")  # 간격
+        if st.button("🔄 새 대화 시작", key="new_chat_after_plan", use_container_width=True):
+            # 세션 초기화
+            st.session_state.chat_history = []
+            st.session_state.current_state = None
+            st.session_state.generated_plan = None
+            st.session_state.input_key = st.session_state.get("input_key", 0) + 1
+            st.session_state.thread_id = __import__("uuid").uuid4().__str__()
+            st.session_state.prefill_prompt = None
+            st.session_state.pending_input = None
+            st.session_state.next_refine_count = 0
+            st.rerun()
 
 
 def render_main():
