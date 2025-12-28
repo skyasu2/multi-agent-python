@@ -13,7 +13,10 @@ LangGraph 공식 휴먼 인터럽트 패턴을 위한 유틸리티 모듈입니�
 """
 
 from typing import Dict, List, Any, Optional
-from utils.schemas import InterruptPayload, OptionChoice, PlanCraftState
+from utils.schemas import InterruptPayload, OptionChoice
+# Circular Import 방지를 위해 TYPE_CHECKING을 쓰거나, 
+# 런타임에 필요한 경우 여기서 import (PlanCraftState가 Pydantic 모델이라 타입 힌팅에 필요)
+from graph.state import PlanCraftState
 
 def create_interrupt_payload(
     question: str,

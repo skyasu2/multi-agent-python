@@ -24,7 +24,7 @@ Structured Output을 통해 LLM 응답의 일관성과 타입 안전성을 보�
 """
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import List, Optional, Self
+from typing import List, Optional, Self, Literal, Dict, Any
 
 
 # =============================================================================
