@@ -60,11 +60,12 @@ Best Practice 적용:
 """
 
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver  # [NEW] 체크포인터 추가
+from langgraph.checkpoint.memory import MemorySaver  # 체크포인터
+from langchain_core.runnables import RunnableBranch  # [NEW] 분기 패턴
 from graph.state import PlanCraftState
 from agents import analyzer, structurer, writer, reviewer, refiner, formatter
 from utils.config import Config
-from utils.file_logger import get_file_logger  # 로거 추가
+from utils.file_logger import get_file_logger
 
 # =============================================================================
 # LangSmith 트레이싱 활성화 (Observability)
@@ -347,6 +348,109 @@ def get_routing_decision(state: PlanCraftState) -> dict:
         "reason": "기획서 생성 진행",
         "conditions": conditions
     }
+
+
+# =============================================================================
+# [NEW] RunnableBranch 기반 분기 체인 (공식 LangChain 패턴)
+# =============================================================================
+
+def create_routing_branch():
+    """
+    RunnableBranch를 사용한 분기 체인 생성
+    
+    공식 패턴에 따라 조건별 분기를 정의합니다.
+    이 함수는 복잡한 분기가 필요할 때 사용할 수 있습니다.
+    
+    사용 예시:
+        branch = create_routing_branch()
+        result = branch.invoke(state)
+    
+    Returns:
+        RunnableBranch: 분기 체인
+    """
+    return RunnableBranch(
+        # 조건 1: 휴먼 인터럽트 필요 → 옵션 일시정지
+        (
+            lambda state: is_human_interrupt_required(state),
+            lambda state: state.model_copy(update={"routing_decision": "ask_user"})
+        ),
+        # 조건 2: 일반 질의 → 일반 응답
+        (
+            lambda state: is_general_query(state),
+            lambda state: state.model_copy(update={"routing_decision": "general_response"})
+        ),
+        # 기본: 기획서 생성 계속
+        lambda state: state.model_copy(update={"routing_decision": "continue"})
+    )
+
+
+# =============================================================================
+# [NEW] Interrupt 스타일 노드 (휴먼 인터럽트 처리)
+# =============================================================================
+
+def option_pause_node(state: PlanCraftState) -> PlanCraftState:
+    """
+    휴먼 인터럽트 처리 노드 (옵션 선택 대기)
+    
+    이 노드는 사용자 입력이 필요할 때 실행됩니다.
+    현재는 상태를 그대로 반환하지만, LangGraph Server 환경에서는
+    interrupt()를 호출하여 실제로 실행을 중단할 수 있습니다.
+    
+    LangGraph Server 환경에서의 사용:
+        from langgraph.types import interrupt
+        user_response = interrupt({
+            "question": state.option_question,
+            "options": state.options
+        })
+    
+    Returns:
+        PlanCraftState: 업데이트된 상태
+    """
+    from graph.interrupt_utils import create_option_interrupt
+    
+    # 인터럽트 페이로드 생성 (로깅/디버깅용)
+    payload = create_option_interrupt(state)
+    
+    # 현재 단계 업데이트
+    new_state = state.model_copy(update={
+        "current_step": "option_pause",
+        "step_status": "WAITING_USER_INPUT"
+    })
+    
+    # 실행 이력 기록
+    return _update_step_history(
+        new_state, 
+        "option_pause", 
+        "PAUSED",
+        summary=f"사용자 입력 대기: {state.option_question or '옵션 선택'}"
+    )
+
+
+def general_response_node(state: PlanCraftState) -> PlanCraftState:
+    """
+    일반 질의 응답 노드
+    
+    기획 요청이 아닌 일반 질문에 대한 응답을 처리합니다.
+    
+    Returns:
+        PlanCraftState: 응답이 포함된 상태
+    """
+    answer = "일반 질의에 대한 응답입니다."
+    
+    if state.analysis and hasattr(state.analysis, "general_answer"):
+        answer = state.analysis.general_answer
+    
+    new_state = state.model_copy(update={
+        "current_step": "general_response",
+        "final_output": answer
+    })
+    
+    return _update_step_history(
+        new_state,
+        "general_response",
+        "SUCCESS",
+        summary="일반 질의 응답 완료"
+    )
 
 
 # =============================================================================
