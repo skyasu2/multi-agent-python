@@ -376,8 +376,8 @@ def render_main():
                  })
 
              st.divider()
-             with st.expander("📄 최종 기획서 보기 (클릭하여 펼치기)", expanded=False):
-                 st.markdown(state["final_output"])
+             if st.button("📖 최종 기획서 전체 보기", type="primary", use_container_width=True):
+                 show_plan_dialog()
              
              # 액션 버튼 그룹
              ca1, ca2, ca3, ca4 = st.columns(4)
