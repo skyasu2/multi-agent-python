@@ -7,7 +7,7 @@ from langchain_openai import ChatOpenAI
 from utils.config import Config
 from utils.schemas import JudgeResult
 from graph.state import PlanCraftState, update_state
-from utils.system_prompts import REVIEWER_SYSTEM_PROMPT
+from prompts.reviewer_prompt import REVIEWER_SYSTEM_PROMPT
 
 # LLM 초기화 (Structured Output)
 reviewer_llm = ChatOpenAI(
