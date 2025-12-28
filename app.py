@@ -405,10 +405,7 @@ def render_main():
                      st.session_state.current_state = None
                      st.rerun()
 
-             if st.button("✨ 이 내용을 바탕으로 더 개선하기", type="primary", use_container_width=True):
-                 st.session_state.next_refine_count = st.session_state.current_state.get("refine_count", 0) + 1
-                 st.session_state.pending_input = "이 내용을 바탕으로 더 구체적으로 보완해줘"
-                 st.rerun()
+             render_refinement_ui()
 
     # =========================================================================
     # 4. 사이드바 (워크플로우 시각화)
@@ -437,7 +434,7 @@ def render_main():
                     use_container_width=True
                 )
                  
-            render_refinement_ui()
+    
 
     # =========================================================================
     # 하단 입력 영역
