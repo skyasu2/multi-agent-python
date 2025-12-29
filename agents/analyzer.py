@@ -23,7 +23,22 @@ def run(state: PlanCraftState) -> PlanCraftState:
     previous_plan = state.get("previous_plan")
     
     # 2. 컨텍스트 구성
+    review_data = state.get("review")
+    
+    # 2. 컨텍스트 구성
     context_parts = []
+    if review_data:
+        # [NEW] 재진입 시 리뷰 피드백 반영
+        # review_data 형식: {"overall_score": int, "feedback_summary": str, "verdict": str}
+        feedback_summary = review_data.get("feedback_summary", "구체적 피드백 없음")
+        score = review_data.get("overall_score", 0)
+        context_parts.append(
+            f"=== 🚨 이전 버전에 대한 긴급 피드백 (필수 반영) ===\n"
+            f"평가 점수: {score}점\n"
+            f"지적 사항: {feedback_summary}\n"
+            f"지시: 위 지적 사항을 분석 단계에서부터 근본적으로 해결할 수 있는 방안을 제시하세요."
+        )
+    
     if web_context:
         context_parts.append(f"[웹에서 가져온 정보]\n{web_context}")
     if rag_context:

@@ -234,25 +234,44 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
                 else:
                     queries.append(f"{base_query} 시장 규모 및 경쟁사")
                 
-                for i, q in enumerate(queries):
-                    search_result = search_sync(q)
-                    if search_result["success"]:
-                        # ... (결과 포맷팅 로직 유지) ...
-                        formatted_result = ""
-                        if "results" in search_result and isinstance(search_result["results"], list):
-                            for idx, res in enumerate(search_result["results"][:3]):
-                                title = res.get("title", "제목 없음")
-                                url = res.get("url", "URL 없음")
-                                snippet = res.get("snippet", "")[:200]
-                                formatted_result += f"- [{title}]({url})\n  {snippet}\n"
-                                if url and url.startswith("http"):
-                                    web_urls.append(url)
-                        if not formatted_result and "formatted" in search_result:
-                            formatted_result = search_result["formatted"]
+                # [Optimization] 다중 쿼리 병렬 실행
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                
+                def run_query(idx, q):
+                    try:
+                        return idx, q, search_sync(q)
+                    except Exception as e:
+                        return idx, q, {"success": False, "error": str(e)}
+
+                with ThreadPoolExecutor(max_workers=3) as executor:
+                    futures = [executor.submit(run_query, i, q) for i, q in enumerate(queries)]
+                    
+                    # 순서 보장을 위해 인덱스로 정렬할 수 있도록 결과 수집
+                    results = []
+                    for future in as_completed(futures):
+                        results.append(future.result())
+                    
+                    # 인덱스 순 정렬
+                    results.sort(key=lambda x: x[0])
+                    
+                    for idx, q, search_result in results:
+                        if search_result.get("success"):
+                            formatted_result = ""
+                            if "results" in search_result and isinstance(search_result["results"], list):
+                                for res in search_result["results"][:3]:
+                                    title = res.get("title", "제목 없음")
+                                    url = res.get("url", "URL 없음")
+                                    snippet = res.get("snippet", "")[:200]
+                                    formatted_result += f"- [{title}]({url})\n  {snippet}\n"
+                                    if url and url.startswith("http"):
+                                        web_urls.append(url)
                             
-                        web_contents.append(f"[웹 검색 결과 {i+1} - {q}]\n{formatted_result}")
-                    else:
-                        print(f"[WARN] 검색 실패 ({q}): {search_result.get('error')}")
+                            if not formatted_result and "formatted" in search_result:
+                                formatted_result = search_result["formatted"]
+                                
+                            web_contents.append(f"[웹 검색 결과 {idx+1} - {q}]\n{formatted_result}")
+                        else:
+                            print(f"[WARN] 검색 실패 ({q}): {search_result.get('error')}")
 
         # 3. 상태 업데이트
         existing_context = state.get("web_context")
