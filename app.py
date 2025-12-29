@@ -32,6 +32,7 @@ from ui import (
     render_visual_timeline,
     render_human_interaction  # [NEW]
 )
+from ui.components import render_structure_dialog  # [FIX] 모달 컴포넌트 추가 Import
 
 # =============================================================================
 # 페이지 설정
