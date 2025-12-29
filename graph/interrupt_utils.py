@@ -161,3 +161,172 @@ def get_interrupt_handler(interrupt_type: str):
 
 # 인터럽트 패턴 구현은 graph/workflow.py의 option_pause_node() 참조
 
+
+# =============================================================================
+# Pause Node Factory (LangGraph Best Practice 확장)
+# =============================================================================
+
+def make_pause_node(
+    question: str,
+    goto_node: str,
+    interrupt_type: str = "option",
+    options: List[Dict[str, str]] = None
+):
+    """
+    범용 Pause Node 팩토리 함수.
+    
+    다양한 HITL 유형의 pause node를 한 줄로 생성할 수 있습니다.
+    
+    Args:
+        question: 사용자에게 표시할 질문
+        goto_node: 사용자 응답 후 이동할 노드 이름
+        interrupt_type: 인터럽트 유형 ("option", "form", "confirm")
+        options: 옵션 목록 (interrupt_type="option"일 때)
+    
+    Returns:
+        Callable: LangGraph 노드 함수
+    
+    Example:
+        workflow.add_node("confirm_structure", make_pause_node(
+            question="이 구조로 진행할까요?",
+            goto_node="write",
+            interrupt_type="confirm"
+        ))
+    """
+    from langgraph.types import interrupt, Command
+    
+    def pause_node(state: PlanCraftState):
+        payload = {
+            "type": interrupt_type,
+            "question": question,
+            "options": options or [],
+            "data": {"user_input": state.get("user_input", "")}
+        }
+        
+        user_response = interrupt(payload)
+        updated_state = handle_user_response(state, user_response)
+        
+        return Command(update=updated_state, goto=goto_node)
+    
+    return pause_node
+
+
+def make_approval_pause_node(
+    role: str,
+    question: str,
+    goto_approved: str,
+    goto_rejected: str,
+    rejection_feedback_enabled: bool = True
+):
+    """
+    역할 기반 승인 Pause Node 팩토리 함수.
+    
+    팀장/리더/QA 등 역할별 승인 워크플로우를 쉽게 구현할 수 있습니다.
+    사용자의 승인/반려 응답에 따라 다른 노드로 분기합니다.
+    
+    Args:
+        role: 승인자 역할 (예: "팀장", "리더", "QA")
+        question: 승인 요청 질문
+        goto_approved: 승인 시 이동할 노드
+        goto_rejected: 반려 시 이동할 노드
+        rejection_feedback_enabled: 반려 시 피드백 입력 활성화
+    
+    Returns:
+        Callable: LangGraph 노드 함수
+    
+    Example:
+        workflow.add_node("team_leader_approval", make_approval_pause_node(
+            role="팀장",
+            question="이 기획서를 승인하시겠습니까?",
+            goto_approved="format",
+            goto_rejected="refine"
+        ))
+    """
+    from langgraph.types import interrupt, Command
+    
+    def approval_pause_node(state: PlanCraftState):
+        payload = {
+            "type": "approval",
+            "role": role,
+            "question": question,
+            "options": [
+                {"title": "✅ 승인", "value": "approve", "description": "진행합니다"},
+                {"title": "🔄 반려", "value": "reject", "description": "수정이 필요합니다"}
+            ],
+            "rejection_feedback_enabled": rejection_feedback_enabled,
+            "data": {
+                "user_input": state.get("user_input", ""),
+                "current_step": state.get("current_step", "")
+            }
+        }
+        
+        user_response = interrupt(payload)
+        updated_state = handle_user_response(state, user_response)
+        
+        # 승인 여부에 따른 분기
+        is_approved = user_response.get("approved", False)
+        selected = user_response.get("selected_option", {})
+        
+        # selected_option.value가 "approve"면 승인
+        if is_approved or selected.get("value") == "approve":
+            return Command(update=updated_state, goto=goto_approved)
+        else:
+            # 반려 사유가 있으면 상태에 추가
+            rejection_reason = user_response.get("rejection_reason", "")
+            if rejection_reason:
+                from graph.state import update_state
+                updated_state = update_state(
+                    updated_state,
+                    rejection_reason=rejection_reason
+                )
+            return Command(update=updated_state, goto=goto_rejected)
+    
+    return approval_pause_node
+
+
+def make_multi_approval_chain(approvers: List[Dict[str, str]], final_goto: str):
+    """
+    다중 승인 체인을 위한 노드 목록 생성.
+    
+    여러 승인자가 순차적으로 승인해야 하는 워크플로우를 구성합니다.
+    
+    Args:
+        approvers: 승인자 목록 [{"role": "팀장", "question": "..."}, ...]
+        final_goto: 모든 승인 후 이동할 노드
+    
+    Returns:
+        Dict[str, Callable]: 노드 이름과 노드 함수의 딕셔너리
+    
+    Example:
+        approval_nodes = make_multi_approval_chain(
+            approvers=[
+                {"role": "팀장", "question": "팀장 승인"},
+                {"role": "리더", "question": "리더 승인"}
+            ],
+            final_goto="format"
+        )
+        for name, node in approval_nodes.items():
+            workflow.add_node(name, node)
+    """
+    nodes = {}
+    
+    for i, approver in enumerate(approvers):
+        role = approver.get("role", f"Approver_{i}")
+        question = approver.get("question", f"{role} 승인이 필요합니다.")
+        node_name = f"{role.lower()}_approval"
+        
+        # 다음 노드 결정 (마지막이면 final_goto, 아니면 다음 승인자)
+        if i < len(approvers) - 1:
+            next_role = approvers[i + 1].get("role", f"Approver_{i+1}")
+            next_goto = f"{next_role.lower()}_approval"
+        else:
+            next_goto = final_goto
+        
+        nodes[node_name] = make_approval_pause_node(
+            role=role,
+            question=question,
+            goto_approved=next_goto,
+            goto_rejected="refine"  # 반려 시 항상 refine으로
+        )
+    
+    return nodes
