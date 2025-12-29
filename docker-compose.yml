@@ -1,55 +1,47 @@
-# =============================================================================
-# PlanCraft Agent - Docker Compose
-# Multi-Agent AI 기획서 생성 서비스
-# =============================================================================
-
 version: '3.8'
 
 services:
-  # ---------------------------------------------------------------------------
-  # PlanCraft 메인 서비스
-  # ---------------------------------------------------------------------------
   plancraft:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: plancraft-agent
-    restart: unless-stopped
     ports:
       - "8501:8501"
-    # 환경변수는 .env.local 파일에서 로드 (API 키는 절대 직접 입력 금지!)
     env_file:
-      - .env.local
+      - .env
     environment:
-      # 애플리케이션 설정만 (시크릿 제외)
       - PYTHONPATH=/app
+      - CHECKPOINTER_TYPE=memory
     volumes:
-      # 로그 및 출력 영속화
+      # 로그 영속화 (선택적)
       - ./logs:/app/logs
       - ./outputs:/app/outputs
-      # RAG 인덱스 영속화 (선택)
-      - ./rag/faiss_index:/app/rag/faiss_index
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    networks:
-      - plancraft-network
+      start_period: 10s
 
-# -----------------------------------------------------------------------------
-# 네트워크 정의
-# -----------------------------------------------------------------------------
+  # (선택) PostgreSQL Checkpointer 사용 시
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: plancraft-db
+  #   environment:
+  #     POSTGRES_USER: plancraft
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+  #     POSTGRES_DB: plancraft
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   restart: unless-stopped
+
+# volumes:
+#   postgres_data:
+
 networks:
-  plancraft-network:
-    driver: bridge
-
-# -----------------------------------------------------------------------------
-# 볼륨 정의 (영속 데이터용)
-# -----------------------------------------------------------------------------
-volumes:
-  plancraft-logs:
-    driver: local
-  plancraft-outputs:
-    driver: local
+  default:
+    name: plancraft-network
