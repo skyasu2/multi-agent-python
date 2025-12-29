@@ -2,6 +2,87 @@
 
 > 📅 최종 업데이트: 2025-12-29
 
+---
+
+## ⚡ Quick Reference (IDE 개발용)
+
+### 🔥 핵심 명령어
+
+```bash
+# 실행
+streamlit run app.py
+
+# 테스트
+pytest tests/ -v
+
+# RAG 재인덱싱
+python -c "from rag.vectorstore import init_vectorstore; init_vectorstore()"
+
+# Docker 실행
+docker-compose up -d --build
+```
+
+### 📍 핵심 파일 위치
+
+| 용도 | 파일 위치 |
+|------|-----------|
+| 메인 앱 | `app.py` |
+| 워크플로우 | `graph/workflow.py` |
+| 상태 정의 | `graph/state.py` |
+| 에이전트 | `agents/*.py` |
+| 프롬프트 | `prompts/*_prompt.py` |
+| 스키마 | `utils/schemas.py` |
+| 환경설정 | `utils/config.py` |
+| 웹검색 | `tools/web_search.py` |
+
+### 🤖 에이전트 흐름 요약
+
+```
+사용자 입력 → Analyzer → Structurer → Writer → Reviewer → Refiner → Formatter → 출력
+```
+
+### 🔑 필수 환경변수
+
+```ini
+AOAI_ENDPOINT=https://xxx.openai.azure.com/
+AOAI_API_KEY=your_key
+AOAI_DEPLOY_GPT4O=gpt-4o
+AOAI_DEPLOY_GPT4O_MINI=gpt-4o-mini
+AOAI_DEPLOY_EMBED_3_LARGE=text-embedding-3-large
+```
+
+### 🛠️ 개발 시 주요 수정 포인트
+
+| 작업 | 수정 파일 |
+|------|-----------|
+| 에이전트 로직 변경 | `agents/{agent_name}.py` |
+| 프롬프트 수정 | `prompts/{agent_name}_prompt.py` |
+| 워크플로우 변경 | `graph/workflow.py` |
+| State 필드 추가 | `graph/state.py` |
+| UI 컴포넌트 수정 | `ui/components.py` |
+| RAG 문서 추가 | `rag/documents/*.md` → 재인덱싱 필요 |
+| 웹검색 조건 변경 | `tools/web_search.py` |
+
+### 📊 State 핵심 필드
+
+```python
+# 입력
+user_input: str          # 사용자 요청
+file_content: str        # 업로드 파일
+
+# 출력
+final_output: str        # 최종 기획서
+chat_summary: str        # 채팅 요약
+
+# 내부
+analysis: dict           # Analyzer 결과
+structure: dict          # Structurer 결과
+draft: dict              # Writer 결과
+review: dict             # Reviewer 결과
+```
+
+---
+
 ## 📁 전체 디렉토리 구조
 
 ```
