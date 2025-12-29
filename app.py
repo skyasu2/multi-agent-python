@@ -205,7 +205,9 @@ def render_main():
         # 2. 워크플로우 실행
         from utils.streamlit_callback import StreamlitStatusCallback
         
-        with st.chat_message("assistant"):
+        # [UX] 상태 표시기는 채팅 메시지 외부(하단)에 배치
+        status_container = st.container()
+        with status_container:
             with st.status("🚀 작업을 수행하고 있습니다...", expanded=True) as status:
                 try:
                     streamlit_callback = StreamlitStatusCallback(status)
@@ -224,6 +226,7 @@ def render_main():
                     )
                     
                     status.update(label="✅ 처리 완료!", state="complete", expanded=False)
+
                     
                     # 3. 결과 State 저장
                     st.session_state.current_state = final_result
