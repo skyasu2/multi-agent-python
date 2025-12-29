@@ -587,7 +587,11 @@ def option_pause_node(state: PlanCraftState) -> Command:
     user_response = None
     
     # [NEW] Input Validation Loop - Code Reviewer's Advice
-    while True:
+    MAX_RETRIES = 5
+    retry_count = 0
+    
+    # [NEW] Input Validation Loop with Safety Limit
+    while retry_count < MAX_RETRIES:
         # interrupt() 호출 시 실행 중단 -> Resume 시 값 반환
         user_response = interrupt(payload)
         
@@ -596,9 +600,14 @@ def option_pause_node(state: PlanCraftState) -> Command:
             print(f"[Human-Node] Valid Input Received: {user_response}")
             break
             
-        print("[Human-Node] Invalid Input (Empty). Re-interrupting...")
-        # 유효하지 않으면 루프가 돌면서 다시 interrupt(payload) 호출
-        # (UI에서는 다시 입력창이 뜸)
+        retry_count += 1
+        print(f"[Human-Node] Invalid Input (Empty). Retry {retry_count}/{MAX_RETRIES}")
+        
+    # 최대 재시도 초과 시 안전 조치
+    if not user_response:
+        print("[Human-Node] Max retries reached. Forcing default action.")
+        user_response = {"action": "continue", "value": "default_fallback"}
+
     
     
     # =========================================================================
