@@ -334,7 +334,7 @@ def render_main():
              col_act1, col_act2 = st.columns(2)
              with col_act1:
                  st.markdown('<div class="bounce-guide">👇 클릭하여 확인</div>', unsafe_allow_html=True)
-                 if st.button("기획서 보기", type="primary", use_container_width=True):
+                 if st.button("📄 기획서 보기", type="primary", use_container_width=True):
                      show_plan_dialog()
              with col_act2:
                  if st.button("🔍 AI 분석 데이터 (설계도)", use_container_width=True):

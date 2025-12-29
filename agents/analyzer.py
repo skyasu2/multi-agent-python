@@ -24,8 +24,16 @@ def run(state: PlanCraftState) -> PlanCraftState:
     
     # 2. 컨텍스트 구성
     review_data = state.get("review")
-    review_context = "없음"
+    current_analysis = state.get("analysis") # [NEW] 현재 분석 상태 (컨펌용)
 
+    if current_analysis:
+        # 이미 분석된 내용이 있다면 포맷팅 (JSON String)
+        import json
+        current_analysis_str = json.dumps(current_analysis, ensure_ascii=False, indent=2)
+    else:
+        current_analysis_str = "없음"
+
+    review_context = "없음"
     if review_data:
         # review_data 형식: {"overall_score": int, "feedback_summary": str, "verdict": str}
         feedback_summary = review_data.get("feedback_summary", "구체적 피드백 없음")
@@ -47,13 +55,15 @@ def run(state: PlanCraftState) -> PlanCraftState:
     # 3. 프롬프트 구성 (시간 컨텍스트 주입)
     system_msg_content = get_time_context() + ANALYZER_SYSTEM_PROMPT
 
-    # [FIX] 프롬프트 템플릿의 {review_data} 인자 전달
+    # [FIX] 프롬프트 템플릿의 {review_data}, {current_analysis} 인자 전달
     user_msg_content = ANALYZER_USER_PROMPT.format(
         user_input=user_input,
         previous_plan=previous_plan if previous_plan else "없음",
         context=context,
-        review_data=review_context
+        review_data=review_context,
+        current_analysis=current_analysis_str
     ) + get_time_instruction()
+
 
     messages = [
         {"role": "system", "content": system_msg_content},
