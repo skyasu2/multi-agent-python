@@ -9,17 +9,26 @@
 ### 🔥 핵심 명령어
 
 ```bash
-# 실행
+# 1. 가상환경 생성 및 활성화
+python -m venv venv
+.\venv\Scripts\activate      # Windows
+# source venv/bin/activate   # Linux/Mac
+
+# 2. 의존성 설치
+pip install -r requirements.txt
+
+# 3. 환경변수 설정
+cp .env.example .env.local
+# .env.local 파일 수정 (API 키 입력)
+
+# 4. RAG 인덱스 초기화 (최초 1회)
+python -c "from rag.vectorstore import init_vectorstore; init_vectorstore()"
+
+# 5. 실행 🚀
 streamlit run app.py
 
 # 테스트
 pytest tests/ -v
-
-# RAG 재인덱싱
-python -c "from rag.vectorstore import init_vectorstore; init_vectorstore()"
-
-# Docker 실행
-docker-compose up -d --build
 ```
 
 ### 📍 핵심 파일 위치
