@@ -10,12 +10,8 @@ LangGraph 최신 Best Practice에 따라 Input/Output/Internal State를 명확�
 from typing import Optional, List, Dict, Any, Literal, Annotated
 from typing_extensions import TypedDict, NotRequired
 
-# LangGraph 공식 패턴: Graceful End-of-Loop (무한 루프 방지)
-try:
-    from langgraph.managed.is_last_step import RemainingSteps
-except ImportError:
-    # LangGraph 버전 호환성 (RemainingSteps 미지원 시)
-    RemainingSteps = int
+# 참고: LangGraph RemainingSteps는 버전 호환성 이슈로 사용하지 않음
+# 대신 refine_count + MAX_REFINE_LOOPS로 무한 루프 방지
 
 # =============================================================================
 # Constants: 안전 실행 한계
@@ -152,8 +148,9 @@ class PlanCraftState(TypedDict, total=False):
 
     # ========== Graceful End-of-Loop (LangGraph Best Practice) ==========
     # 무한 루프 방지를 위한 남은 스텝 카운터
-    # RemainingSteps는 LangGraph가 자동으로 관리하는 Managed Value
-    remaining_steps: Annotated[int, RemainingSteps]
+    # 주의: Annotated[int, RemainingSteps] 대신 단순 int 사용 (버전 호환성)
+    # 실제 카운터는 workflow.py의 should_refine_again()에서 refine_count로 관리
+    remaining_steps: int
 
     # Interrupt & Routing (Human-in-the-loop)
     confirmed: Optional[bool]
