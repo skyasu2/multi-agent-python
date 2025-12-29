@@ -85,9 +85,38 @@ CUSTOM_CSS = """
         box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
     }
     
+    
     .stChatInput button[kind="primary"] svg {
         width: 18px !important;
         height: 18px !important;
+    }
+
+    /* Green Download Button */
+    div[data-testid="stDownloadButton"] button {
+        background-color: #28a745 !important;
+        color: white !important;
+        border: none !important;
+        transition: transform 0.2s;
+    }
+    div[data-testid="stDownloadButton"] button:hover {
+        background-color: #218838 !important;
+        transform: scale(1.02);
+        color: white !important;
+    }
+
+    /* Bounce Animation */
+    @keyframes bounce {
+        0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+        40% {transform: translateY(-10px);}
+        60% {transform: translateY(-5px);}
+    }
+    .bounce-guide {
+        animation: bounce 1.5s infinite;
+        text-align: center;
+        color: #28a745;
+        font-weight: bold;
+        margin-bottom: 5px;
+        font-size: 1.1em;
     }
 </style>
 """

@@ -95,7 +95,9 @@ def show_plan_dialog():
         st.divider()
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
-            st.download_button("📥 다운로드", data=selected_plan, file_name="기획서.md",
+            # [NEW] 애니메이션 가이드
+            st.markdown('<div class="bounce-guide">👇 클릭하여 확인</div>', unsafe_allow_html=True)
+            st.download_button("📥 다운로드 (Green)", data=selected_plan, file_name="기획서.md",
                 mime="text/markdown", use_container_width=True)
         with col2:
             if st.button("💾 서버에 저장", use_container_width=True):
