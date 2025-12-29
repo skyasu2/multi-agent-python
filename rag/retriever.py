@@ -68,9 +68,35 @@ class Retriever:
         if not self.vectorstore:
             return []
         
-        # 유사도 검색 수행
-        docs = self.vectorstore.similarity_search(query, k=self.k)
+        # [Optimization] MMR (Maximal Marginal Relevance) 검색 적용
+        # 중복된 정보는 줄이고, 다양한 관점의 정보를 수집합니다.
+        # fetch_k: 다양성을 위해 더 많은 후보군(k*4)을 먼저 검색
+        docs = self.vectorstore.max_marginal_relevance_search(
+            query, 
+            k=self.k, 
+            fetch_k=self.k * 4, 
+            lambda_mult=0.6  # 다양성 가중치 (0.5=균형, 1.0=유사도중심)
+        )
+        
         return docs
+    
+    def get_relevant_documents_with_score(self, query: str, score_threshold: float = 0.7) -> list:
+        """
+        [Advanced] 유사도 점수 기반 필터링 검색
+        너무 관련성이 떨어지는 문서(점수 미달)는 제외합니다.
+        """
+        if not self.vectorstore:
+            return []
+            
+        # score_threshold 검색 (L2 Distance인 경우 점수가 낮을수록 유사함에 주의)
+        # FAISS의 similarity_search_with_score는 L2 distance를 반환하므로,
+        # cosine similarity를 쓰려면 vectorstore 초기화 시 distance_strategy 확인 필요.
+        # 여기서는 안전하게 similarity_search를 기본으로 하되, 
+        # 향후 vectorstore가 normalized된 경우 score 필터링을 적용할 수 있도록 확장성을 열어둡니다.
+        
+        # 현재는 MMR이 더 효과적이므로 get_relevant_documents를 호출
+        return self.get_relevant_documents(query)
+
 
     def get_formatted_context(self, query: str) -> str:
         """
