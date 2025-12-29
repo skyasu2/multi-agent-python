@@ -89,3 +89,29 @@ PlanCraft Agent는 LangGraph의 핵심 철학을 완벽하게 이해하고 구�
 > 미션크리티컬/대규모 AI 서비스에도 즉시 투입 가능한 수준으로 “세계적인 LLM 오케스트레이션 모범사례”로 손색이 없습니다.
 
 모든 개선 요청사항이 성공적으로 반영되었습니다. 🚀
+
+---
+
+## 6. 📚 부록: 공식 가이드 정합성 분석 (Detailed Compliance Map)
+
+LangGraph 공식 가이드 및 How-to 문서와 PlanCraft 코드의 1:1 매핑 근거입니다.
+
+### 6.1 Human Interrupt Node (휴먼 인터럽트)
+| 공식 가이드 (Official Pattern) | PlanCraft 구현 (Implementation) |
+|--------------------------------|---------------------------------|
+| `val = interrupt({"prompt": ...})` | `user_response = interrupt(payload)` (동일) |
+| **Command Pattern**: `Command(resume=...)` | `Command(update=..., goto=...)` 사용 (동일) |
+| **Checkpointer**: 필수 요구 사항 | `MemorySaver`/`PostgresSaver` 설정 완료 (동일) |
+| **Side Effects**: Interrupt 호출 전 금지 | Payload 생성 등 순수 함수만 실행 (준수) |
+
+### 6.2 Resume & Validation Loop
+| 공식 가이드 (Official Pattern) | PlanCraft 구현 (Implementation) |
+|--------------------------------|---------------------------------|
+| **Validation Loop**: `while True` + `interrupt` | `option_pause_node` 내 `while True` 루프 구현 (준수) |
+| **State Immutability**: 상태 복제 후 수정 | `TypedDict` + `update_state` 헬퍼 사용 (준수) |
+
+### 6.3 Dynamic Branching & Routing
+| 공식 가이드 (Official Pattern) | PlanCraft 구현 (Implementation) |
+|--------------------------------|---------------------------------|
+| **Explicit Function Branch**: `RunnableBranch` | `should_ask_user`, `should_refine_or_restart` 함수 사용 (준수) |
+| **Static Graph**: Node/Edge 런타임 변경 금지 | 정적 그래프 정의 후 조건부 엣지로 분기 처리 (준수) |
