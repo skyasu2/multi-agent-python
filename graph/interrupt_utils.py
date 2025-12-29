@@ -159,42 +159,5 @@ def get_interrupt_handler(interrupt_type: str):
     return INTERRUPT_HANDLERS.get(interrupt_type, handle_user_response)
 
 
-# =============================================================================
-# 사용 예시 (주석 처리된 미래 코드)
-# =============================================================================
-"""
-향후 LangGraph interrupt 패턴 적용 시:
+# 인터럽트 패턴 구현은 graph/workflow.py의 option_pause_node() 참조
 
-from langgraph.types import interrupt, Command
-
-def option_pause_node(state: PlanCraftState) -> PlanCraftState:
-    '''
-    휴먼 인터럽트 노드 (옵션 선택 대기)
-    
-    이 노드가 실행되면:
-    1. interrupt()로 실행이 중단됨
-    2. UI에서 사용자가 옵션 선택 또는 직접 입력
-    3. Command(resume=user_response)로 재시작
-    4. 사용자 응답이 이 노드에 전달됨
-    '''
-    # 인터럽트 페이로드 생성
-    payload = create_option_interrupt(state)
-    
-    # 실행 중단 & 사용자 응답 대기
-    user_response = interrupt(payload)
-    
-    # 사용자 응답 처리
-    return handle_user_response(state, user_response)
-
-
-# 워크플로우에서:
-workflow.add_node("option_pause", option_pause_node)
-workflow.add_conditional_edges(
-    "analyze",
-    should_ask_user,
-    {
-        "ask_user": "option_pause",  # END 대신 interrupt 노드로
-        "continue": "structure"
-    }
-)
-"""

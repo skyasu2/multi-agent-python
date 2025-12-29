@@ -148,28 +148,29 @@ def should_refine_or_restart(state: PlanCraftState) -> str:
     verdict = review.get("verdict", "REVISE")
     restart_count = state.get("restart_count", 0)
     
+    logger = get_file_logger()
+    
     # 무한 루프 방지: 최대 2회 복귀
     if restart_count >= 2:
-        print(f"[ROUTING] 최대 복귀 횟수 도달 ({restart_count}), Refiner로 진행")
+        logger.info(f"[ROUTING] 최대 복귀 횟수 도달 ({restart_count}), Refiner로 진행")
         return "refine"
     
     # 점수/판정에 따른 분기
     if score < 5 or verdict == "FAIL":
-        print(f"[ROUTING] 점수 낮음 ({score}점, {verdict}), Analyzer로 복귀")
+        logger.info(f"[ROUTING] 점수 낮음 ({score}점, {verdict}), Analyzer로 복귀")
         return "restart"  # Analyzer로 복귀
     elif score >= 9 and verdict == "PASS":
-        print(f"[ROUTING] 품질 우수 ({score}점, {verdict}), 바로 완료")
+        logger.info(f"[ROUTING] 품질 우수 ({score}점, {verdict}), 바로 완료")
         return "complete"  # Formatter로
     else:
-        print(f"[ROUTING] 개선 필요 ({score}점, {verdict}), Refiner로")
+        logger.info(f"[ROUTING] 개선 필요 ({score}점, {verdict}), Refiner로")
         return "refine"   # Refiner로
+
+
+
+
 # =============================================================================
-
-    return updated_state
-
-
-# =============================================================================
-# 노드 함수 정의 (모두 PlanCraftState Pydantic 모델 사용)
+# 노드 함수 정의 (모두 PlanCraftState TypedDict 사용)
 # =============================================================================
 
 @handle_node_error
@@ -311,7 +312,17 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
 
 
 def should_ask_user(state: PlanCraftState) -> str:
-    """조건부 라우터"""
+    """
+    Analyze 노드 이후 조건부 라우터.
+    
+    분기 조건:
+        - "option_pause": 사용자에게 추가 정보를 요청해야 할 때 (need_more_info=True)
+        - "general_response": 잡담/일반 질의일 때 (is_general_query=True)
+        - "continue": 기획서 생성 파이프라인으로 진행할 때
+    
+    Returns:
+        str: 다음 노드 이름 ("option_pause", "general_response", "continue")
+    """
     if is_human_interrupt_required(state):
         return "option_pause"
     if is_general_query(state):
@@ -320,15 +331,24 @@ def should_ask_user(state: PlanCraftState) -> str:
 
 
 def is_human_interrupt_required(state: PlanCraftState) -> bool:
+    """
+    사용자에게 추가 정보를 요청해야 하는지 판단.
+    
+    Analyzer가 분석 결과에서 need_more_info=True를 설정한 경우 True.
+    """
     return state.get("need_more_info") is True
 
 
 def is_general_query(state: PlanCraftState) -> bool:
-    # analysis는 dict일 수도 있음
+    """
+    사용자 입력이 기획서 요청이 아닌 일반 질의인지 판단.
+    
+    Analyzer가 분석 결과에서 is_general_query=True를 설정한 경우 True.
+    (예: "안녕하세요", "뭘 할 수 있어요?" 같은 질문)
+    """
     analysis = state.get("analysis")
     if not analysis:
         return False
-    # analysis가 dict면 .get, 객체면 getattr
     if isinstance(analysis, dict):
         return analysis.get("is_general_query", False)
     return getattr(analysis, "is_general_query", False)
