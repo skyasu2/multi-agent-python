@@ -374,9 +374,25 @@ def render_main():
                     # 4. 결과 처리 로직 (잡담 vs 기획서 vs 추가질문)
                     analysis_res = final_result.get("analysis")
                     generated_plan = final_result.get("final_output", "")
+                    
+                    # [FIX] 인터럽트 페이로드(Payload) 우선 확인 (Multi-HITL 지원)
+                    interrupt_data = final_result.get("__interrupt__")
+                    
+                    # 상태값 초기화
                     need_more_info = final_result.get("need_more_info", False)
                     options = final_result.get("options", [])
+                    option_question = final_result.get("option_question", "다음과 같이 기획 방향을 제안합니다.")
                     
+                    # 인터럽트가 있으면 Payload 데이터로 덮어쓰기
+                    if interrupt_data:
+                        # Payload 구조: { "question": "...", "options": [...] }
+                        if "question" in interrupt_data:
+                            option_question = interrupt_data["question"]
+                        if "options" in interrupt_data:
+                            options = interrupt_data["options"]
+                        # 인터럽트는 항상 사용자 응답 대기 상태임
+                        need_more_info = True
+
                     is_general = False
                     if analysis_res and isinstance(analysis_res, dict):
                         is_general = analysis_res.get("is_general_query", False)
@@ -384,10 +400,11 @@ def render_main():
                     # [FIX] options가 있으면 무조건 기획 제안 모드로 처리 (옵션 우선!)
                     if options and len(options) > 0 and not is_general:
                         # B. 기획 제안 & 미리보기 표시
-                        q = final_result.get("option_question", "다음과 같이 기획 방향을 제안합니다.")
+                        # q = option_question # 위에서 설정됨
                         
                         preview_msg = ""
-                        if analysis_res:
+                        # Analyzer 단계인 경우에만 preview_msg 구성 (Topic 등)
+                        if analysis_res and not interrupt_data:
                             p_topic = analysis_res.get("topic", "미정")
                             p_purpose = analysis_res.get("purpose", "")
                             p_features = analysis_res.get("key_features", [])
@@ -399,7 +416,9 @@ def render_main():
                                 preview_msg += f"**💡 주요 기능**: {feats} 등\n"
                             preview_msg += "\n"
 
-                        msg_content = f"🤔 **{q}**\n\n{preview_msg}"
+                        # Markdown 충돌 방지를 위해 option_question은 있는 그대로 출력 (Bold 제거)
+                        msg = f"🤔 {option_question}\n\n{preview_msg}"
+                        msg_content = msg
                         for o in options:
                             msg_content += f"- **{o.get('title')}**: {o.get('description')}\n"
 
