@@ -164,22 +164,60 @@ Action Items (실행 지침):
     ]
 
     
-    # 3. LLM 호출
-    try:
-        draft_result = writer_llm.invoke(messages)
-        
-        # 4. 상태 업데이트
-        if hasattr(draft_result, "model_dump"):
-            draft_dict = draft_result.model_dump()
-        else:
-            draft_dict = draft_result
+    # 3. LLM 호출 및 Self-Correction (Reflection Loop)
+    max_retries = 2
+    current_try = 0
+    final_draft_dict = None
+    last_error = None
+
+    while current_try < max_retries:
+        try:
+            print(f"[Writer] 초안 작성 시도 ({current_try + 1}/{max_retries})...")
+            draft_result = writer_llm.invoke(messages)
             
+            # Pydantic -> Dict 변환
+            if hasattr(draft_result, "model_dump"):
+                draft_dict = draft_result.model_dump()
+            else:
+                draft_dict = draft_result
+
+            # -----------------------------------------------------------------
+            # [Reflection] Self-Check: 섹션 개수 검증
+            # -----------------------------------------------------------------
+            sections = draft_dict.get("sections", [])
+            section_count = len(sections)
+            
+            # 필수 섹션 수 (최소 9개, 권장 10개)
+            MIN_SECTIONS = 9 
+            
+            if section_count < MIN_SECTIONS:
+                print(f"[Writer Reflection] ⚠️ 섹션 개수 부족 ({section_count}/{MIN_SECTIONS}). 재작성합니다.")
+                
+                # 피드백 메시지 추가하여 다시 시도
+                feedback = f"\n\n[System Alert]: 생성된 결과의 섹션 개수가 {section_count}개로 부족합니다. 반드시 10개 섹션을 모두 작성해야 합니다. 빠짐없이 다시 작성하세요."
+                messages.append({"role": "user", "content": feedback})
+                current_try += 1
+                last_error = f"섹션 개수 부족 ({section_count}개)"
+                continue
+            
+            # 통과 시 루프 탈출
+            final_draft_dict = draft_dict
+            print("[Writer Reflection] ✅ Self-Check 통과.")
+            break
+
+        except Exception as e:
+            print(f"[Writer Error] 생성 중 오류: {e}")
+            current_try += 1
+            last_error = str(e)
+            
+    # 최종 결과 처리
+    if final_draft_dict:
         return update_state(
             state,
-            draft=draft_dict,
+            draft=final_draft_dict,
             current_step="write"
         )
-        
-    except Exception as e:
-        print(f"[ERROR] Writer Failed: {e}")
-        return update_state(state, error=str(e))
+    else:
+        # 재시도 실패 시에도 일단 결과가 있으면 반환, 없으면 에러
+        error_msg = f"Writer 작성 실패 (최대 재시도 초과): {last_error}"
+        return update_state(state, error=error_msg)
