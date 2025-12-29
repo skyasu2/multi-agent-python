@@ -80,38 +80,87 @@ Config.setup_langsmith()
 # Helper: 실행 이력 기록 및 로깅 통합
 # =============================================================================
 
-def _update_step_history(state: PlanCraftState, step: str, status: str, summary: str = "", error: str = None) -> PlanCraftState:
-    """
-    [Internal] 실행 이력을 State에 기록하고, 파일 로그를 남긴 후 업데이트된 State를 반환합니다.
-    """
-    from datetime import datetime
+def _update_step_history(state: PlanCraftState, step_name: str, status: str, summary: str = "", start_time: float = 0.0) -> PlanCraftState:
+    """Step 실행 결과를 state의 history에 추가하고 로깅합니다."""
+    # (기존 코드 생략...)
+    
+    # ... Helper 함수 구현 유지 ...
     from graph.state import update_state
     
-    # 1. History Item 생성
+    # 시간 측정
+    import time
+    if start_time == 0.0:
+        start_time = time.time() # fallback
+        
+    execution_time = f"{time.time() - start_time:.2f}s"
+    
+    # 로그 기록
+    logger = get_file_logger()
+    log_msg = f"[{step_name.upper()}] {status}"
+    if summary:
+        log_msg += f" - {summary}"
+    logger.info(log_msg)
+    
+    # History 항목 생성
     history_item = {
-        "step": step,
+        "step": step_name,
         "status": status,
         "summary": summary,
-        "error": error,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "execution_time": execution_time
     }
     
-    # 2. Immutable Update (List append) - TypedDict dict 접근
+    # State 업데이트 (불변성 유지)
     current_history = state.get("step_history", []) or []
-    new_history = list(current_history) + [history_item]
+    new_history = current_history + [history_item]
     
-    # 3. State 업데이트 - TypedDict 방식
-    updated_state = update_state(
-        state,
-        step_history=new_history,
-        current_step=step,
+    return update_state(
+        state, 
+        current_step=step_name,
         step_status=status,
-        last_error=error
+        step_history=new_history,
+        last_error=None if status == "SUCCESS" else state.get("last_error")
     )
+
+
+# =============================================================================
+# Condition Logic (라우팅 조건)
+# =============================================================================
+
+def should_refine_or_restart(state: PlanCraftState) -> str:
+    """
+    Reviewer 결과에 따라 다음 단계 결정 (Multi-Agent 동적 라우팅)
     
-    # 4. 파일 로깅 (통합)
-    get_file_logger().log(step, updated_state)
+    분기 로직:
+    - score < 5 또는 FAIL → Analyzer로 복귀 (재분석)
+    - score 5~8 또는 REVISE → Refiner (개선)
+    - score ≥ 9 또는 PASS → Formatter (완료)
     
+    안전장치:
+    - restart_count >= 2 → 무한 복귀 방지
+    """
+    review = state.get("review", {})
+    score = review.get("overall_score", 5)
+    verdict = review.get("verdict", "REVISE")
+    restart_count = state.get("restart_count", 0)
+    
+    # 무한 루프 방지: 최대 2회 복귀
+    if restart_count >= 2:
+        print(f"[ROUTING] 최대 복귀 횟수 도달 ({restart_count}), Refiner로 진행")
+        return "refine"
+    
+    # 점수/판정에 따른 분기
+    if score < 5 or verdict == "FAIL":
+        print(f"[ROUTING] 점수 낮음 ({score}점, {verdict}), Analyzer로 복귀")
+        return "restart"  # Analyzer로 복귀
+    elif score >= 9 and verdict == "PASS":
+        print(f"[ROUTING] 품질 우수 ({score}점, {verdict}), 바로 완료")
+        return "complete"  # Formatter로
+    else:
+        print(f"[ROUTING] 개선 필요 ({score}점, {verdict}), Refiner로")
+        return "refine"   # Refiner로
+# =============================================================================
+
     return updated_state
 
 
@@ -594,42 +643,7 @@ def create_workflow() -> StateGraph:
     workflow.add_edge("structure", "write")
     workflow.add_edge("write", "review")
     
-    # =========================================================================
-    # [PHASE 1] 동적 라우팅: Reviewer 점수에 따른 분기
-    # =========================================================================
-    def should_refine_or_restart(state: PlanCraftState) -> str:
-        """
-        Reviewer 결과에 따라 다음 단계 결정 (Multi-Agent 동적 라우팅)
-        
-        분기 로직:
-        - score < 5 또는 FAIL → Analyzer로 복귀 (재분석)
-        - score 5~8 또는 REVISE → Refiner (개선)
-        - score ≥ 9 또는 PASS → Formatter (완료)
-        
-        안전장치:
-        - restart_count >= 2 → 무한 복귀 방지
-        """
-        review = state.get("review", {})
-        score = review.get("overall_score", 5)
-        verdict = review.get("verdict", "REVISE")
-        restart_count = state.get("restart_count", 0)
-        
-        # 무한 루프 방지: 최대 2회 복귀
-        if restart_count >= 2:
-            print(f"[ROUTING] 최대 복귀 횟수 도달 ({restart_count}), Refiner로 진행")
-            return "refine"
-        
-        # 점수/판정에 따른 분기
-        if score < 5 or verdict == "FAIL":
-            print(f"[ROUTING] 점수 낮음 ({score}점, {verdict}), Analyzer로 복귀")
-            return "restart"  # Analyzer로 복귀
-        elif score >= 9 and verdict == "PASS":
-            print(f"[ROUTING] 품질 우수 ({score}점, {verdict}), 바로 완료")
-            return "complete"  # Formatter로
-        else:
-            print(f"[ROUTING] 개선 필요 ({score}점, {verdict}), Refiner로")
-            return "refine"   # Refiner로
-
+    # [PHASE 1] 동적 라우팅 설정
     workflow.add_conditional_edges(
         "review",
         should_refine_or_restart,
