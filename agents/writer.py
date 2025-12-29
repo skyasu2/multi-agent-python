@@ -63,6 +63,40 @@ def run(state: PlanCraftState) -> PlanCraftState:
     # [NEW] doc_type에 따라 프롬프트 선택
     system_prompt, user_prompt_template = _get_prompts_by_doc_type(state)
 
+    # =========================================================================
+    # [NEW] 실시간 웹 검색 (수치 및 근거 보강)
+    # =========================================================================
+    try:
+        from tools.web_search import should_search_web
+        from tools.search_client import get_search_client
+        
+        # 1. 검색 여부 판단
+        search_decision = should_search_web(user_input, rag_context)
+        
+        if search_decision.get("should_search") and search_decision.get("search_query"):
+            query = search_decision["search_query"]
+            print(f"[Writer] 실시간 웹 검색 수행: '{query}'")
+            
+            # 2. 검색 수행 (Tavily)
+            search_client = get_search_client()
+            search_result = search_client.search(query)
+            
+            # 3. Context 보강
+            if "[Web Search Failed]" not in search_result:
+                if not web_context:
+                    web_context = ""
+                web_context += f"\n\n[Writer Search Result]\nKeyword: {query}\n{search_result}"
+                print("[Writer] 웹 데이터가 컨텍스트에 추가되었습니다.")
+            else:
+                 print(f"[Writer] 검색 실패 또는 스킵됨: {search_result}")
+
+    except ImportError:
+        print("[Writer] 검색 모듈 로드 실패 (tools.web_search or tools.search_client)")
+    except Exception as e:
+        print(f"[Writer] 웹 검색 중 오류 발생: {str(e)}")
+    # =========================================================================
+
+
     # 2. 프롬프트 구성 (시간 컨텍스트 주입)
     structure_str = str(structure)
     
