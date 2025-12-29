@@ -81,6 +81,20 @@ def run(state: PlanCraftState) -> PlanCraftState:
         else:
             analysis_dict = analysis_result
 
+        # [Rule Override] 입력 길이가 충분히 길면(20자 이상), LLM이 확인 요청을 하더라도 강제로 진행
+        # LLM이 안전 성향(Safety Bias)으로 인해 불필요한 확인을 시도하는 경우를 방지
+        is_general = analysis_dict.get("is_general_query", False)
+        need_info = analysis_dict.get("need_more_info", False)
+        
+        if need_info and not is_general:
+            # 공백 제외 길이 체크
+            input_len = len(user_input.strip())
+            if input_len >= 20: 
+                print(f"[Override] Input length({input_len}) >= 20. Forcing need_more_info=False (Fast Track).")
+                analysis_dict["need_more_info"] = False
+                analysis_dict["option_question"] = None
+                analysis_dict["options"] = []
+
         updates = {
             "analysis": analysis_dict,
             "need_more_info": analysis_dict.get("need_more_info", False),
