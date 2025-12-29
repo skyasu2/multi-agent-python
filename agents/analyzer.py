@@ -100,7 +100,10 @@ def run(state: PlanCraftState) -> PlanCraftState:
             "need_more_info": analysis_dict.get("need_more_info", False),
             "options": analysis_dict.get("options", []),
             "option_question": analysis_dict.get("option_question"),
-            "current_step": "analyze"
+            "current_step": "analyze",
+            # [CRITICAL] 새로운 분석 시작 시 이전 결과물(Stale State) 초기화
+            "final_output": None,
+            "generated_plan": None
         }
             
         return update_state(state, **updates)
