@@ -208,15 +208,42 @@ def render_main():
         # B. 인터럽트 (Native Payload 우선)
         elif state.get("__interrupt__"):
             payload = state["__interrupt__"]
-            # UI 렌더러 호환성 위해 로컬 state 변수 업데이트
-            ui_state = state.copy() 
-            ui_state.update({
-                "input_schema_name": payload.get("input_schema_name"),
-                "options": payload.get("options"),
-                "option_question": payload.get("question"),
-                "need_more_info": True
-            })
-            render_human_interaction(ui_state)
+            
+            # [CASE] 목차 승인 (Multi-HITL) - 모달 & Fast Track
+            if payload.get("type") == "structure_review":
+                st.info(f"📋 **목차가 정리되었습니다.** 상세 내용을 확인하거나 바로 진행할 수 있습니다.")
+                
+                col_m1, col_m2 = st.columns([1, 1])
+                with col_m1:
+                    # [UX] 모달 팝업 트리거
+                    if st.button("🔎 목차 상세 보기", use_container_width=True):
+                         render_structure_dialog(payload.get("question", "내용 없음"))
+                
+                with col_m2:
+                    # [UX] Fast Track (자동 승인)
+                    if st.button("⏩ 자동 승인 (바로 진행)", type="primary", use_container_width=True):
+                        # 승인 처리 로직 (직접 resume_cmd 구성)
+                        st.session_state.chat_history.append({"role": "user", "content": "⏩ 자동 승인", "type": "text"})
+                        st.session_state.current_state = None
+                        
+                        # Command Resume 데이터 구성
+                        resume_value = {"selected_option": {"value": "approve", "title": "자동 승인"}}
+                        
+                        # run_plancraft(resume=...) 호출을 위해 pending 상태 설정 -> main loop에서 처리
+                        st.session_state.pending_input = f"RESUME:{json.dumps(resume_value, ensure_ascii=False)}"
+                        st.rerun()
+
+            else:
+                # [CASE] 일반 옵션 선택 (기존 로직)
+                # UI 렌더러 호환성 위해 로컬 state 변수 업데이트
+                ui_state = state.copy() 
+                ui_state.update({
+                    "input_schema_name": payload.get("input_schema_name"),
+                    "options": payload.get("options"),
+                    "option_question": payload.get("question"),
+                    "need_more_info": True
+                })
+                render_human_interaction(ui_state)
             
         # C. 기존 방식 호환 (need_more_info 플래그)
         elif state.get("need_more_info"):
@@ -488,6 +515,22 @@ def main():
     
     # 2. 세션 초기화
     init_session_state()
+    
+    # [NEW] Modal Action 처리 (UI Component에서 넘어온 요청)
+    if "modal_action" in st.session_state and st.session_state.modal_action:
+        action = st.session_state.modal_action
+        st.session_state.modal_action = None # Consume Action
+        
+        val = "approve" if action == "approve" else "reject"
+        title = "✅ 승인" if action == "approve" else "🔄 재설계 요청"
+        
+        st.session_state.chat_history.append({"role": "user", "content": f"{title} (Modal)", "type": "text"})
+        st.session_state.current_state = None
+        
+        # Command Resume 데이터 구성
+        resume_value = {"selected_option": {"value": val, "title": title}}
+        st.session_state.pending_input = f"RESUME:{json.dumps(resume_value, ensure_ascii=False)}"
+        st.rerun()
     
     # 3. 메인 UI 렌더링
     render_main()

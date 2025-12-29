@@ -290,3 +290,31 @@ def trigger_browser_notification(title: str, body: str):
     """
     components.html(js_code, height=0, width=0)
 
+
+@st.dialog("📋 기획서 목차 상세 검토")
+def render_structure_dialog(toc_text: str):
+    """
+    [UX] 목차 확인용 모달 다이얼로그
+    """
+    st.markdown("AI가 제안한 목차 구조입니다. 내용을 확인하고 승인 여부를 결정해주세요.")
+    
+    with st.container(border=True):
+        st.markdown(toc_text)
+    
+    st.caption("💡 수정이 필요한 경우 '재설계 요청'을 선택하거나 닫기 후 채팅창에 의견을 남겨주세요.")
+    st.divider()
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        if st.button("✅ 승인 (진행)", type="primary", use_container_width=True, key="btn_approve_modal"):
+            # 승인 처리
+            st.session_state.modal_action = "approve"
+            st.rerun()
+            
+    with col2:
+        if st.button("🔄 재설계", use_container_width=True, key="btn_reject_modal"):
+            # 재설계 처리
+            st.session_state.modal_action = "reject"
+            st.rerun()
+
