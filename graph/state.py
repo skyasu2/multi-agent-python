@@ -139,6 +139,7 @@ class PlanCraftState(TypedDict, total=False):
     # Review & Refine
     review: Optional[dict]
     refined: bool
+    restart_count: int  # [NEW] Analyzer 복귀 횟수 (동적 라우팅)
     
     # Metadata & Operations
     current_step: str

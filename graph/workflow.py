@@ -312,8 +312,22 @@ def general_response_node(state: PlanCraftState) -> PlanCraftState:
 def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
     """분석 Agent 실행 노드"""
     from agents.analyzer import run
+    from graph.state import update_state
+    
+    # [PHASE 1] Reviewer에서 복귀한 경우 restart_count 증가
+    current_restart_count = state.get("restart_count", 0)
+    has_review = state.get("review") is not None
+    
+    if has_review:
+        # Reviewer를 거친 후 다시 Analyzer로 온 경우 = 재분석
+        current_restart_count += 1
+        print(f"[ROUTING] Analyzer 재진입 (restart_count: {current_restart_count})")
     
     new_state = run(state)
+    
+    # restart_count 업데이트
+    new_state = update_state(new_state, restart_count=current_restart_count)
+    
     analysis = new_state.get("analysis")
     topic = "N/A"
     if analysis:
@@ -323,7 +337,7 @@ def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
         new_state, 
         "analyze", 
         "SUCCESS", 
-        summary=f"주제 분석: {topic}"
+        summary=f"주제 분석: {topic}" + (f" (재분석 #{current_restart_count})" if has_review else "")
     )
 
 @handle_node_error
@@ -579,7 +593,52 @@ def create_workflow() -> StateGraph:
 
     workflow.add_edge("structure", "write")
     workflow.add_edge("write", "review")
-    workflow.add_edge("review", "refine")
+    
+    # =========================================================================
+    # [PHASE 1] 동적 라우팅: Reviewer 점수에 따른 분기
+    # =========================================================================
+    def should_refine_or_restart(state: PlanCraftState) -> str:
+        """
+        Reviewer 결과에 따라 다음 단계 결정 (Multi-Agent 동적 라우팅)
+        
+        분기 로직:
+        - score < 5 또는 FAIL → Analyzer로 복귀 (재분석)
+        - score 5~8 또는 REVISE → Refiner (개선)
+        - score ≥ 9 또는 PASS → Formatter (완료)
+        
+        안전장치:
+        - restart_count >= 2 → 무한 복귀 방지
+        """
+        review = state.get("review", {})
+        score = review.get("overall_score", 5)
+        verdict = review.get("verdict", "REVISE")
+        restart_count = state.get("restart_count", 0)
+        
+        # 무한 루프 방지: 최대 2회 복귀
+        if restart_count >= 2:
+            print(f"[ROUTING] 최대 복귀 횟수 도달 ({restart_count}), Refiner로 진행")
+            return "refine"
+        
+        # 점수/판정에 따른 분기
+        if score < 5 or verdict == "FAIL":
+            print(f"[ROUTING] 점수 낮음 ({score}점, {verdict}), Analyzer로 복귀")
+            return "restart"  # Analyzer로 복귀
+        elif score >= 9 and verdict == "PASS":
+            print(f"[ROUTING] 품질 우수 ({score}점, {verdict}), 바로 완료")
+            return "complete"  # Formatter로
+        else:
+            print(f"[ROUTING] 개선 필요 ({score}점, {verdict}), Refiner로")
+            return "refine"   # Refiner로
+
+    workflow.add_conditional_edges(
+        "review",
+        should_refine_or_restart,
+        {
+            "restart": "analyze",   # [NEW] Analyzer 복귀
+            "refine": "refine",     # 기존: 개선
+            "complete": "format"    # [NEW] 바로 완료
+        }
+    )
 
     # [UPDATE] Refiner 조건부 엣지 - REVISE 판정 시 재작성 루프
     def should_refine_again(state: PlanCraftState) -> str:

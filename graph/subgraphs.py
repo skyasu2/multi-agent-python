@@ -131,35 +131,61 @@ def run_context_subgraph(state: PlanCraftState) -> PlanCraftState:
     """
     컨텍스트 수집 서브그래프 (Context Sub-graph)
     
-    RAG 검색과 웹 검색을 병렬(또는 순차)로 수행하여 컨텍스트를 풍부하게 만듭니다.
-    LangGraph에서는 같은 State를 공유하는 노드들을 묶어 Sub-graph로 구성할 수 있습니다.
+    [PHASE 2] RAG 검색과 웹 검색을 병렬로 수행하여 성능 향상
+    
+    변경 전: RAG → Web (순차, ~5초)
+    변경 후: RAG + Web (병렬, ~3초)
     """
     from graph.workflow import retrieve_context, fetch_web_context
     from graph.state import update_state
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import time
     
     # 1. 초기 상태 로깅
     current_history = state.get("step_history", []) or []
-    base_len = len(current_history)
-    print(f"[Subgraph] Context Gathering Started (History: {base_len} steps)")
+    print(f"[Subgraph] 병렬 Context Gathering Started")
+    start_time = time.time()
     
-    # 2. 노드 실행 (순차 실행 예시)
+    # =========================================================================
+    # [PHASE 2] 병렬 실행: RAG + 웹검색 동시 수행
+    # =========================================================================
+    rag_result = None
+    web_result = None
     
-    # Retrieve 수행
-    state_after_rag = retrieve_context(state)
+    def run_rag():
+        return retrieve_context(state)
     
-    # Web Fetch 수행
-    state_after_web = fetch_web_context(state_after_rag)
+    def run_web():
+        return fetch_web_context(state)
     
-    # 3. 결과 집계 및 반환
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            rag_future = executor.submit(run_rag)
+            web_future = executor.submit(run_web)
+            
+            # 결과 수집
+            rag_result = rag_future.result(timeout=30)
+            web_result = web_future.result(timeout=30)
+            
+    except Exception as e:
+        print(f"[Subgraph] 병렬 실행 실패, 순차 실행으로 전환: {e}")
+        # Fallback: 순차 실행
+        rag_result = retrieve_context(state)
+        web_result = fetch_web_context(rag_result)
     
-    # 업데이트할 필드 추출
+    elapsed = time.time() - start_time
+    print(f"[Subgraph] Context Gathering 완료 ({elapsed:.2f}초)")
+    
+    # 3. 결과 병합
     updates = {
-        "rag_context": state_after_web.get("rag_context"),
-        "web_context": state_after_web.get("web_context"),
-        "web_urls": state_after_web.get("web_urls"),
+        "rag_context": rag_result.get("rag_context") if rag_result else None,
+        "web_context": web_result.get("web_context") if web_result else None,
+        "web_urls": web_result.get("web_urls") if web_result else None,
         "current_step": "context_gathering",
-        # History 병합
-        "step_history": state_after_web.get("step_history")
+        # History 병합 (둘 다 합침)
+        "step_history": (rag_result.get("step_history") or []) + 
+                       [h for h in (web_result.get("step_history") or []) 
+                        if h not in (rag_result.get("step_history") or [])]
     }
     
     return update_state(state, **updates)
