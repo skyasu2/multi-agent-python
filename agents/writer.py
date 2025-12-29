@@ -11,8 +11,8 @@ from graph.state import PlanCraftState, update_state
 from prompts.writer_prompt import WRITER_SYSTEM_PROMPT, WRITER_USER_PROMPT
 from prompts.business_plan_prompt import BUSINESS_PLAN_SYSTEM_PROMPT, BUSINESS_PLAN_USER_PROMPT
 
-# LLM 초기화
-writer_llm = get_llm().with_structured_output(DraftResult)
+# LLM 초기화 (일관성 위해 temperature 낮춤)
+writer_llm = get_llm(temperature=0.4).with_structured_output(DraftResult)
 
 
 def _get_prompts_by_doc_type(state: PlanCraftState) -> tuple:
