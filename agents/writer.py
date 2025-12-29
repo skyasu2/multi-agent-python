@@ -170,6 +170,7 @@ Action Items (실행 지침):
     max_retries = settings.WRITER_MAX_RETRIES
     current_try = 0
     final_draft_dict = None
+    last_draft_dict = None  # 마지막으로 생성된 결과 (부분이라도 보존)
     last_error = None
 
     while current_try < max_retries:
@@ -182,6 +183,9 @@ Action Items (실행 지침):
                 draft_dict = draft_result.model_dump()
             else:
                 draft_dict = draft_result
+
+            # 마지막 결과 보존 (부분이라도)
+            last_draft_dict = draft_dict
 
             # -----------------------------------------------------------------
             # [Reflection] Self-Check: 섹션 개수 검증
@@ -196,7 +200,13 @@ Action Items (실행 지침):
                 print(f"[Writer Reflection] ⚠️ 섹션 개수 부족 ({section_count}/{MIN_SECTIONS}). 재작성합니다.")
                 
                 # 피드백 메시지 추가하여 다시 시도
-                feedback = f"\n\n[System Alert]: 생성된 결과의 섹션 개수가 {section_count}개로 부족합니다. 반드시 10개 섹션을 모두 작성해야 합니다. 빠짐없이 다시 작성하세요."
+                feedback = f"""
+[System Critical Alert]: 
+- 현재 생성된 섹션: {section_count}개 (부족!)
+- 최소 필수 섹션: {MIN_SECTIONS}개
+- 필수 섹션 목록: 1.요약, 2.문제정의, 3.타겟/시장, 4.핵심기능, 5.비즈니스모델, 6.기술스택, 7.일정, 8.리스크, 9.KPI, 10.팀
+- 반드시 모든 섹션을 빠짐없이 작성하세요!
+"""
                 messages.append({"role": "user", "content": feedback})
                 current_try += 1
                 last_error = f"섹션 개수 부족 ({section_count}개)"
@@ -219,7 +229,16 @@ Action Items (실행 지침):
             draft=final_draft_dict,
             current_step="write"
         )
+    elif last_draft_dict:
+        # 재시도 실패했지만 부분 결과가 있으면 일단 사용 (Fallback)
+        print(f"[Writer] ⚠️ 최소 섹션 미달이지만 부분 결과 사용 ({len(last_draft_dict.get('sections', []))}개 섹션)")
+        return update_state(
+            state,
+            draft=last_draft_dict,
+            current_step="write"
+        )
     else:
-        # 재시도 실패 시에도 일단 결과가 있으면 반환, 없으면 에러
+        # 완전 실패
         error_msg = f"Writer 작성 실패 (최대 재시도 초과): {last_error}"
         return update_state(state, error=error_msg)
+

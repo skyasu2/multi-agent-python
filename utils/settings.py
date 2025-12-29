@@ -15,7 +15,7 @@ class ProjectSettings(BaseModel):
     
     # === Agent Settings ===
     MAX_FILE_LENGTH: int = Field(default=10000, description="업로드 파일 최대 분석 길이")
-    WRITER_MAX_RETRIES: int = Field(default=2, description="Writer Self-Correction 최대 재시도 횟수")
+    WRITER_MAX_RETRIES: int = Field(default=3, description="Writer Self-Correction 최대 재시도 횟수")
     WRITER_MIN_SECTIONS: int = Field(default=9, description="Writer 최소 생성 섹션 수")
     
     # === Workflow Settings ===
