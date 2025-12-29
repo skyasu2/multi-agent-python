@@ -243,3 +243,17 @@ class InterruptPayload(BaseModel):
     options: List[OptionChoice] = Field(default_factory=list, description="선택 가능한 옵션 (type='option'일 때)")
     input_schema_name: Optional[str] = Field(default=None, description="입력 폼 스키마 (type='form'일 때)")
     data: Dict[str, Any] = Field(default_factory=dict, description="기타 메타데이터")
+
+
+# =============================================================================
+# Idea Generator 스키마 (New)
+# =============================================================================
+
+class CreativeIdea(BaseModel):
+    """생성된 아이디어 항목"""
+    title: str = Field(description="아이디어 제목 (매력적으로, 이모지 포함 가능)")
+    description: str = Field(description="에이전트에게 전달할 구체적 기획 요청 프롬프트")
+
+class CreativeIdeaList(BaseModel):
+    """아이디어 목록"""
+    ideas: List[CreativeIdea] = Field(description="생성된 아이디어 목록 (보통 3개)")
