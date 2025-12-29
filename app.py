@@ -81,6 +81,37 @@ def init_session_state():
 
 
 # =============================================================================
+# 리소스 초기화 (RAG, Config 등)
+# =============================================================================
+@st.cache_resource
+def init_resources():
+    """
+    앱 실행 시 무거운 리소스를 초기화합니다.
+    st.cache_resource를 사용하여 프로세스당 1회만 실행되도록 합니다.
+    """
+    try:
+        # 1. Config 검증
+        Config.validate()
+        
+        # 2. RAG 벡터스토어 로드 (없으면 생성)
+        # 배포 환경에서 첫 실행 시 인덱스를 생성합니다.
+        # 네트워크 문제(403) 발생 시에도 앱이 멈추지 않도록 예외 처리합니다.
+        from rag.vectorstore import load_vectorstore
+        print("[INIT] Loading RAG Vectorstore...")
+        vs = load_vectorstore()
+        if vs:
+             print("[INIT] RAG Vectorstore Loaded Successfully")
+        else:
+             print("[WARN] RAG Vectorstore Load Failed (None)")
+             
+    except Exception as e:
+        print(f"[WARN] Resource Initialization Warning: {e}")
+        # 치명적이지 않은 오류는 로그만 남기고 진행
+
+
+
+
+# =============================================================================
 # 메인 렌더링
 # =============================================================================
 def render_main():
@@ -429,30 +460,17 @@ def render_main():
 
 
 # =============================================================================
-# 환경 체크
-# =============================================================================
-def check_environment():
-    """실행 환경 및 의존성 체크 (자동 초기화)"""
-    faiss_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rag", "faiss_index")
-    
-    if not os.path.exists(faiss_path) or not os.listdir(faiss_path):
-        with st.spinner("📦 초기 설정 중... (벡터 데이터 생성)"):
-            try:
-                from rag.vectorstore import init_vectorstore
-                init_vectorstore()
-                st.toast("✅ 초기 설정 완료!", icon="🎉")
-            except Exception as e:
-                st.error(f"❌ 초기 설정 실패: {str(e)}")
-                st.stop()
-
-
-# =============================================================================
 # 메인 함수
 # =============================================================================
 def main():
     """메인 함수"""
-    check_environment()
+    # 1. 리소스 초기화 (RAG, Config 등) - 실패해도 앱 실행 보장
+    init_resources()
+    
+    # 2. 세션 초기화
     init_session_state()
+    
+    # 3. 메인 UI 렌더링
     render_main()
 
 
