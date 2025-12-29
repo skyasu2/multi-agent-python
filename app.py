@@ -221,12 +221,25 @@ def render_main():
                          final_result["refine_count"] = current_refine_count
                          st.session_state.next_refine_count = 0
 
-                    # 4. 히스토리 업데이트 (Block 2 로직 통합)
+                    # 4. 결과 처리 로직 (잡담 vs 기획서 vs 추가질문)
                     analysis_res = final_result.get("analysis")
                     generated_plan = final_result.get("final_output", "")
                     need_more_info = final_result.get("need_more_info", False)
 
-                    if need_more_info:
+                    # [Check] 일반 잡담 여부 확인
+                    is_general = False
+                    if analysis_res and isinstance(analysis_res, dict):
+                        is_general = analysis_res.get("is_general_query", False)
+
+                    if is_general:
+                        # A. 일반 대화 응답
+                        ans = analysis_res.get("general_answer", "작업이 완료되었습니다.")
+                        st.session_state.chat_history.append({"role": "assistant", "content": ans, "type": "text"})
+                        # 잡담인 경우 generated_plan이 남아있더라도 무시하고 UI 상태 초기화
+                        st.session_state.generated_plan = None 
+
+                    elif need_more_info:
+                        # B. 추가 정보 요청
                         q = final_result.get("option_question", "추가 정보가 필요합니다.")
                         opts = final_result.get("options", [])
                         msg_content = f"🤔 **{q}**\n\n"
@@ -235,15 +248,14 @@ def render_main():
                         st.session_state.chat_history.append({"role": "assistant", "content": msg_content, "type": "options"})
 
                     elif generated_plan:
+                        # C. 기획서 완성
                         st.session_state.generated_plan = generated_plan
                         st.session_state.chat_history.append({"role": "assistant", "content": "✅ 기획서가 완성되었습니다!", "type": "plan"})
                         
                         now_str = datetime.now().strftime("%H:%M:%S")
-                        new_version = len(st.session_state.plan_history) + 1
-                        
                         if not st.session_state.plan_history or st.session_state.plan_history[-1]['content'] != generated_plan:
                              st.session_state.plan_history.append({
-                                "version": new_version, "timestamp": now_str, "content": generated_plan
+                                "version": len(st.session_state.plan_history) + 1, "timestamp": now_str, "content": generated_plan
                              })
 
                         chat_summary = final_result.get("chat_summary", "")
@@ -251,15 +263,8 @@ def render_main():
                              st.session_state.chat_history.append({"role": "assistant", "content": chat_summary, "type": "summary"})
                     
                     else:
-                        # 일반 응답 (분석 단계 등)
-                        ans = "작업이 완료되었습니다."
-                        if analysis_res:
-                            # 구조화된 응답 처리
-                             if isinstance(analysis_res, dict):
-                                 ans = analysis_res.get("general_answer", ans)
-                             elif hasattr(analysis_res, "general_answer"):
-                                 ans = getattr(analysis_res, "general_answer", ans)
-                        st.session_state.chat_history.append({"role": "assistant", "content": ans, "type": "text"})
+                        # D. 기타 (분석 단계 등)
+                        st.session_state.chat_history.append({"role": "assistant", "content": "작업이 완료되었습니다.", "type": "text"})
 
                     st.rerun()
                     
@@ -311,7 +316,7 @@ def render_main():
             render_human_interaction(state)
             
         # D. 최종 결과
-        elif state.get("final_output"):
+        elif state.get("final_output") and not state.get("analysis", {}).get("is_general_query", False):
              st.success("기획서 작성이 완료되었습니다!")
              st.session_state.generated_plan = state["final_output"]
              
@@ -328,6 +333,7 @@ def render_main():
              # 메인 액션 버튼 (모달 호출)
              col_act1, col_act2 = st.columns(2)
              with col_act1:
+                 st.markdown('<div class="bounce-guide">👇 클릭하여 확인</div>', unsafe_allow_html=True)
                  if st.button("기획서 보기", type="primary", use_container_width=True):
                      show_plan_dialog()
              with col_act2:

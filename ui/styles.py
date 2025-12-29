@@ -91,14 +91,15 @@ CUSTOM_CSS = """
         height: 18px !important;
     }
 
-    /* Green Download Button */
-    div[data-testid="stDownloadButton"] button {
+    /* Green Primary Button (기획서 보기) */
+    div[data-testid="stButton"] button[kind="primary"] {
         background-color: #28a745 !important;
         color: white !important;
         border: none !important;
         transition: transform 0.2s;
+        box-shadow: 0 4px 6px rgba(40, 167, 69, 0.3);
     }
-    div[data-testid="stDownloadButton"] button:hover {
+    div[data-testid="stButton"] button[kind="primary"]:hover {
         background-color: #218838 !important;
         transform: scale(1.02);
         color: white !important;
