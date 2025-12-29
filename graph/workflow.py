@@ -642,6 +642,56 @@ def option_pause_node(state: PlanCraftState) -> Command:
     )
 
 
+# =============================================================================
+# 워크플로우 생성
+# =============================================================================
+
+def create_workflow() -> StateGraph:
+    """PlanCraft 워크플로우 생성 (기본 버전)"""
+    from graph.state import PlanCraftInput, PlanCraftOutput
+
+    # LangGraph V0.5+ 호환: input_schema/output_schema 사용
+    workflow = StateGraph(PlanCraftState, input_schema=PlanCraftInput, output_schema=PlanCraftOutput)
+
+    # 노드 등록 (래퍼 함수 사용)
+    # [UPDATE] 컨텍스트 수집 단계 병렬화 (Sub-graph Node)
+    from graph.subgraphs import run_context_subgraph
+    workflow.add_node("context_gathering", run_context_subgraph)
+    
+    workflow.add_node("analyze", run_analyzer_node)
+    
+    # [NEW] 분기 처리용 노드 등록
+    workflow.add_node("option_pause", option_pause_node)
+    workflow.add_node("general_response", general_response_node)
+    
+    workflow.add_node("structure", run_structurer_node)
+    
+    workflow.add_node("write", run_writer_node)
+    workflow.add_node("review", run_reviewer_node)
+    workflow.add_node("refine", run_refiner_node)
+    workflow.add_node("format", run_formatter_node)
+
+    # 엣지 정의
+    # [UPDATE] 병렬 컨텍스트 수집 노드로 진입
+    workflow.set_entry_point("context_gathering")
+    workflow.add_edge("context_gathering", "analyze")
+
+    # [UPDATE] 조건부 분기 개선 (명시적 노드로 라우팅)
+    workflow.add_conditional_edges(
+        "analyze",
+        should_ask_user,
+        {
+            "option_pause": "option_pause",
+            "general_response": "general_response",
+            "continue": "structure"
+        }
+    )
+    
+    # 분기 노드 후 처리 (Streamlit 앱 제어를 위해 END로 이동)
+    workflow.add_edge("option_pause", END)
+    workflow.add_edge("general_response", END)
+
+
     # [UPDATE] Structure -> Write (Direct connection)
     workflow.add_edge("structure", "write")
     
