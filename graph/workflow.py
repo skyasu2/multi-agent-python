@@ -131,40 +131,90 @@ def _update_step_history(state: PlanCraftState, step_name: str, status: str, sum
 # Condition Logic (라우팅 조건)
 # =============================================================================
 
+# =============================================================================
+# Reviewer 라우팅 조건 함수 (RunnableBranch용)
+# =============================================================================
+
+def _is_max_restart_reached(state: PlanCraftState) -> bool:
+    """최대 복귀 횟수(2회) 도달 여부"""
+    return state.get("restart_count", 0) >= 2
+
+def _is_quality_fail(state: PlanCraftState) -> bool:
+    """품질 실패 (score < 5 또는 FAIL)"""
+    review = state.get("review", {})
+    score = review.get("overall_score", 5)
+    verdict = review.get("verdict", "REVISE")
+    return score < 5 or verdict == "FAIL"
+
+def _is_quality_pass(state: PlanCraftState) -> bool:
+    """품질 통과 (score >= 9 및 PASS)"""
+    review = state.get("review", {})
+    score = review.get("overall_score", 5)
+    verdict = review.get("verdict", "REVISE")
+    return score >= 9 and verdict == "PASS"
+
+
+def create_reviewer_routing_branch() -> RunnableBranch:
+    """
+    Reviewer 결과에 따른 라우팅 분기 (RunnableBranch 패턴)
+
+    분기 로직 (우선순위 순):
+    1. restart_count >= 2 → refine (무한 루프 방지)
+    2. score < 5 또는 FAIL → restart (Analyzer 복귀)
+    3. score >= 9 및 PASS → complete (Formatter)
+    4. default → refine (Refiner)
+
+    확장 가능: 새로운 조건 추가 시 튜플만 추가하면 됨
+    """
+    from graph.state import update_state
+
+    return RunnableBranch(
+        # 조건 1: 최대 복귀 횟수 도달 → 강제 refine
+        (_is_max_restart_reached, lambda s: update_state(s, routing_decision="refine")),
+        # 조건 2: 품질 실패 → restart
+        (_is_quality_fail, lambda s: update_state(s, routing_decision="restart")),
+        # 조건 3: 품질 통과 → complete
+        (_is_quality_pass, lambda s: update_state(s, routing_decision="complete")),
+        # 기본값: refine
+        lambda s: update_state(s, routing_decision="refine")
+    )
+
+
 def should_refine_or_restart(state: PlanCraftState) -> str:
     """
     Reviewer 결과에 따라 다음 단계 결정 (Multi-Agent 동적 라우팅)
-    
+
+    내부적으로 RunnableBranch 로직 사용, add_conditional_edges 호환 반환값 제공
+
     분기 로직:
     - score < 5 또는 FAIL → Analyzer로 복귀 (재분석)
     - score 5~8 또는 REVISE → Refiner (개선)
     - score ≥ 9 또는 PASS → Formatter (완료)
-    
+
     안전장치:
     - restart_count >= 2 → 무한 복귀 방지
     """
+    logger = get_file_logger()
     review = state.get("review", {})
     score = review.get("overall_score", 5)
     verdict = review.get("verdict", "REVISE")
     restart_count = state.get("restart_count", 0)
-    
-    logger = get_file_logger()
-    
-    # 무한 루프 방지: 최대 2회 복귀
-    if restart_count >= 2:
+
+    # RunnableBranch 조건 평가 (우선순위 순)
+    if _is_max_restart_reached(state):
         logger.info(f"[ROUTING] 최대 복귀 횟수 도달 ({restart_count}), Refiner로 진행")
         return "refine"
-    
-    # 점수/판정에 따른 분기
-    if score < 5 or verdict == "FAIL":
+
+    if _is_quality_fail(state):
         logger.info(f"[ROUTING] 점수 낮음 ({score}점, {verdict}), Analyzer로 복귀")
-        return "restart"  # Analyzer로 복귀
-    elif score >= 9 and verdict == "PASS":
+        return "restart"
+
+    if _is_quality_pass(state):
         logger.info(f"[ROUTING] 품질 우수 ({score}점, {verdict}), 바로 완료")
-        return "complete"  # Formatter로
-    else:
-        logger.info(f"[ROUTING] 개선 필요 ({score}점, {verdict}), Refiner로")
-        return "refine"   # Refiner로
+        return "complete"
+
+    logger.info(f"[ROUTING] 개선 필요 ({score}점, {verdict}), Refiner로")
+    return "refine"
 
 
 

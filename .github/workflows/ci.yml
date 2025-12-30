@@ -30,7 +30,11 @@ jobs:
         
     - name: Run Scenario Tests
       # PYTHONPATH를 현재 작업 디렉토리로 설정하여 모듈 임포트 에러 해결
+      # LangSmith 트레이싱 활성화로 CI 환경에서도 병목 분석 가능
       env:
         PYTHONPATH: ${{ github.workspace }}
+        LANGCHAIN_TRACING_V2: ${{ secrets.LANGCHAIN_TRACING_V2 || 'false' }}
+        LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+        LANGCHAIN_PROJECT: "PlanCraft-CI"
       run: |
         pytest tests/test_scenarios.py -v
