@@ -641,6 +641,8 @@ def option_pause_node(state: PlanCraftState) -> Command:
         
         # 유효성 검사: 값이 존재해야 함 (None, 빈 문자열 등 방지)
         if user_response:
+            # [LOG] 사용자 응답 기록
+            get_file_logger().info(f"[HITL] User Response: {user_response}")
             print(f"[Human-Node] Valid Input Received: {user_response}")
             break
             

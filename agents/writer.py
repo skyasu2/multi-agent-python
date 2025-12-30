@@ -7,6 +7,7 @@ from utils.schemas import DraftResult
 from utils.time_context import get_time_context, get_time_instruction
 from graph.state import PlanCraftState, update_state
 from utils.settings import settings
+from utils.file_logger import get_file_logger
 
 # 프롬프트 임포트 (IT용 / 일반 사업용)
 from prompts.writer_prompt import WRITER_SYSTEM_PROMPT, WRITER_USER_PROMPT
@@ -43,6 +44,8 @@ def run(state: PlanCraftState) -> PlanCraftState:
     """
     초안 작성 에이전트 실행
     """
+    logger = get_file_logger()
+    
     # 1. 입력 데이터 준비 (Dict Access)
     user_input = state.get("user_input", "")
     structure = state.get("structure")
@@ -105,7 +108,7 @@ Action Items (실행 지침):
         
         if search_decision.get("should_search") and search_decision.get("search_query"):
             query = search_decision["search_query"]
-            print(f"[Writer] 실시간 웹 검색 수행: '{query}'")
+            logger.info(f"[Writer] 실시간 웹 검색 수행: '{query}'")
             
             # 2. 검색 수행 (Tavily)
             search_client = get_search_client()
@@ -116,14 +119,14 @@ Action Items (실행 지침):
                 if not web_context:
                     web_context = ""
                 web_context += f"\n\n[Writer Search Result]\nKeyword: {query}\n{search_result}"
-                print("[Writer] 웹 데이터가 컨텍스트에 추가되었습니다.")
+                logger.info("[Writer] 웹 데이터가 컨텍스트에 추가되었습니다.")
             else:
-                 print(f"[Writer] 검색 실패 또는 스킵됨: {search_result}")
+                 logger.warning(f"[Writer] 검색 실패 또는 스킵됨: {search_result}")
 
     except ImportError:
-        print("[Writer] 검색 모듈 로드 실패 (tools.web_search or tools.search_client)")
+        logger.error("[Writer] 검색 모듈 로드 실패 (tools.web_search or tools.search_client)")
     except Exception as e:
-        print(f"[Writer] 웹 검색 중 오류 발생: {str(e)}")
+        logger.error(f"[Writer] 웹 검색 중 오류 발생: {str(e)}")
     # =========================================================================
 
 
@@ -144,7 +147,7 @@ Action Items (실행 지침):
             context=rag_context if rag_context else "없음"
         )
     except KeyError as e:
-        print(f"[ERROR] Prompt Formatting Failed: {e}")
+        logger.error(f"[ERROR] Prompt Formatting Failed: {e}")
         return update_state(state, error=f"프롬프트 포맷 오류: {str(e)}")
 
     # 이전 버전 컨텍스트 및 피드백 추가 (최우선 순위)
@@ -175,7 +178,7 @@ Action Items (실행 지침):
 
     while current_try < max_retries:
         try:
-            print(f"[Writer] 초안 작성 시도 ({current_try + 1}/{max_retries})...")
+            logger.info(f"[Writer] 초안 작성 시도 ({current_try + 1}/{max_retries})...")
             draft_result = writer_llm.invoke(messages)
             
             # Pydantic -> Dict 변환
@@ -197,7 +200,7 @@ Action Items (실행 지침):
             MIN_SECTIONS = settings.WRITER_MIN_SECTIONS 
             
             if section_count < MIN_SECTIONS:
-                print(f"[Writer Reflection] ⚠️ 섹션 개수 부족 ({section_count}/{MIN_SECTIONS}). 재작성합니다.")
+                logger.warning(f"[Writer Reflection] ⚠️ 섹션 개수 부족 ({section_count}/{MIN_SECTIONS}). 재작성합니다.")
                 
                 # 피드백 메시지 추가하여 다시 시도
                 feedback = f"""
@@ -214,11 +217,11 @@ Action Items (실행 지침):
             
             # 통과 시 루프 탈출
             final_draft_dict = draft_dict
-            print("[Writer Reflection] ✅ Self-Check 통과.")
+            logger.info("[Writer Reflection] ✅ Self-Check 통과.")
             break
 
         except Exception as e:
-            print(f"[Writer Error] 생성 중 오류: {e}")
+            logger.error(f"[Writer Error] 생성 중 오류: {e}")
             current_try += 1
             last_error = str(e)
             
@@ -231,7 +234,7 @@ Action Items (실행 지침):
         )
     elif last_draft_dict:
         # 재시도 실패했지만 부분 결과가 있으면 일단 사용 (Fallback)
-        print(f"[Writer] ⚠️ 최소 섹션 미달이지만 부분 결과 사용 ({len(last_draft_dict.get('sections', []))}개 섹션)")
+        logger.warning(f"[Writer] ⚠️ 최소 섹션 미달이지만 부분 결과 사용 ({len(last_draft_dict.get('sections', []))}개 섹션)")
         return update_state(
             state,
             draft=last_draft_dict,

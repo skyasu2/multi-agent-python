@@ -7,6 +7,7 @@ from utils.schemas import StructureResult
 from utils.time_context import get_time_context
 from graph.state import PlanCraftState, update_state
 from prompts.structurer_prompt import STRUCTURER_SYSTEM_PROMPT, STRUCTURER_USER_PROMPT
+from utils.file_logger import get_file_logger
 
 # LLM 초기화 (run 함수 내에서 동적으로 생성함)
 # structurer_llm = get_llm().with_structured_output(StructureResult)
@@ -15,11 +16,14 @@ def run(state: PlanCraftState) -> PlanCraftState:
     """
     구조화 에이전트 실행
     """
+    logger = get_file_logger()
+    
     # 1. 입력 데이터 준비 (Dict Access)
     user_input = state.get("user_input", "")
     analysis = state.get("analysis")
     
     if not analysis:
+        logger.error("[Structurer] 분석 데이터 누락")
         return update_state(state, error="분석 데이터가 없습니다.")
         
     rag_context = state.get("rag_context", "")
@@ -40,7 +44,7 @@ def run(state: PlanCraftState) -> PlanCraftState:
     if previous_structure:
         # Refiner에서 품질 미달로 돌아온 경우: 다양성 확보를 위해 Temperature 상향
         target_temp = 0.6
-        print(f"[Structurer] 재설계 모드(Refiner Loop): Temperature를 {target_temp}로 상향")
+        logger.info(f"[Structurer] 재설계 모드(Refiner Loop): Temperature를 {target_temp}로 상향")
         
         # Pydantic 객체일 경우 dict 변환
         prev_str = str(previous_structure)
@@ -84,6 +88,8 @@ def run(state: PlanCraftState) -> PlanCraftState:
         else:
             structure_dict = structure_result
             
+        logger.info(f"[Structurer] 구조화 완료: {len(structure_dict.get('sections', []))}개 섹션")
+            
         return update_state(
             state,
             structure=structure_dict,
@@ -91,5 +97,20 @@ def run(state: PlanCraftState) -> PlanCraftState:
         )
         
     except Exception as e:
-        print(f"[ERROR] Structurer Failed: {e}")
-        return update_state(state, error=str(e))
+        logger.error(f"[Structurer] Failed: {e}")
+        # Fallback: 기본 구조 반환
+        fallback_structure = {
+            "title": "기획서 (자동 생성됨 - Fallback)",
+            "sections": [
+                {"name": "1. 서비스 개요", "content_guide": "서비스의 정의, 핵심 가치, 개발 배경을 작성하세요."},
+                {"name": "2. 주요 기능", "content_guide": "핵심 기능 3가지 이상을 상세히 기술하세요."},
+                {"name": "3. 타겟 및 시장 분석", "content_guide": "주요 타겟 사용자와 시장 규모를 분석하세요."},
+                {"name": "4. 비즈니스 모델", "content_guide": "수익 창출 방안을 구체적으로 제시하세요."},
+                {"name": "5. 기대 효과", "content_guide": "서비스 도입 시 기대되는 정량적/정성적 효과를 기술하세요."}
+            ]
+        }
+        return update_state(
+            state, 
+            structure=fallback_structure, 
+            error=f"구조화 실패(Fallback 적용): {str(e)}"
+        )
