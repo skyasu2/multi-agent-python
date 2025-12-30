@@ -293,6 +293,7 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
     rag_context = state.get("rag_context")
     web_contents = []
     web_urls = []
+    web_sources = []  # [{"title": "...", "url": "..."}] 제목+URL 저장
 
     try:
         # 1. URL이 직접 제공된 경우
@@ -350,6 +351,9 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
                                     formatted_result += f"- [{title}]({url})\n  {snippet}\n"
                                     if url and url.startswith("http"):
                                         web_urls.append(url)
+                                        # [NEW] 제목+URL 함께 저장 (중복 제거)
+                                        if not any(s.get("url") == url for s in web_sources):
+                                            web_sources.append({"title": title, "url": url})
                             
                             if not formatted_result and "formatted" in search_result:
                                 formatted_result = search_result["formatted"]
@@ -361,19 +365,27 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
         # 3. 상태 업데이트
         existing_context = state.get("web_context")
         existing_urls = state.get("web_urls") or []
-        
+        existing_sources = state.get("web_sources") or []
+
         new_context_str = "\n\n---\n\n".join(web_contents) if web_contents else None
-        
+
         final_context = existing_context
         if new_context_str:
             final_context = f"{final_context}\n\n{new_context_str}" if final_context else new_context_str
-                
+
         final_urls = list(dict.fromkeys(existing_urls + web_urls))
-        
+
+        # web_sources 병합 (중복 URL 제거)
+        final_sources = existing_sources.copy()
+        for src in web_sources:
+            if not any(s.get("url") == src.get("url") for s in final_sources):
+                final_sources.append(src)
+
         new_state = update_state(
             state,
             web_context=final_context,
             web_urls=final_urls,
+            web_sources=final_sources,
             current_step="fetch_web"
         )
 
@@ -650,17 +662,37 @@ def run_formatter_node(state: PlanCraftState) -> PlanCraftState:
             final_md += f"## {name}\n\n{content}\n\n"
 
         # 웹 검색 출처 추가 (중복 방지)
+        # [UPDATE] web_sources 사용하여 제목+링크 형식으로 표시
+        web_sources = state.get("web_sources") or []
         web_urls = state.get("web_urls") or []
         web_context = state.get("web_context") or ""
 
         has_reference_section = "참고 자료" in final_md or "참고자료" in final_md
 
         if not has_reference_section:
-            if web_urls:
+            # 우선순위: web_sources (제목+URL) > web_urls (URL만)
+            if web_sources:
+                final_md += "---\n\n## 📚 참고 자료\n\n"
+                final_md += "> 본 기획서 작성 시 다음 자료를 참고하였습니다.\n\n"
+                for i, source in enumerate(web_sources, 1):
+                    title = source.get("title", "")
+                    url = source.get("url", "")
+                    # 제목이 비어있거나 URL과 동일한 경우 도메인명 추출
+                    if not title or title == url:
+                        from urllib.parse import urlparse
+                        parsed = urlparse(url)
+                        title = parsed.netloc.replace("www.", "") if parsed.netloc else "출처"
+                    final_md += f"{i}. [{title}]({url})\n"
+                final_md += "\n"
+            elif web_urls:
+                # Fallback: URL만 있는 경우 도메인명 추출
                 final_md += "---\n\n## 📚 참고 자료\n\n"
                 final_md += "> 본 기획서 작성 시 다음 자료를 참고하였습니다.\n\n"
                 for i, url in enumerate(web_urls, 1):
-                    final_md += f"{i}. [{url}]({url})\n"
+                    from urllib.parse import urlparse
+                    parsed = urlparse(url)
+                    domain = parsed.netloc.replace("www.", "") if parsed.netloc else "출처"
+                    final_md += f"{i}. [{domain}]({url})\n"
                 final_md += "\n"
             elif web_context and "웹 검색 결과" in web_context:
                 final_md += "---\n\n## 📚 참고 자료\n\n"

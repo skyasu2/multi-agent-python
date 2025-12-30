@@ -131,6 +131,7 @@ class PlanCraftState(TypedDict, total=False):
     rag_context: Optional[str]
     web_context: Optional[str]
     web_urls: Optional[List[str]]
+    web_sources: Optional[List[dict]]  # [{"title": "...", "url": "..."}] 제목+URL
     
     # Analysis (stored as dict to avoid Pydantic dependency)
     analysis: Optional[dict]
@@ -216,6 +217,7 @@ def create_initial_state(
         "rag_context": None,
         "web_context": None,
         "web_urls": None,
+        "web_sources": None,  # [{"title": "...", "url": "..."}]
         "analysis": None,
         "input_schema_name": None,
         "need_more_info": False,
