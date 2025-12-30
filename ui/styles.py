@@ -1,33 +1,86 @@
-
 CUSTOM_CSS = """
 <style>
+    /* =================================================================
+       CSS Variables (Design Tokens)
+       ================================================================= */
+    :root {
+        /* Primary Colors */
+        --color-primary: #667eea;
+        --color-primary-dark: #764ba2;
+        --color-primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --color-primary-light: #f0f4ff;
+        --color-primary-shadow: rgba(102, 126, 234, 0.2);
+
+        /* Success Colors */
+        --color-success: #28a745;
+        --color-success-dark: #218838;
+        --color-success-shadow: rgba(40, 167, 69, 0.3);
+
+        /* Neutral Colors */
+        --color-border: #e0e0e0;
+        --color-bg-light: #f8f9fa;
+        --color-text-muted: #888;
+        --color-text-disabled: #ccc;
+
+        /* Spacing & Sizing */
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 28px;
+        --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
+        --shadow-md: 0 4px 20px rgba(0,0,0,0.1);
+        --transition-fast: 0.2s ease;
+    }
+
+    /* =================================================================
+       Layout
+       ================================================================= */
     .block-container {
         padding-top: 4rem;
         padding-bottom: 8rem;
     }
 
     .result-card {
-        background: #f8f9fa;
-        border-radius: 12px;
+        background: var(--color-bg-light);
+        border-radius: var(--radius-md);
         padding: 1rem 1.5rem;
         margin: 0.5rem 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        box-shadow: var(--shadow-sm);
     }
 
+    /* =================================================================
+       Buttons
+       ================================================================= */
     .stButton > button {
         padding: 0.3rem 0.8rem;
         font-size: 0.9rem;
-        border-radius: 8px;
-        border: 1px solid #e0e0e0;
-        transition: all 0.2s;
-    }
-    
-    .stButton > button:hover {
-        border-color: #667eea;
-        color: #667eea;
-        background-color: #f0f4ff;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--color-border);
+        transition: all var(--transition-fast);
     }
 
+    .stButton > button:hover {
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+        background-color: var(--color-primary-light);
+    }
+
+    /* Green Primary Button (기획서 보기) */
+    div[data-testid="stButton"] button[kind="primary"] {
+        background-color: var(--color-success) !important;
+        color: white !important;
+        border: none !important;
+        transition: transform var(--transition-fast);
+        box-shadow: 0 4px 6px var(--color-success-shadow);
+    }
+    div[data-testid="stButton"] button[kind="primary"]:hover {
+        background-color: var(--color-success-dark) !important;
+        transform: scale(1.02);
+        color: white !important;
+    }
+
+    /* =================================================================
+       Chat Input (Fixed Bottom)
+       ================================================================= */
     .stChatInput {
         position: fixed;
         bottom: 0;
@@ -42,37 +95,37 @@ CUSTOM_CSS = """
     .stChatInput > div {
         max-width: 800px;
         margin: 0 auto;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        border-radius: 28px;
+        box-shadow: var(--shadow-md);
+        border-radius: var(--radius-lg);
     }
 
     .stChatInput textarea {
-        border-radius: 28px !important;
-        border: 1px solid #e0e0e0 !important;
+        border-radius: var(--radius-lg) !important;
+        border: 1px solid var(--color-border) !important;
         padding: 14px 24px !important;
         font-size: 1rem !important;
         background-color: #ffffff !important;
     }
 
     .stChatInput textarea:focus {
-        border-color: #667eea !important;
-        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2) !important;
+        border-color: var(--color-primary) !important;
+        box-shadow: 0 0 0 2px var(--color-primary-shadow) !important;
     }
-    
+
     .stChatInput div[data-baseweb="textarea"] {
         background-color: transparent !important;
         border: none !important;
     }
-    
+
     .stChatInput div[data-baseweb="base-input"] {
-         background-color: transparent !important;
+        background-color: transparent !important;
     }
 
     .stChatInput button[kind="primary"] {
         border-radius: 50% !important;
         width: 40px !important;
         height: 40px !important;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        background: var(--color-primary-gradient) !important;
         border: none !important;
         color: white !important;
         right: 10px !important;
@@ -82,42 +135,102 @@ CUSTOM_CSS = """
 
     .stChatInput button[kind="primary"]:hover {
         opacity: 0.9;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
+        box-shadow: 0 4px 12px var(--color-primary-shadow) !important;
     }
-    
-    
+
     .stChatInput button[kind="primary"] svg {
         width: 18px !important;
         height: 18px !important;
     }
 
-    /* Green Primary Button (기획서 보기) */
-    div[data-testid="stButton"] button[kind="primary"] {
-        background-color: #28a745 !important;
-        color: white !important;
-        border: none !important;
-        transition: transform 0.2s;
-        box-shadow: 0 4px 6px rgba(40, 167, 69, 0.3);
-    }
-    div[data-testid="stButton"] button[kind="primary"]:hover {
-        background-color: #218838 !important;
-        transform: scale(1.02);
-        color: white !important;
+    /* =================================================================
+       Animations
+       ================================================================= */
+    @keyframes bounce {
+        0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-10px); }
+        60% { transform: translateY(-5px); }
     }
 
-    /* Bounce Animation */
-    @keyframes bounce {
-        0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
-        40% {transform: translateY(-10px);}
-        60% {transform: translateY(-5px);}
-    }
     .bounce-guide {
         animation: bounce 1.5s infinite;
         text-align: center;
-        color: #28a745;
+        color: var(--color-success);
         font-weight: bold;
         margin-bottom: 5px;
         font-size: 1.1em;
+    }
+
+    /* =================================================================
+       Progress Indicator (NEW)
+       ================================================================= */
+    .step-progress {
+        display: flex;
+        justify-content: space-between;
+        margin: 1rem 0;
+        padding: 0.5rem;
+        background: var(--color-bg-light);
+        border-radius: var(--radius-sm);
+    }
+
+    .step-item {
+        text-align: center;
+        flex: 1;
+        padding: 0.5rem;
+        position: relative;
+    }
+
+    .step-item.completed { color: var(--color-success); }
+    .step-item.active { color: var(--color-primary); font-weight: bold; }
+    .step-item.pending { color: var(--color-text-disabled); }
+
+    .step-item::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: 0;
+        width: 50%;
+        height: 2px;
+        background: var(--color-border);
+    }
+
+    .step-item:last-child::after { display: none; }
+    .step-item.completed::after { background: var(--color-success); }
+
+    /* =================================================================
+       Mobile Responsive
+       ================================================================= */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 2rem;
+            padding-bottom: 6rem;
+        }
+
+        .stChatInput {
+            padding: 0.5rem 0.5rem 1.5rem 0.5rem;
+        }
+
+        .stChatInput textarea {
+            padding: 10px 16px !important;
+            font-size: 0.95rem !important;
+        }
+
+        .stChatInput > div {
+            border-radius: 20px;
+        }
+
+        .step-progress {
+            flex-wrap: wrap;
+        }
+
+        .step-item {
+            flex-basis: 33%;
+            font-size: 0.8rem;
+        }
+
+        .step-item::after {
+            display: none;
+        }
     }
 </style>
 """

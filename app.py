@@ -142,6 +142,10 @@ def render_main():
                 st.session_state.generated_plan = None
                 st.session_state.input_key += 1
                 st.session_state.thread_id = str(uuid.uuid4())
+                # 브레인스토밍 상태 초기화
+                st.session_state.idea_category = "random"
+                st.session_state.idea_llm_count = 0
+                st.session_state.random_examples = None
                 st.rerun()
                 
             if st.button("📜 대화 히스토리", use_container_width=True):
@@ -168,26 +172,72 @@ def render_main():
     if not st.session_state.chat_history:
         st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
 
-        # 예제 데이터 로드 (초기: Static, 변경: AI)
+        # 세션 상태 초기화
+        if "idea_category" not in st.session_state:
+            st.session_state.idea_category = "random"
+        if "idea_llm_count" not in st.session_state:
+            st.session_state.idea_llm_count = 0
         if "random_examples" not in st.session_state or st.session_state.random_examples is None:
-             from utils.prompt_examples import WEB_APP_POOL, NON_IT_POOL
-             st.session_state.random_examples = random.sample(WEB_APP_POOL, 1) + random.sample(NON_IT_POOL, 2)
+            from utils.prompt_examples import get_examples_by_category
+            st.session_state.random_examples = get_examples_by_category("random", 3)
 
+        # 헤더
         col_ex_head, col_ex_refresh = st.columns([5, 1], vertical_alignment="bottom")
         with col_ex_head:
-            st.markdown("#### 🎲 AI 브레인스토밍 (추천 아이디어)")
+            llm_remaining = max(0, 10 - st.session_state.idea_llm_count)
+            st.markdown(f"#### 🎲 AI 브레인스토밍 <small style='color:gray;'>(AI 생성 {llm_remaining}회 남음)</small>", unsafe_allow_html=True)
         with col_ex_refresh:
             if st.button("🔄 AI 생성", key="refresh_hero_ex", help="AI가 실시간으로 새로운 아이디어를 제안합니다"):
-                from utils.idea_generator import generate_creative_ideas
+                from utils.idea_generator import generate_ideas
                 with st.spinner("💡 아이디어를 떠올리는 중..."):
-                    st.session_state.random_examples = generate_creative_ideas(3)
+                    ideas, used_llm = generate_ideas(
+                        category=st.session_state.idea_category,
+                        count=3,
+                        use_llm=True,
+                        session_call_count=st.session_state.idea_llm_count
+                    )
+                    st.session_state.random_examples = ideas
+                    if used_llm:
+                        st.session_state.idea_llm_count += 1
                 st.rerun()
 
+        # 카테고리 드롭다운
+        from utils.prompt_examples import CATEGORIES, get_examples_by_category
+
+        # 드롭다운 옵션 생성 (아이콘 + 라벨)
+        cat_options = {key: f"{info['icon']} {info['label']}" for key, info in CATEGORIES.items()}
+        cat_keys = list(cat_options.keys())
+        cat_labels = list(cat_options.values())
+
+        # 현재 선택된 인덱스
+        current_idx = cat_keys.index(st.session_state.idea_category) if st.session_state.idea_category in cat_keys else 0
+
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            selected_label = st.selectbox(
+                "카테고리",
+                options=cat_labels,
+                index=current_idx,
+                key="category_dropdown",
+                label_visibility="collapsed"
+            )
+            # 선택 변경 감지
+            selected_key = cat_keys[cat_labels.index(selected_label)]
+            if selected_key != st.session_state.idea_category:
+                st.session_state.idea_category = selected_key
+                st.session_state.random_examples = get_examples_by_category(selected_key, 3)
+                st.rerun()
+
+        with col2:
+            current_cat = CATEGORIES.get(st.session_state.idea_category, {})
+            st.caption(f"{current_cat.get('description', '')}")
+
+        # 아이디어 카드
         cols = st.columns(3)
         for i, (title, prompt) in enumerate(st.session_state.random_examples):
-             with cols[i]:
-                 if st.button(title, key=f"hero_ex_{i}", use_container_width=True, help=prompt):
-                     st.session_state.prefill_prompt = prompt
+            with cols[i]:
+                if st.button(title, key=f"hero_ex_{i}", use_container_width=True, help=prompt):
+                    st.session_state.prefill_prompt = prompt
 
     
     # =========================================================================

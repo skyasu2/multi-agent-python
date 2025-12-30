@@ -43,7 +43,13 @@ def render_visual_timeline(step_history: list):
 
 
 def render_progress_steps(current_step: str = None):
-    """진행 상태 표시"""
+    """
+    진행 상태 표시 (개선된 버전)
+
+    - Streamlit 프로그레스 바 추가
+    - CSS 변수 활용
+    - 단계별 설명 표시
+    """
     steps = ["📥 분석", "🏗️ 구조", "✍️ 작성", "🔍 검토", "✨ 개선", "📋 완료"]
     step_keys = ["analyze", "structure", "write", "review", "refine", "format"]
     step_descriptions = {
@@ -54,31 +60,60 @@ def render_progress_steps(current_step: str = None):
         "refine": "피드백을 반영하여 개선하고 있습니다...",
         "format": "최종 문서를 정리하고 있습니다..."
     }
-    
+
     current_idx = -1
     if current_step:
         for i, key in enumerate(step_keys):
             if key in current_step.lower():
                 current_idx = i
                 break
-    
+
+    # 프로그레스 바 (0~1 사이 값)
+    if current_idx >= 0:
+        progress_value = (current_idx + 1) / len(steps)
+        st.progress(progress_value, text=f"진행률: {int(progress_value * 100)}% ({current_idx + 1}/{len(steps)} 단계)")
+
+    # 단계별 아이콘 표시
     cols = st.columns(len(steps))
     for i, (step, key) in enumerate(zip(steps, step_keys)):
         with cols[i]:
             icon = step.split()[0]  # 이모지 추출
+            label = step.split()[1] if len(step.split()) > 1 else ""
+
             if i < current_idx:
                 # 완료된 단계
-                st.markdown(f"<div style='text-align:center; color:#28a745; margin-bottom:5px;'>{icon}<br><small>✅</small></div>", unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='text-align:center; color:var(--color-success, #28a745);'>"
+                    f"<div style='font-size:1.5rem;'>{icon}</div>"
+                    f"<small>✅ {label}</small></div>",
+                    unsafe_allow_html=True
+                )
             elif i == current_idx:
-                # 현재 단계
-                st.markdown(f"<div style='text-align:center; color:#007bff; font-weight:bold; margin-bottom:5px;'>{icon}<br><small>▶️</small></div>", unsafe_allow_html=True)
+                # 현재 단계 (강조)
+                st.markdown(
+                    f"<div style='text-align:center; color:var(--color-primary, #667eea); font-weight:bold;'>"
+                    f"<div style='font-size:1.8rem;'>{icon}</div>"
+                    f"<small>▶️ {label}</small></div>",
+                    unsafe_allow_html=True
+                )
             else:
                 # 대기 단계
-                st.markdown(f"<div style='text-align:center; color:#ddd; margin-bottom:5px;'>{icon}</div>", unsafe_allow_html=True)
-    
+                st.markdown(
+                    f"<div style='text-align:center; color:var(--color-text-disabled, #ccc);'>"
+                    f"<div style='font-size:1.2rem;'>{icon}</div>"
+                    f"<small>{label}</small></div>",
+                    unsafe_allow_html=True
+                )
+
     # 현재 단계 설명
     if current_step and current_step in step_descriptions:
-        st.markdown(f"<div style='text-align:center; color:#666; font-size:0.9rem; margin-top:1rem; background-color:#f8f9fa; padding:0.5rem; border-radius:8px;'>{step_descriptions[current_step]}</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='text-align:center; color:var(--color-text-muted, #666); "
+            f"font-size:0.9rem; margin-top:1rem; background-color:var(--color-bg-light, #f8f9fa); "
+            f"padding:0.75rem; border-radius:var(--radius-sm, 8px); border-left:3px solid var(--color-primary, #667eea);'>"
+            f"💬 {step_descriptions[current_step]}</div>",
+            unsafe_allow_html=True
+        )
 
 
 def render_timeline(step_history: list):
