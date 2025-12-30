@@ -138,6 +138,35 @@ def node_function(state: PlanCraftState) -> PlanCraftState:
     pass
 ```
 
+### Self-reflection 패턴 (Writer 예시)
+```python
+# LLM 결과를 자체 검증 후 재시도
+max_retries = 3
+while current_try < max_retries:
+    result = llm.invoke(messages)
+    sections = result.get("sections", [])
+
+    # Self-Check: 최소 요구사항 검증
+    if len(sections) < MIN_SECTIONS:
+        messages.append({"role": "user", "content": "섹션이 부족합니다. 재작성하세요."})
+        current_try += 1
+        continue
+
+    break  # 검증 통과
+```
+
+### HITL Resume 로깅 (step_history)
+```python
+# 사용자 Resume 입력이 step_history에 자동 기록됨
+# graph/interrupt_utils.py의 handle_user_response() 참조
+{
+    "step": "human_resume",
+    "status": "USER_INPUT",
+    "summary": "옵션 선택: AI 헬스케어 앱",
+    "response_data": {...}  # 민감정보 마스킹됨
+}
+```
+
 ## Configuration
 
 ### 필수 환경변수 (.env)

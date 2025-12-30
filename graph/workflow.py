@@ -134,20 +134,52 @@ def _update_step_history(state: PlanCraftState, step_name: str, status: str, sum
 # =============================================================================
 # Reviewer 라우팅 조건 함수 (RunnableBranch용)
 # =============================================================================
+#
+# [RunnableBranch 분기 테이블]
+# ┌────────────────────────┬──────────────────┬──────────────────────────────┐
+# │ 조건 함수              │ 반환 액션        │ 설명                         │
+# ├────────────────────────┼──────────────────┼──────────────────────────────┤
+# │ _is_max_restart_reached│ refine           │ 무한 루프 방지 (2회 초과)    │
+# │ _is_quality_fail       │ restart          │ 심각한 품질 문제 → 재분석    │
+# │ _is_quality_pass       │ complete         │ 우수 품질 → 즉시 완료        │
+# │ (default)              │ refine           │ 개선 필요 → Refiner          │
+# └────────────────────────┴──────────────────┴──────────────────────────────┘
+#
+# [확장 방법] 새 조건 추가 시:
+# 1. 조건 함수 정의: def _is_new_condition(state) -> bool
+# 2. create_reviewer_routing_branch()에 튜플 추가: (_is_new_condition, action)
+# =============================================================================
 
 def _is_max_restart_reached(state: PlanCraftState) -> bool:
-    """최대 복귀 횟수(2회) 도달 여부"""
+    """
+    최대 복귀 횟수(2회) 도달 여부
+
+    - True: Analyzer 복귀 횟수가 2회 이상 → 무한 루프 방지
+    - False: 아직 복귀 가능
+    """
     return state.get("restart_count", 0) >= 2
 
+
 def _is_quality_fail(state: PlanCraftState) -> bool:
-    """품질 실패 (score < 5 또는 FAIL)"""
+    """
+    품질 실패 판정
+
+    - True: score < 5 또는 verdict == "FAIL" → Analyzer로 복귀
+    - False: 다음 조건 평가
+    """
     review = state.get("review", {})
     score = review.get("overall_score", 5)
     verdict = review.get("verdict", "REVISE")
     return score < 5 or verdict == "FAIL"
 
+
 def _is_quality_pass(state: PlanCraftState) -> bool:
-    """품질 통과 (score >= 9 및 PASS)"""
+    """
+    품질 통과 판정
+
+    - True: score >= 9 및 verdict == "PASS" → 즉시 Formatter
+    - False: Refiner로 개선 필요
+    """
     review = state.get("review", {})
     score = review.get("overall_score", 5)
     verdict = review.get("verdict", "REVISE")

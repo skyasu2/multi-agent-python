@@ -15,6 +15,37 @@ from typing import Dict, List, Any, Optional, cast
 from utils.schemas import OptionChoice, ResumeInput
 from graph.state import PlanCraftState, InterruptPayload, InterruptOption
 
+def _format_resume_summary(response: Dict[str, Any]) -> str:
+    """Resume 응답을 사람이 읽기 쉬운 요약으로 변환"""
+    selected = response.get("selected_option")
+    text_input = response.get("text_input")
+
+    if selected:
+        title = selected.get("title", "") if isinstance(selected, dict) else str(selected)
+        return f"옵션 선택: {title}"
+    elif text_input:
+        # 긴 텍스트는 잘라서 표시
+        preview = text_input[:50] + "..." if len(str(text_input)) > 50 else text_input
+        return f"직접 입력: {preview}"
+    else:
+        return "응답 없음 (기본값 사용)"
+
+
+def _sanitize_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    """민감 정보를 제거한 응답 사본 반환 (로깅용)"""
+    sanitized = {}
+    for key, value in response.items():
+        # 민감할 수 있는 키는 마스킹
+        if key in ("password", "secret", "token", "api_key"):
+            sanitized[key] = "***REDACTED***"
+        elif isinstance(value, str) and len(value) > 200:
+            # 너무 긴 텍스트는 잘라서 저장
+            sanitized[key] = value[:200] + "...(truncated)"
+        else:
+            sanitized[key] = value
+    return sanitized
+
+
 def create_interrupt_payload(
     question: str,
     options: List[OptionChoice] = None,
@@ -86,8 +117,26 @@ def create_option_interrupt(state: PlanCraftState) -> Dict[str, Any]:
 def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> PlanCraftState:
     """
     사용자 응답(Command resume)을 처리하여 상태를 업데이트합니다.
+
+    [Best Practice] Resume 입력 내역을 step_history에 기록하여
+    디버깅 및 리플레이 시 사용자 선택/입력을 추적할 수 있습니다.
     """
     from graph.state import update_state
+    import time
+
+    # =========================================================================
+    # [NEW] Resume 입력 내역을 step_history에 기록 (디버깅/리플레이용)
+    # =========================================================================
+    resume_history_item = {
+        "step": "human_resume",
+        "status": "USER_INPUT",
+        "summary": _format_resume_summary(response),
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "response_data": _sanitize_response(response)  # 민감 정보 제거된 사본
+    }
+
+    current_history = state.get("step_history", []) or []
+    updated_history = current_history + [resume_history_item]
 
     # 0. [NEW] 입력 유효성 검증 (Pydantic Guard)
     # 폼 데이터가 아닌 경우에만 ResumeInput 스키마 검증 수행
@@ -108,12 +157,13 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
         form_summary = "\n".join([f"- {k}: {v}" for k, v in response.items()])
         original_input = state.get("user_input", "")
         new_input = f"{original_input}\n\n[추가 정보 입력]\n{form_summary}"
-        
+
         return update_state(
             state,
             user_input=new_input,
             need_more_info=False,
-            input_schema_name=None
+            input_schema_name=None,
+            step_history=updated_history  # [NEW] Resume 이력 포함
         )
 
     # 2. 옵션 선택 처리
@@ -138,7 +188,8 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
         selected_option=selected,  # [NEW] 선택 이력 저장 (분석용)
         need_more_info=False,
         options=[],
-        option_question=None
+        option_question=None,
+        step_history=updated_history  # [NEW] Resume 이력 포함
     )
 
 
