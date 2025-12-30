@@ -22,9 +22,6 @@ docker-compose up -d
 # 전체 테스트
 pytest tests/ -v
 
-# 특정 테스트
-pytest tests/test_scenarios.py -v
-
 # CI 환경 (PYTHONPATH 설정 필요)
 PYTHONPATH=$(pwd) pytest tests/ -v
 ```
@@ -45,24 +42,43 @@ User Input → [RAG + Web Search (병렬)] → Analyzer → Structurer → Write
 
 | 컴포넌트 | 위치 | 역할 |
 |---------|------|------|
-| State 관리 | `graph/state.py` | TypedDict 기반 상태 스키마 (PlanCraftState) |
-| 워크플로우 | `graph/workflow.py` | LangGraph StateGraph 오케스트레이션 |
-| 에이전트 | `agents/*.py` | 6개 전문 에이전트 (Analyzer, Structurer, Writer, Reviewer, Refiner, Formatter) |
+| State 관리 | `graph/state.py` | TypedDict 상태 + ensure_dict 유틸리티 |
+| 워크플로우 | `graph/workflow.py` | StateGraph + RunnableBranch 라우팅 |
+| 에이전트 | `agents/*.py` | 6개 전문 에이전트 |
 | LLM 설정 | `utils/llm.py` | Azure OpenAI 클라이언트 팩토리 |
 | 설정 | `utils/settings.py` | 중앙집중식 프로젝트 설정 |
-| RAG | `rag/*.py` | FAISS 벡터 기반 문서 검색 |
-| 에러 처리 | `utils/error_handler.py` | 5가지 카테고리 예외 처리 |
+| RAG | `rag/*.py` | FAISS + MMR 검색 (불변 가이드 문서) |
+| 브레인스토밍 | `utils/idea_generator.py` | 8개 카테고리 아이디어 생성 |
+| UI 스타일 | `ui/styles.py` | CSS Design Tokens |
 
-### Reviewer 라우팅 로직
-- `< 5점 (FAIL)`: Analyzer로 복귀 (최대 2회)
-- `5-8점 (REVISE)`: Refiner로 라우팅 (최대 3회 루프)
-- `≥ 9점 (PASS)`: Formatter로 완료
+### Reviewer 라우팅 (RunnableBranch 패턴)
+```python
+# 조건 함수
+_is_max_restart_reached(state)  # 최대 복귀 횟수
+_is_quality_fail(state)          # score < 5 또는 FAIL
+_is_quality_pass(state)          # score >= 9 및 PASS
 
-### HITL (Human-in-the-Loop)
-- Analyzer에서 짧은 입력 감지 시 interrupt 발생
-- 사용자가 topic, purpose, features 옵션 확인 후 진행
+# 분기
+< 5점 (FAIL)   → Analyzer 복귀 (최대 2회)
+5-8점 (REVISE) → Refiner 라우팅 (최대 3회)
+≥ 9점 (PASS)   → Formatter 완료
+```
+
+### RAG vs 웹검색 역할 분리
+| 소스 | 역할 | 데이터 특성 |
+|------|------|------------|
+| RAG (FAISS) | 작성 방법론, 체크리스트, 예시 | 불변 |
+| 웹 검색 (Tavily) | 시장 규모, 트렌드, 경쟁사 | 실시간 |
 
 ## Key Patterns
+
+### ensure_dict (Pydantic/Dict 일관성)
+```python
+from graph.state import ensure_dict
+
+# LLM 결과를 항상 dict로 변환
+result_dict = ensure_dict(llm_result)
+```
 
 ### State 업데이트 (불변성 유지)
 ```python
@@ -74,12 +90,12 @@ topic = safe_get(analysis, "topic", "Unknown")
 
 ### 에이전트 구현 패턴
 ```python
-from graph.state import PlanCraftState, update_state
+from graph.state import PlanCraftState, update_state, ensure_dict
 
 def run(state: PlanCraftState) -> PlanCraftState:
-    user_input = state.get("user_input", "")
-    result = llm.invoke(...)
-    return update_state(state, current_step="name", output=result)
+    result = llm.invoke(messages)
+    result_dict = ensure_dict(result)  # Pydantic → Dict
+    return update_state(state, analysis=result_dict)
 ```
 
 ### 에러 핸들링 데코레이터
@@ -106,6 +122,7 @@ AOAI_DEPLOY_EMBED_3_LARGE=text-embedding-3-large
 ```env
 TAVILY_API_KEY=...           # 웹 검색
 LANGCHAIN_TRACING_V2=true    # LangSmith 추적
+LANGCHAIN_PROJECT=PlanCraft  # LangSmith 프로젝트명
 CHECKPOINTER_TYPE=memory     # memory|postgres|redis
 ```
 
@@ -113,17 +130,20 @@ CHECKPOINTER_TYPE=memory     # memory|postgres|redis
 
 | 작업 | 수정 파일 |
 |-----|----------|
-| 에이전트 로직 변경 | `agents/{agent_name}.py` |
-| 프롬프트 수정 | `prompts/{agent_name}_prompt.py` |
-| State 필드 추가 | `graph/state.py` |
-| 라우팅 로직 변경 | `graph/workflow.py` (should_refine_or_restart) |
-| UI 컴포넌트 추가 | `ui/components.py` |
-| RAG 문서 추가 | `rag/documents/*.md` |
+| 에이전트 로직 | `agents/{agent_name}.py` |
+| 프롬프트 | `prompts/{agent_name}_prompt.py` |
+| State 필드 | `graph/state.py` |
+| 라우팅 조건 | `graph/workflow.py` (_is_quality_* 함수) |
+| UI 스타일 | `ui/styles.py` (CSS 변수) |
+| 브레인스토밍 카테고리 | `utils/prompt_examples.py` |
+| RAG 문서 | `rag/documents/*.md` |
 
 ## Notes
 
-- TypedDict 사용: Pydantic 대신 가벼운 TypedDict로 LangGraph 상태 관리
-- 항상 `update_state()` 사용하여 새로운 state dict 생성 (불변성)
-- 로깅: `get_file_logger()` 사용 (/logs/ 디렉토리에 저장)
-- 모든 노드에 `@handle_node_error` 데코레이터 적용
-- Writer: 최소 9개 섹션 검증, 마크다운 테이블 자동 수정, 최대 3회 재시도
+- **TypedDict**: Pydantic 대신 가벼운 TypedDict로 LangGraph 상태 관리
+- **ensure_dict**: 모든 에이전트에서 LLM 결과를 dict로 변환
+- **불변성**: 항상 `update_state()`로 새 state dict 생성
+- **로깅**: `get_file_logger()` → `/logs/` 디렉토리
+- **에러 처리**: 모든 노드에 `@handle_node_error` 적용
+- **Writer 검증**: 최소 9개 섹션, 마크다운 테이블, 최대 3회 재시도
+- **시간 인식**: `time_context.py`로 연도/분기 정보 제공
