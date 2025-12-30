@@ -126,10 +126,13 @@ class FormatterAgent:
         # =====================================================================
         # 4. 상태 업데이트 (TypedDict dict-access 방식)
         # =====================================================================
+        # refine_count를 0으로 리셋하여 사용자 수정 기회 3회 보장
+        # (내부 Reviewer 루프와 사용자 수정은 별개)
         updates = {
             "chat_summary": chat_summary,
             "final_output": final_output,
-            "current_step": "format"
+            "current_step": "format",
+            "refine_count": 0  # 기획서 완성 후 사용자 수정 3회 보장
         }
         if error_msg:
             updates["error"] = error_msg
