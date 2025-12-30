@@ -4,7 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PlanCraft Agent는 LangGraph, Azure OpenAI, Streamlit 기반의 AI 멀티 에이전트 사업계획서 자동 생성 시스템입니다. 6개의 전문 에이전트가 협력하여 고품질 사업계획서를 생성하며, Human-in-the-Loop (HITL) 상호작용을 지원합니다.
+PlanCraft Agent는 LangGraph, Azure OpenAI, Streamlit 기반의 AI 멀티 에이전트 기획서 자동 생성 시스템입니다.
+
+### 서비스 핵심 흐름
+```
+사용자 입력
+    ↓
+[간단한 질문?] ─YES→ AI 직접 답변 (기획서 생성 X)
+    │NO
+    ↓
+[입력이 부실?] ─YES→ 프롬프트 증폭기 (AI가 컨셉 확장 제안)
+    │NO
+    ↓
+기획서 생성 (6개 Agent 협업)
+    ↓
+1차 기획안 완성 → 사용자 수정 요청 (최대 3회)
+```
+
+### 핵심 원칙
+- **간단한 질문**: `is_general_query=True` → 기획서 없이 AI 직접 답변
+- **프롬프트 증폭기**: 20자 미만 입력 시 AI가 유사 컨셉 옵션 제시 (HITL)
+- **사용자 수정 3회**: 1차 완성 후 추가 피드백으로 고도화 가능
+- **브레인스토밍**: 아이디어 없을 때 사용하는 **보조 기능**
 
 ## Commands
 

@@ -6,6 +6,14 @@
 - **개발 목적**: 기획 초기 단계의 막막함 해소 및 표준화된 기획 문서 자동화
 - **핵심 가치**: 10년차 기획자 페르소나의 AI가 RAG(불변 가이드)와 Web(실시간 트렌드)를 결합하여 실전 수준의 문서 제공
 
+### 서비스 핵심 흐름
+| 입력 유형 | 처리 방식 |
+|----------|----------|
+| 간단한 질문 | AI 직접 답변 (기획서 생성 X) |
+| 부실한 입력 | **프롬프트 증폭기** - AI가 유사 컨셉 확장 제안 |
+| 기획 요청 | 6개 Agent 협업 → 1차 기획안 → 사용자 수정 (최대 3회) |
+| 브레인스토밍 | 아이디어 없을 때 사용하는 **보조 기능** |
+
 ---
 
 ## 2. 아키텍처 및 기술적 구현 (Technical Implementation)
@@ -38,7 +46,7 @@
   ```
 - **ensure_dict 유틸리티**: Pydantic/Dict 일관성 보장
 - **Structured Output**: `with_structured_output` 사용
-- **Human-in-the-Loop**: LangGraph `interrupt()` + `Command(resume=...)`
+- **프롬프트 증폭기 (HITL)**: 부실한 입력 시 AI가 컨셉 확장 제안, LangGraph `interrupt()` 활용
 - **병렬 컨텍스트 수집**: RAG + 웹 검색 동시 실행
 
 ---
@@ -65,19 +73,29 @@
 ```
 User Input
     ↓
+[간단한 질문?] ─YES→ AI 직접 답변 (기획서 생성 X)
+    │NO
+    ↓
+[입력이 부실?] ─YES→ 프롬프트 증폭기 (AI가 컨셉 확장 제안)
+    │NO
+    ↓
 [RAG + Web Search] ─── 병렬 컨텍스트 수집
     ↓
-Analyzer ─── HITL (짧은 입력 시 옵션 제시)
+Analyzer → Structurer → Writer
     ↓
-Structurer ─── 목차 설계
-    ↓
-Writer ─── Self-Check (섹션 9개 이상 검증)
-    ↓
-Reviewer ─── 품질 게이트
-    ├─ PASS (≥9점) → Formatter → 완료
+Reviewer ─── 내부 품질 게이트 (자동)
+    ├─ PASS (≥9점) → Formatter → 1차 기획안 완성
     ├─ REVISE (5-8점) → Refiner → Writer (최대 3회)
-    └─ FAIL (<5점) → Analyzer (최대 2회)
+    └─ FAIL (<5점) → Analyzer 복귀 (최대 2회)
+    ↓
+1차 기획안 완성
+    ↓
+[사용자 추가 수정 요청] → 최대 3회 개선 가능
 ```
+
+**핵심 포인트**:
+- Reviewer 품질 게이트: **내부 자동 루프** (사용자 개입 없음)
+- 사용자 수정 3회: 1차 완성 **후** 사용자가 피드백 전달 가능
 
 ---
 
