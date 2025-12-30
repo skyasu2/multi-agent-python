@@ -150,8 +150,31 @@ Action Items (실행 지침):
         logger.error(f"[ERROR] Prompt Formatting Failed: {e}")
         return update_state(state, error=f"프롬프트 포맷 오류: {str(e)}")
 
+    # [NEW] Refinement Strategy (Writer에게 전달된 전략적 수정 지침)
+    refinement_guideline = state.get("refinement_guideline")
+    strategy_msg = ""
+
+    if refine_count > 0 and refinement_guideline:
+        if isinstance(refinement_guideline, dict):
+            direction = refinement_guideline.get("overall_direction", "")
+            guidelines = refinement_guideline.get("specific_guidelines", [])
+        else:
+            direction = getattr(refinement_guideline, "overall_direction", "")
+            guidelines = getattr(refinement_guideline, "specific_guidelines", [])
+
+        strategy_msg = f"""
+=====================================================================
+🚀 [STRATEGIC REVISION GUIDE] (전략적 수정 지침)
+방향성: {direction}
+상세 지침:
+{chr(10).join([f'- {txt}' for txt in guidelines])}
+=====================================================================
+"""
+
     # 이전 버전 컨텍스트 및 피드백 추가 (최우선 순위)
     prepend_msg = ""
+    if strategy_msg:
+        prepend_msg += strategy_msg + "\n"
     if review_feedback_msg:
         prepend_msg += review_feedback_msg + "\n"
     if previous_plan_context:

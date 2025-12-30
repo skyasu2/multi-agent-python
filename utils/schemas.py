@@ -213,7 +213,19 @@ class JudgeResult(BaseModel):
             return 'PASS'
         elif 'FAIL' in v_upper:
             return 'FAIL'
+        elif 'FAIL' in v_upper:
+            return 'FAIL'
         return 'REVISE'  # 기본값
+
+
+class RefinementStrategy(BaseModel):
+    """
+    기획서 개선 전략 (Refiner Agent Output)
+    """
+    overall_direction: str = Field(description="전반적인 수정 방향성 (예: 논리적 허점 보완, 구체적 예시 추가)")
+    key_focus_areas: List[str] = Field(description="중점적으로 보완해야 할 핵심 영역 (최대 3개)")
+    specific_guidelines: List[str] = Field(description="Writer에게 전달할 구체적인 수정 지침 목록")
+    additional_search_keywords: List[str] = Field(description="내용 보강을 위해 추가 검색이 필요한 키워드", default_factory=list)
 
 
 # 하위 호환성을 위한 별칭
