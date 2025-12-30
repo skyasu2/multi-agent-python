@@ -178,6 +178,10 @@ def render_human_interaction(current_state):
     if not current_state:
         return
 
+    # [NEW] 에러 메시지 표시 (HITL 재시도 시 피드백)
+    if current_state.get("error"):
+        st.error(current_state["error"])
+
     # 1. Schema-driven Form (Priority)
     # PlanCraftState에 저장된 스키마 클래스명(Str)을 이용해 동적으로 폼 생성
     schema_name = current_state.get("input_schema_name")

@@ -15,6 +15,21 @@ from utils.file_logger import get_file_logger
 def run(state: PlanCraftState) -> PlanCraftState:
     """
     구조화 에이전트 실행
+    
+    분석 결과(analysis)와 수집된 컨텍스트(context)를 바탕으로
+    기획서의 전체 목차 구조(StructureResult)를 설계합니다.
+    
+    Args:
+        state: user_input, analysis, rag_context, web_context를 포함한 상태
+        
+    Returns:
+        Updated state with 'structure' field (dict)
+        
+    Example:
+        >>> state = {"analysis": { "topic": "AI 앱", "features": [...] }, ...}
+        >>> new_state = run(state)
+        >>> print(new_state["structure"]["sections"])
+        ['1. 개요', '2. 기능', ...]
     """
     logger = get_file_logger()
     

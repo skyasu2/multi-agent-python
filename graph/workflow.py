@@ -651,7 +651,9 @@ def option_pause_node(state: PlanCraftState) -> Command:
         
     # 최대 재시도 초과 시 안전 조치
     if not user_response:
-        print("[Human-Node] Max retries reached. Forcing default action.")
+        msg = f"[HITL] Max retries reached ({MAX_RETRIES}). Forcing default action (continue)."
+        print(msg)
+        get_file_logger().warning(msg)
         user_response = {"action": "continue", "value": "default_fallback"}
 
     

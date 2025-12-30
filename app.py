@@ -217,6 +217,7 @@ def render_main():
                 "input_schema_name": payload.get("input_schema_name"),
                 "options": payload.get("options"),
                 "option_question": payload.get("question"),
+                "error": payload.get("error"),  # [NEW] 에러 메시지 전달 (UI 표시용)
                 "need_more_info": True
             })
             render_human_interaction(ui_state)
