@@ -661,42 +661,45 @@ def run_formatter_node(state: PlanCraftState) -> PlanCraftState:
                 content = sec.content
             final_md += f"## {name}\n\n{content}\n\n"
 
-        # 웹 검색 출처 추가 (중복 방지)
-        # [UPDATE] web_sources 사용하여 제목+링크 형식으로 표시
+        # 웹 검색 출처 추가
+        # [UPDATE] Writer가 생성한 참고 자료 섹션 제거 후 링크 포함된 섹션으로 교체
+        import re
         web_sources = state.get("web_sources") or []
         web_urls = state.get("web_urls") or []
         web_context = state.get("web_context") or ""
 
-        has_reference_section = "참고 자료" in final_md or "참고자료" in final_md
+        # Writer가 생성한 참고 자료 섹션 제거 (링크 없는 텍스트만 있는 경우)
+        # 패턴: ## 참고 자료 또는 ## 참고자료 부터 다음 ## 또는 문서 끝까지
+        reference_pattern = r'\n*#{1,2}\s*참고\s*자료.*?(?=\n#{1,2}\s|\Z)'
+        final_md = re.sub(reference_pattern, '', final_md, flags=re.DOTALL)
 
-        if not has_reference_section:
-            # 우선순위: web_sources (제목+URL) > web_urls (URL만)
-            if web_sources:
-                final_md += "---\n\n## 📚 참고 자료\n\n"
-                final_md += "> 본 기획서 작성 시 다음 자료를 참고하였습니다.\n\n"
-                for i, source in enumerate(web_sources, 1):
-                    title = source.get("title", "")
-                    url = source.get("url", "")
-                    # 제목이 비어있거나 URL과 동일한 경우 도메인명 추출
-                    if not title or title == url:
-                        from urllib.parse import urlparse
-                        parsed = urlparse(url)
-                        title = parsed.netloc.replace("www.", "") if parsed.netloc else "출처"
-                    final_md += f"{i}. [{title}]({url})\n"
-                final_md += "\n"
-            elif web_urls:
-                # Fallback: URL만 있는 경우 도메인명 추출
-                final_md += "---\n\n## 📚 참고 자료\n\n"
-                final_md += "> 본 기획서 작성 시 다음 자료를 참고하였습니다.\n\n"
-                for i, url in enumerate(web_urls, 1):
+        # 웹 소스가 있으면 링크 포함된 참고 자료 섹션 추가
+        if web_sources:
+            final_md += "---\n\n## 📚 참고 자료\n\n"
+            final_md += "> 본 기획서 작성 시 다음 자료를 참고하였습니다.\n\n"
+            for i, source in enumerate(web_sources, 1):
+                title = source.get("title", "")
+                url = source.get("url", "")
+                # 제목이 비어있거나 URL과 동일한 경우 도메인명 추출
+                if not title or title == url:
                     from urllib.parse import urlparse
                     parsed = urlparse(url)
-                    domain = parsed.netloc.replace("www.", "") if parsed.netloc else "출처"
-                    final_md += f"{i}. [{domain}]({url})\n"
-                final_md += "\n"
-            elif web_context and "웹 검색 결과" in web_context:
-                final_md += "---\n\n## 📚 참고 자료\n\n"
-                final_md += "> 본 기획서는 웹 검색을 통해 수집한 최신 정보를 반영하였습니다.\n\n"
+                    title = parsed.netloc.replace("www.", "") if parsed.netloc else "출처"
+                final_md += f"{i}. [{title}]({url})\n"
+            final_md += "\n"
+        elif web_urls:
+            # Fallback: URL만 있는 경우 도메인명 추출
+            final_md += "---\n\n## 📚 참고 자료\n\n"
+            final_md += "> 본 기획서 작성 시 다음 자료를 참고하였습니다.\n\n"
+            for i, url in enumerate(web_urls, 1):
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                domain = parsed.netloc.replace("www.", "") if parsed.netloc else "출처"
+                final_md += f"{i}. [{domain}]({url})\n"
+            final_md += "\n"
+        elif web_context and "웹 검색 결과" in web_context:
+            final_md += "---\n\n## 📚 참고 자료\n\n"
+            final_md += "> 본 기획서는 웹 검색을 통해 수집한 최신 정보를 반영하였습니다.\n\n"
 
     # =========================================================================
     # 2단계: Formatter Agent 호출 (chat_summary 생성 + refine_count=0 리셋)
