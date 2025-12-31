@@ -1,6 +1,6 @@
 # PlanCraft Agent - 프로젝트 구조도
 
-> 📅 최종 업데이트: 2025-12-29
+> 📅 최종 업데이트: 2025-12-31
 
 ---
 
@@ -38,9 +38,12 @@ pytest tests/ -v
 | 메인 앱 | `app.py` |
 | 워크플로우 | `graph/workflow.py` |
 | 상태 정의 | `graph/state.py` |
+| 인터럽트 타입 | `graph/interrupt_types.py` |
+| 인터럽트 유틸 | `graph/interrupt_utils.py` |
 | 에이전트 | `agents/*.py` |
 | 프롬프트 | `prompts/*_prompt.py` |
 | 스키마 | `utils/schemas.py` |
+| 설정값 | `utils/settings.py` |
 | 환경설정 | `utils/config.py` |
 | 웹검색 | `tools/mcp_client.py` |
 
@@ -68,7 +71,11 @@ TAVILY_API_KEY=your_tavily_key  # 웹 검색용
 | 에이전트 로직 변경 | `agents/{agent_name}.py` |
 | 프롬프트 수정 | `prompts/{agent_name}_prompt.py` |
 | 워크플로우 변경 | `graph/workflow.py` |
+| 라우팅 키 추가 | `graph/workflow.py` (RouteKey Enum) |
 | State 필드 추가 | `graph/state.py` |
+| 인터럽트 타입 추가 | `graph/interrupt_types.py` |
+| HITL 처리 로직 | `graph/interrupt_utils.py` |
+| 설정값 변경 | `utils/settings.py` (ProjectSettings) |
 | UI 컴포넌트 수정 | `ui/components.py` |
 | RAG 문서 추가 | `rag/documents/*.md` → 재인덱싱 필요 |
 | 웹검색 조건 변경 | `tools/web_search.py` |
@@ -84,11 +91,27 @@ file_content: str        # 업로드 파일
 final_output: str        # 최종 기획서
 chat_summary: str        # 채팅 요약
 
-# 내부
+# 에이전트 결과
 analysis: dict           # Analyzer 결과
 structure: dict          # Structurer 결과
 draft: dict              # Writer 결과
 review: dict             # Reviewer 결과
+refinement_guideline: dict  # Refiner 전략
+
+# 컨텍스트
+rag_context: str         # RAG 검색 결과
+web_context: str         # 웹 검색 결과
+web_sources: List[dict]  # [{"title": "...", "url": "..."}]
+
+# 실행 제어
+refine_count: int        # Refiner 루프 카운터
+restart_count: int       # Analyzer 재시작 카운터
+step_history: List[dict] # 실행 이력
+
+# HITL & Discussion
+discussion_messages: List[dict]  # Reviewer-Writer 대화
+discussion_round: int            # 대화 라운드
+consensus_reached: bool          # 합의 여부
 
 # 안전장치 (Graceful End-of-Loop)
 remaining_steps: int     # 남은 스텝 (무한루프 방지)

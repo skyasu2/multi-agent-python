@@ -64,9 +64,10 @@ Analyzer → Structurer → Writer → Reviewer → Refiner → Formatter
 
 #### 5. **동적 라우팅 (내부 품질 보장)**
 ```python
-# Reviewer 평가 기반 자동 분기
+# Reviewer 평가 기반 자동 분기 (RouteKey Enum)
 < 5점 (FAIL)   → Analyzer 복귀 (최대 2회)
-5~8점 (REVISE) → Refiner 실행 (최대 3회)
+5-6점 (REVISE) → Discussion SubGraph → Refiner
+7-8점 (REVISE) → Discussion 스킵 → Refiner (최대 2회)
 ≥ 9점 (PASS)   → Formatter 완료
 ```
 
@@ -81,6 +82,8 @@ Analyzer → Structurer → Writer → Reviewer → Refiner → Formatter
 - ✅ 무한 루프 방지 (3중 안전장치)
 - ✅ 체크포인터 (Memory/PostgreSQL/Redis)
 - ✅ `ensure_dict()` 유틸리티로 Pydantic/Dict 일관성 보장
+- ✅ RouteKey Enum으로 타입 안전한 라우팅
+- ✅ 모듈화된 InterruptType 시스템
 
 ---
 
@@ -161,9 +164,10 @@ Structurer ─── 목차 설계
     ↓
 Writer ─── Self-Check (섹션 9개 이상 검증)
     ↓
-Reviewer ─── 품질 게이트
+Reviewer ─── 품질 게이트 (RouteKey Enum)
     ├─ PASS (≥9점) → Formatter → 완료
-    ├─ REVISE (5-8점) → Refiner → Writer (최대 3회)
+    ├─ REVISE (7-8점) → Refiner (Discussion 스킵)
+    ├─ REVISE (5-6점) → Discussion SubGraph → Refiner
     └─ FAIL (<5점) → Analyzer (최대 2회)
 ```
 
@@ -176,20 +180,23 @@ plancraft-agent/
 ├── app.py                  # Streamlit 메인
 ├── agents/                 # 6개 전문 Agent
 ├── graph/                  # LangGraph 워크플로우
-│   ├── workflow.py         # 메인 그래프 + RunnableBranch
+│   ├── workflow.py         # 메인 그래프 + RouteKey Enum
 │   ├── state.py            # TypedDict 상태 + ensure_dict
-│   └── interrupt_utils.py  # HITL 유틸리티
+│   ├── interrupt_types.py  # 모듈화된 인터럽트 타입 시스템
+│   ├── interrupt_utils.py  # HITL 유틸리티
+│   └── subgraphs.py        # Discussion SubGraph
 ├── prompts/                # 에이전트 프롬프트
 ├── rag/                    # RAG (FAISS + MMR)
-│   └── documents/          # 불변 가이드 문서 3개
+│   └── documents/          # 불변 가이드 문서
 ├── ui/                     # Streamlit 컴포넌트
 │   ├── styles.py           # CSS Design Tokens
 │   └── components.py       # 진행률 바 등
 ├── utils/
+│   ├── settings.py         # 중앙집중식 설정
 │   ├── idea_generator.py   # AI 브레인스토밍
 │   ├── prompt_examples.py  # 8개 카테고리 예제
 │   └── time_context.py     # 연도/분기 인식
-├── tests/                  # pytest 테스트
+├── tests/                  # pytest 테스트 (11개 모듈)
 ├── Dockerfile
 ├── docker-compose.yml
 └── requirements.txt
@@ -223,9 +230,10 @@ PYTHONPATH=$(pwd) pytest tests/test_scenarios.py -v
 
 | 영역 | 기술 |
 |------|------|
-| **Agent Framework** | LangGraph (StateGraph, RunnableBranch) |
+| **Agent Framework** | LangGraph (StateGraph, RunnableBranch, RouteKey Enum) |
 | **LLM** | Azure OpenAI (GPT-4o, GPT-4o-mini) |
 | **RAG** | FAISS + MMR Search |
+| **HITL** | 모듈화된 InterruptType 시스템 (Pydantic Payload) |
 | **UI** | Streamlit + CSS Design Tokens |
 | **Structured Output** | Pydantic + with_structured_output |
 | **상태 관리** | TypedDict + ensure_dict 패턴 |

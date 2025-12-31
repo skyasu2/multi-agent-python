@@ -41,3 +41,6 @@ tests/test_mock_agents_manual.py
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# 기획서 원본 (배포 금지)
+기획서/
