@@ -48,6 +48,30 @@ CUSTOM_CSS = """
     }
 
     /* =================================================================
+       Selectbox (Dropdown) - Cursor Fix
+       ================================================================= */
+    /* 드롭다운 전체 영역 포인터 커서 */
+    div[data-baseweb="select"] {
+        cursor: pointer !important;
+    }
+
+    /* 드롭다운 내부 input 영역도 포인터 커서 */
+    div[data-baseweb="select"] input {
+        cursor: pointer !important;
+        caret-color: transparent !important;  /* 텍스트 커서 숨김 */
+    }
+
+    /* 드롭다운 컨트롤 영역 */
+    div[data-baseweb="select"] > div {
+        cursor: pointer !important;
+    }
+
+    /* Streamlit selectbox 컨테이너 */
+    .stSelectbox > div > div {
+        cursor: pointer !important;
+    }
+
+    /* =================================================================
        Buttons
        ================================================================= */
     .stButton > button {
