@@ -130,7 +130,8 @@ def create_option_interrupt(state: PlanCraftState) -> Dict[str, Any]:
         interrupt_type=interrupt_type,
         metadata={
             "user_input": state.get("user_input", ""),
-            "need_more_info": state.get("need_more_info", False)
+            "need_more_info": state.get("need_more_info", False),
+            "retry_count": state.get("retry_count", 0),  # 재시도 횟수 추적
         }
     )
 
