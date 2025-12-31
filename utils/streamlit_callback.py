@@ -8,138 +8,112 @@ import streamlit as st
 COST_PER_INPUT_TOKEN = 2.5 / 1_000_000  # $2.5 per 1M tokens
 COST_PER_OUTPUT_TOKEN = 10 / 1_000_000  # $10 per 1M tokens
 
-# 단계별 표시 정보
+# 단계별 표시 정보 (key, icon, label, progress%)
 STEP_INFO = {
-    "context": ("📚", "컨텍스트 수집"),
-    "analyze": ("🔍", "요구사항 분석"),
-    "structure": ("🏗️", "구조 설계"),
-    "write": ("✍️", "콘텐츠 작성"),
-    "review": ("📋", "품질 검토"),
-    "discuss": ("💬", "에이전트 토론"),
-    "refine": ("🔧", "내용 개선"),
-    "format": ("📄", "최종 포맷팅"),
+    "context": ("📚", "컨텍스트 수집", 10),
+    "analyze": ("🔍", "요구사항 분석", 20),
+    "structure": ("🏗️", "구조 설계", 35),
+    "write": ("✍️", "콘텐츠 작성", 55),
+    "review": ("📋", "품질 검토", 70),
+    "discuss": ("💬", "에이전트 토론", 75),
+    "refine": ("🔧", "내용 개선", 85),
+    "format": ("📄", "최종 포맷팅", 95),
 }
 
 
 class StreamlitStatusCallback(BaseCallbackHandler):
     """
-    LangChain/LangGraph 실행 과정을 Streamlit에 실시간으로 표시합니다.
+    LangChain/LangGraph 실행 과정을 Streamlit st.status에 실시간 표시.
 
-    [동적 로그 방식]
-    - 실제 실행된 노드를 순서대로 표시
-    - 루프 실행 시 같은 단계가 여러 번 표시됨
-    - 현재 진행 중인 단계 하이라이트
+    st.status 특성:
+    - status.update(label=...) → 실시간 반영 ✅
+    - status.progress() → 실시간 반영 ✅
+    - 내부 markdown/write → 완료 후에만 표시 ❌
+
+    따라서 label과 progress만 실시간 업데이트합니다.
     """
 
     def __init__(self, status_container):
         self.status = status_container
         self.start_time = time.time()
 
-        # 실행 로그 저장: [(step_key, elapsed_time, extra_info), ...]
+        # 진행률 바
+        self.progress_bar = self.status.progress(0)
+
+        # 실행 기록 (완료 후 표시용)
         self.execution_log: List[tuple] = []
         self.current_step_key: Optional[str] = None
         self.step_start_time: Optional[float] = None
-
-        # UI 컨테이너 (st.status 내부에서는 empty() placeholder 사용)
-        self.log_placeholder = self.status.empty()
-        self.progress_bar = self.status.progress(0)
-        self.current_progress = 0
 
         # 토큰 추적
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.llm_call_count = 0
 
-    def _render_log(self):
-        """실행 로그 UI 렌더링"""
-        # 로그 텍스트 생성
-        log_lines = []
-
-        # 완료된 단계들
-        for step_key, elapsed, extra_info in self.execution_log:
-            icon, label = STEP_INFO.get(step_key, ("▶️", step_key))
-            extra_str = f" ({extra_info})" if extra_info else ""
-            log_lines.append(f"✅ {icon} **{label}** - {elapsed}s{extra_str}")
-
-        # 현재 진행 중인 단계
-        if self.current_step_key:
-            icon, label = STEP_INFO.get(self.current_step_key, ("▶️", self.current_step_key))
-            elapsed = round(time.time() - (self.step_start_time or self.start_time), 1)
-            log_lines.append(f"⏳ {icon} **{label}** - {elapsed}s ...")
-
-        # placeholder에 렌더링
-        self.log_placeholder.markdown("\n\n".join(log_lines) if log_lines else "🚀 시작 중...")
-
-    def set_step(self, step_key: str, extra_info: str = ""):
-        """
-        현재 단계 설정 및 로그 업데이트
-
-        Args:
-            step_key: 단계 키 (context, analyze, structure, write, review, refine, format)
-            extra_info: 추가 정보 (예: "점수: 7점", "2회차")
-        """
-        # 이전 단계 완료 처리
+    def set_step(self, step_key: str):
+        """현재 단계 설정 - label과 progress 실시간 업데이트"""
+        # 이전 단계 완료 기록
         if self.current_step_key and self.step_start_time:
             elapsed = round(time.time() - self.step_start_time, 1)
-            # 이전 단계의 extra_info 가져오기 (있으면)
-            prev_extra = ""
-            self.execution_log.append((self.current_step_key, elapsed, prev_extra))
+            self.execution_log.append((self.current_step_key, elapsed))
 
         # 새 단계 시작
         self.current_step_key = step_key
         self.step_start_time = time.time()
 
-        # 진행률 업데이트 (로그 개수 기반)
-        self.current_progress = min(95, len(self.execution_log) * 12 + 10)
-        self.progress_bar.progress(self.current_progress / 100)
+        # 단계 정보 가져오기
+        info = STEP_INFO.get(step_key)
+        if info:
+            icon, label, progress = info
+            total_elapsed = int(time.time() - self.start_time)
 
-        # 상태 라벨 업데이트
-        icon, label = STEP_INFO.get(step_key, ("▶️", step_key))
-        total_elapsed = int(time.time() - self.start_time)
-        self.status.update(label=f"{icon} {label} ({total_elapsed}초 경과)", state="running")
-
-        # UI 렌더링
-        self._render_log()
-
-    def add_step_info(self, info: str):
-        """현재 단계에 추가 정보 설정 (예: 점수)"""
-        # 마지막 로그 항목 업데이트
-        if self.execution_log:
-            last = self.execution_log[-1]
-            self.execution_log[-1] = (last[0], last[1], info)
-            self._render_log()
+            # ✅ 실시간 반영되는 업데이트
+            self.status.update(
+                label=f"{icon} {label} ({total_elapsed}초 경과)",
+                state="running"
+            )
+            self.progress_bar.progress(progress / 100)
 
     def finish(self):
-        """마지막 단계 완료 처리"""
+        """완료 처리 - 최종 로그 표시"""
+        # 마지막 단계 기록
         if self.current_step_key and self.step_start_time:
             elapsed = round(time.time() - self.step_start_time, 1)
-            self.execution_log.append((self.current_step_key, elapsed, ""))
+            self.execution_log.append((self.current_step_key, elapsed))
             self.current_step_key = None
 
-        # 완료 상태
-        self.progress_bar.progress(100)
         total_elapsed = int(time.time() - self.start_time)
-        self.status.update(label=f"✅ 완료! (총 {total_elapsed}초)", state="complete")
-        self._render_log()
 
-    def _update_ui(self, message: str):
-        """UI 업데이트 (메시지 + 경과 시간)"""
-        elapsed = int(time.time() - self.start_time)
-        self.status.update(label=f"{message} ({elapsed}초 경과)", state="running")
+        # 진행률 100%
+        self.progress_bar.progress(100)
 
-    def _increment_progress(self, amount: int):
-        """진행률 증가 (최대 95%까지)"""
-        self.current_progress = min(95, self.current_progress + amount)
-        self.progress_bar.progress(self.current_progress / 100)
+        # 완료 후 실행 로그 표시 (이제 표시됨)
+        if self.execution_log:
+            log_text = "**실행 완료:**\n\n"
+            for step_key, elapsed in self.execution_log:
+                info = STEP_INFO.get(step_key, ("▶️", step_key, 0))
+                icon, label, _ = info
+                log_text += f"✅ {icon} {label} - {elapsed}s\n\n"
+            self.status.markdown(log_text)
+
+        # 완료 상태
+        self.status.update(
+            label=f"✅ 완료! (총 {total_elapsed}초)",
+            state="complete"
+        )
+
+    # =========================================================================
+    # LangChain 콜백 메서드
+    # =========================================================================
 
     def on_llm_start(
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> None:
-        """LLM 생성 시작 시"""
+        """LLM 호출 시작"""
         self.llm_call_count += 1
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
-        """LLM 생성 완료 시 - 토큰 사용량 추적"""
+        """LLM 호출 완료 - 토큰 추적"""
         try:
             if response.llm_output:
                 usage = response.llm_output.get("token_usage", {})
@@ -151,25 +125,22 @@ class StreamlitStatusCallback(BaseCallbackHandler):
     def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> None:
-        """도구(Tool) 실행 시작 시"""
         pass
 
     def on_agent_action(self, action: Any, **kwargs: Any) -> Any:
-        """에이전트가 행동을 결정했을 때"""
         pass
 
     def custom_log(self, message: str, icon: str = "ℹ️"):
-        """사용자 정의 로그 출력 (하위 호환)"""
+        """하위 호환용"""
         pass
 
     def get_usage_summary(self) -> dict:
-        """토큰 사용량 및 예상 비용 요약 반환"""
+        """토큰 사용량 요약"""
         total_tokens = self.total_input_tokens + self.total_output_tokens
         estimated_cost = (
             self.total_input_tokens * COST_PER_INPUT_TOKEN +
             self.total_output_tokens * COST_PER_OUTPUT_TOKEN
         )
-
         return {
             "input_tokens": self.total_input_tokens,
             "output_tokens": self.total_output_tokens,
@@ -180,8 +151,8 @@ class StreamlitStatusCallback(BaseCallbackHandler):
         }
 
     def get_execution_summary(self) -> List[dict]:
-        """실행 로그 요약 반환"""
+        """실행 로그 요약"""
         return [
-            {"step": step, "elapsed": elapsed, "info": info}
-            for step, elapsed, info in self.execution_log
+            {"step": step, "elapsed": elapsed}
+            for step, elapsed in self.execution_log
         ]

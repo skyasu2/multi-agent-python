@@ -1212,10 +1212,10 @@ def run_plancraft(
         final_state = event
 
         # 노드 이름 추출 및 타임라인 업데이트
-        if timeline_callback and isinstance(event, dict):
+        if isinstance(event, dict):
             for node_name in event.keys():
                 step_key = NODE_TO_STEP.get(node_name)
-                if step_key:
+                if step_key and timeline_callback:
                     timeline_callback.set_step(step_key)
 
     # 타임라인 완료 처리
