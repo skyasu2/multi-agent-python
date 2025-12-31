@@ -1184,19 +1184,18 @@ def run_plancraft(
     # 각 노드 완료 시 콜백의 set_step 호출
     final_state = None
 
-    # 노드 이름 → 타임라인 단계 매핑 (실제 실행 노드 추적)
+    # 노드 이름 → 타임라인 단계 매핑 (워크플로우 add_node 이름과 일치!)
     NODE_TO_STEP = {
-        "retrieve_context": "context",
-        "fetch_web_context": "context",
-        "run_analyzer_node": "analyze",
-        "option_pause_node": "analyze",
-        "general_response_node": "analyze",
-        "run_structurer_node": "structure",
-        "run_writer_node": "write",
-        "run_reviewer_node": "review",
-        "run_discussion_subgraph": "discuss",  # 에이전트 토론
-        "run_refiner_node": "refine",
-        "run_formatter_node": "format",
+        "context_gathering": "context",   # SubGraph
+        "analyze": "analyze",
+        "option_pause": "analyze",
+        "general_response": "analyze",
+        "structure": "structure",
+        "write": "write",
+        "review": "review",
+        "discussion": "discuss",
+        "refine": "refine",
+        "format": "format",
     }
 
     # StreamlitStatusCallback 찾기
@@ -1211,10 +1210,14 @@ def run_plancraft(
     for event in app.stream(input_data, config=config, stream_mode="updates"):
         final_state = event
 
+        # [DEBUG] 이벤트 구조 확인
+        print(f"[STREAM EVENT] type={type(event)}, keys={event.keys() if isinstance(event, dict) else 'N/A'}")
+
         # 노드 이름 추출 및 타임라인 업데이트
         if isinstance(event, dict):
             for node_name in event.keys():
                 step_key = NODE_TO_STEP.get(node_name)
+                print(f"[STREAM] node={node_name}, step={step_key}, callback={timeline_callback is not None}")
                 if step_key and timeline_callback:
                     timeline_callback.set_step(step_key)
 
