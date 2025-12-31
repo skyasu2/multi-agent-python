@@ -800,26 +800,47 @@ except ImportError:
 def option_pause_node(state: PlanCraftState) -> Command:
     """
     휴먼 인터럽트 처리 노드 (LangGraph 공식 Best Practice 적용)
-    
+
     LangGraph Human Interrupt 필수 요소:
     1. interrupt() 함수로 Pause
     2. Command(resume=...) 로 Resume
     3. checkpointer로 상태 저장 (compile 시 설정됨)
     4. thread_id로 세션 관리
     5. interrupt 전에는 side effect 없음 (비효과적 코드만)
-    
+
+    Payload Schema (표준화):
+    ```json
+    {
+        "type": "option_selector",
+        "question": "추가 정보가 필요합니다.",
+        "options": [{"title": "...", "description": "..."}],
+        "node_ref": "option_pause",
+        "event_id": "evt_abc123",
+        "timestamp": "2024-01-01T12:00:00",
+        "data": {"user_input": "..."}
+    }
+    ```
+
     주의사항:
     - interrupt 전에 외부 API 호출, DB 쓰기 금지 (Resume 시 중복 실행됨)
     - interrupt 이후에 side effect 배치
     """
     from graph.interrupt_utils import create_option_interrupt, handle_user_response
-    
+    from graph.state import update_state
+    import time
+    import uuid
+
     # =========================================================================
     # [BEFORE INTERRUPT] 비효과적 코드만 (side effect 없음)
     # =========================================================================
     # 1. 인터럽트 페이로드 생성 (순수 함수, 외부 호출 없음)
     payload = create_option_interrupt(state)
     payload["type"] = "option_selector"
+
+    # [NEW] 추적용 메타필드 추가 (표준화된 페이로드 스키마)
+    payload["node_ref"] = "option_pause"
+    payload["event_id"] = f"evt_{uuid.uuid4().hex[:12]}"
+    payload["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     
     # [NOTE] "Pause 직전 상태 백업" 피드백 관련:
     # LangGraph에서 node 실행 중 interrupt()가 호출되면 실행이 중단되므로,
@@ -878,10 +899,13 @@ def option_pause_node(state: PlanCraftState) -> Command:
     # [AFTER INTERRUPT] Resume 후 실행되는 코드
     # =========================================================================
     # user_response는 Resume 시 Command(resume=...)로 전달된 값
-    
-    # 3. 사용자 응답으로 상태 업데이트
-    updated_state = handle_user_response(state, user_response)
-    
+
+    # [NEW] last_interrupt 백업 (Resume 전에 저장 - handle_user_response에서 참조용)
+    state_with_interrupt = update_state(state, last_interrupt=payload)
+
+    # 3. 사용자 응답으로 상태 업데이트 (last_interrupt 정보 포함)
+    updated_state = handle_user_response(state_with_interrupt, user_response)
+
     return Command(
         update=updated_state,
         goto="analyze"  # 새 정보로 다시 분석
@@ -1120,11 +1144,18 @@ def create_subgraph_workflow() -> StateGraph:
     return workflow
 
 
-def compile_workflow(use_subgraphs: bool = False):
-    """워크플로우 컴파일"""
-    # 체크포인터 설정 (Factory 사용)
-    from utils.checkpointer import get_checkpointer
-    checkpointer = get_checkpointer()
+def compile_workflow(use_subgraphs: bool = False, checkpointer = None):
+    """
+    워크플로우 컴파일
+    
+    Args:
+        use_subgraphs: 서브그래프 패턴 사용 여부
+        checkpointer: [Optional] 외부 주입 Checkpointer (테스트용)
+    """
+    # 체크포인터 설정 (외부 주입 없으면 기본값 사용)
+    if checkpointer is None:
+        from utils.checkpointer import get_checkpointer
+        checkpointer = get_checkpointer()
     
     if use_subgraphs:
         return create_subgraph_workflow().compile(checkpointer=checkpointer)

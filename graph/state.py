@@ -183,6 +183,11 @@ class PlanCraftState(TypedDict, total=False):
     # [NEW] Debugging & Replay Support (리뷰어 피드백 반영)
     last_interrupt: Optional[dict]  # 마지막 인터럽트 정보 백업 (Resume 시점 기록)
 
+    # [NEW] HITL 이벤트 로그 메타필드 (운영/디버깅/감사용)
+    last_pause_type: Optional[str]  # 마지막 pause 타입 (option, form, confirm, approval)
+    last_resume_value: Optional[dict]  # 마지막 resume 응답값 (선택/입력 내용)
+    last_human_event: Optional[dict]  # 마지막 HITL 이벤트 전체 정보
+
 
 # =============================================================================
 # Helper Functions (Replacing Pydantic methods)

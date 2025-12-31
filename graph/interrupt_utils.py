@@ -140,9 +140,21 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
 
     [Best Practice] Resume 입력 내역을 step_history에 기록하여
     디버깅 및 리플레이 시 사용자 선택/입력을 추적할 수 있습니다.
+
+    [NEW] HITL 메타필드 기록:
+        - last_pause_type: 마지막 인터럽트 타입
+        - last_resume_value: 사용자 응답값 (민감정보 제거)
+        - last_human_event: 전체 HITL 이벤트 정보
     """
     from graph.state import update_state
     import time
+
+    # =========================================================================
+    # [NEW] 인터럽트 타입 추출 (last_interrupt에서 가져오거나 기본값)
+    # =========================================================================
+    last_interrupt = state.get("last_interrupt") or {}
+    pause_type = last_interrupt.get("type", "option")  # 기본값: option
+    current_timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
 
     # =========================================================================
     # [NEW] Resume 입력 내역을 step_history에 기록 (디버깅/리플레이용)
@@ -151,11 +163,24 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
         "step": "human_resume",
         "status": "USER_INPUT",
         "summary": _format_resume_summary(response),
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": current_timestamp,
         "response_data": _sanitize_response(response),  # 민감 정보 제거된 사본
         "event_type": "HUMAN_RESPONSE",  # [NEW] 이벤트 타입 명시
+        "pause_type": pause_type,  # [NEW] 인터럽트 타입 기록
         # [NEW] 직전 인터럽트 정보 백업 (추적용)
-        "last_interrupt_payload": state.get("last_interrupt") 
+        "last_interrupt_payload": last_interrupt
+    }
+
+    # =========================================================================
+    # [NEW] HITL 메타필드 구성 (운영/디버깅/감사용)
+    # =========================================================================
+    last_human_event = {
+        "event_type": "HITL_RESUME",
+        "pause_type": pause_type,
+        "resume_value": _sanitize_response(response),
+        "timestamp": current_timestamp,
+        "node_ref": last_interrupt.get("node_ref"),
+        "event_id": last_interrupt.get("event_id"),
     }
 
     current_history = state.get("step_history", []) or []
@@ -186,15 +211,19 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
             user_input=new_input,
             need_more_info=False,
             input_schema_name=None,
-            step_history=updated_history  # [NEW] Resume 이력 포함
+            step_history=updated_history,  # [NEW] Resume 이력 포함
+            # [NEW] HITL 메타필드 기록
+            last_pause_type=pause_type,
+            last_resume_value=_sanitize_response(response),
+            last_human_event=last_human_event,
         )
 
     # 2. 옵션 선택 처리
     selected = response.get("selected_option")
     text_input = response.get("text_input")
-    
+
     original_input = state.get("user_input", "")
-    
+
     if selected:
         # Pydantic 모델 덤프 후 dict가 됨
         title = selected.get("title", "")
@@ -204,7 +233,7 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
         new_input = f"{original_input}\n\n[직접 입력: {text_input}]"
     else:
         new_input = original_input
-    
+
     return update_state(
         state,
         user_input=new_input,
@@ -212,7 +241,11 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
         need_more_info=False,
         options=[],
         option_question=None,
-        step_history=updated_history  # [NEW] Resume 이력 포함
+        step_history=updated_history,  # [NEW] Resume 이력 포함
+        # [NEW] HITL 메타필드 기록
+        last_pause_type=pause_type,
+        last_resume_value=_sanitize_response(response),
+        last_human_event=last_human_event,
     )
 
 
@@ -295,25 +328,48 @@ def make_approval_pause_node(
 ):
     """
     역할 기반 승인 Pause Node 팩토리 함수.
-    
+
     팀장/리더/QA 등 역할별 승인 워크플로우를 쉽게 구현할 수 있습니다.
     사용자의 승인/반려 응답에 따라 다른 노드로 분기합니다.
+
+    Approval Flow Diagram:
+    ```mermaid
+    stateDiagram-v2
+        [*] --> ApprovalNode: interrupt()
+        ApprovalNode --> WaitingForUser: Pause
+
+        state WaitingForUser {
+            [*] --> ShowOptions
+            ShowOptions --> UserDecision
+        }
+
+        WaitingForUser --> Approved: value="approve"
+        WaitingForUser --> Rejected: value="reject"
+
+        Approved --> goto_approved: Command(goto=approved_node)
+        Rejected --> goto_rejected: Command(goto=rejected_node)
+
+        note right of Rejected
+            rejection_reason이
+            State에 기록됨
+        end note
+    ```
 
     | 승인 여부 | User Response (Value) | 이동 경로 | 비고 |
     |---|---|---|---|
     | 승인 | `approve` or `approved=True` | `goto_approved` | 다음 단계 진행 |
     | 반려 | `reject` | `goto_rejected` | 상태에 `rejection_reason` 기록 |
-    
+
     Args:
         role: 승인자 역할 (예: "팀장", "리더", "QA")
         question: 승인 요청 질문
         goto_approved: 승인 시 이동할 노드
         goto_rejected: 반려 시 이동할 노드
         rejection_feedback_enabled: 반려 시 피드백 입력 활성화
-    
+
     Returns:
         Callable: LangGraph 노드 함수
-    
+
     Example:
         workflow.add_node("team_leader_approval", make_approval_pause_node(
             role="팀장",
@@ -367,16 +423,51 @@ def make_approval_pause_node(
 def make_multi_approval_chain(approvers: List[Dict[str, str]], final_goto: str):
     """
     다중 승인 체인을 위한 노드 목록 생성.
-    
+
     여러 승인자가 순차적으로 승인해야 하는 워크플로우를 구성합니다.
-    
+
+    Multi-Approval Chain Diagram:
+    ```mermaid
+    flowchart LR
+        subgraph ApprovalChain["다중 승인 체인"]
+            A[팀장_approval] -->|approve| B[리더_approval]
+            B -->|approve| C[QA_approval]
+            C -->|approve| D[final_goto]
+
+            A -->|reject| R[refine]
+            B -->|reject| R
+            C -->|reject| R
+        end
+
+        style A fill:#e1f5fe
+        style B fill:#e1f5fe
+        style C fill:#e1f5fe
+        style D fill:#c8e6c9
+        style R fill:#ffcdd2
+    ```
+
+    Entry/Exit Conditions:
+    ```
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                      Multi-Approval Chain Flow                          │
+    ├─────────────┬───────────────────────────────────────────────────────────┤
+    │ 진입 조건   │ 이전 노드에서 승인 체인으로 라우팅                         │
+    ├─────────────┼───────────────────────────────────────────────────────────┤
+    │ 승인 시     │ 다음 승인자로 이동 (마지막이면 final_goto)                 │
+    ├─────────────┼───────────────────────────────────────────────────────────┤
+    │ 반려 시     │ 항상 "refine" 노드로 이동 (rejection_reason 기록)          │
+    ├─────────────┼───────────────────────────────────────────────────────────┤
+    │ 종료 조건   │ 모든 승인자가 승인 → final_goto 노드로 이동               │
+    └─────────────┴───────────────────────────────────────────────────────────┘
+    ```
+
     Args:
         approvers: 승인자 목록 [{"role": "팀장", "question": "..."}, ...]
         final_goto: 모든 승인 후 이동할 노드
-    
+
     Returns:
         Dict[str, Callable]: 노드 이름과 노드 함수의 딕셔너리
-    
+
     Example:
         approval_nodes = make_multi_approval_chain(
             approvers=[

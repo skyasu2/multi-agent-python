@@ -157,6 +157,31 @@ payload = InterruptFactory.create(
 | CONFIRM | 예/아니오 확인 | confirmed 플래그 |
 | APPROVAL | 역할 기반 승인 | approve/reject 값 |
 
+### HITL 메타필드 (운영/디버깅/감사용)
+```python
+# State 필드 (graph/state.py)
+last_pause_type: str      # 마지막 인터럽트 타입 (option, form, confirm, approval)
+last_resume_value: dict   # 사용자 응답값 (민감정보 제거)
+last_human_event: dict    # 전체 HITL 이벤트 정보
+
+# 페이로드 추적 필드 (interrupt_types.py)
+node_ref: str             # 인터럽트 발생 노드 이름
+event_id: str             # 이벤트 UUID (evt_abc123)
+timestamp: str            # ISO 8601 형식 시각
+```
+
+step_history 로그 예시:
+```json
+{
+  "step": "human_resume",
+  "status": "USER_INPUT",
+  "event_type": "HUMAN_RESPONSE",
+  "pause_type": "option",
+  "summary": "옵션 선택: AI 헬스케어 앱",
+  "response_data": {"selected_option": {...}}
+}
+```
+
 ## Key Patterns
 
 ### ensure_dict (Pydantic/Dict 일관성)

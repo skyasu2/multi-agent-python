@@ -138,10 +138,25 @@ class BaseInterruptPayload(BaseModel, ABC):
 
     모든 인터럽트 타입이 상속하는 추상 기반 클래스입니다.
     공통 필드와 메서드를 정의합니다.
+
+    공통 페이로드 스키마:
+        {
+            "type": "option|form|confirm|approval",
+            "question": "사용자에게 보여줄 질문",
+            "node_ref": "option_pause",  # 인터럽트 발생 노드
+            "event_id": "evt_abc123",     # 이벤트 추적 ID
+            "timestamp": "2024-01-01T12:00:00",
+            "data": {...}
+        }
     """
     type: InterruptType = Field(description="인터럽트 유형")
     question: str = Field(description="사용자에게 보여줄 질문")
     data: Dict[str, Any] = Field(default_factory=dict, description="추가 메타데이터")
+
+    # [NEW] 추적용 메타필드 (운영/디버깅/감사용)
+    node_ref: Optional[str] = Field(default=None, description="인터럽트 발생 노드 이름")
+    event_id: Optional[str] = Field(default=None, description="이벤트 추적 ID (UUID)")
+    timestamp: Optional[str] = Field(default=None, description="인터럽트 발생 시각 (ISO 8601)")
 
     @abstractmethod
     def validate_response(self, response: Dict[str, Any]) -> bool:

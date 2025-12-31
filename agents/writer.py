@@ -249,8 +249,8 @@ Action Items (실행 지침):
             section_count = len(sections)
             validation_issues = []
 
-            # 필수 섹션 수 (최소 9개, 권장 10개)
-            MIN_SECTIONS = settings.WRITER_MIN_SECTIONS
+            # [UPDATE] 프리셋 기반 최소 섹션 수 (fast:7, balanced:9, quality:10)
+            MIN_SECTIONS = preset.min_sections
             MIN_CONTENT_LENGTH = 100  # 섹션당 최소 글자수
 
             # 검증 1: 섹션 개수

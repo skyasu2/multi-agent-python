@@ -93,36 +93,72 @@ def run(state: PlanCraftState) -> PlanCraftState:
         {"role": "user", "content": user_msg_content}
     ]
     
-    # 3. LLM 호출
+    # 3. LLM 호출 + Self-Reflection (최소 섹션 검증)
+    # [UPDATE] 프리셋 기반 동적 설정 적용
+    from utils.settings import get_preset
+    generation_preset = state.get("generation_preset", "balanced")
+    preset = get_preset(generation_preset)
+    MIN_SECTIONS = preset.min_sections  # fast:7, balanced:9, quality:10
+    MAX_RETRIES = preset.structurer_max_retries  # 모든 모드 2회 고정
+
     try:
-        structure_result = dynamic_llm.invoke(messages)
-        
-        # 4. 상태 업데이트 (Pydantic -> Dict 일관성 보장)
-        structure_dict = ensure_dict(structure_result)
-            
-        logger.info(f"[Structurer] 구조화 완료: {len(structure_dict.get('sections', []))}개 섹션")
-            
+        last_structure_dict = None
+
+        for attempt in range(MAX_RETRIES):
+            logger.info(f"[Structurer] 구조 설계 시도 ({attempt + 1}/{MAX_RETRIES})...")
+
+            structure_result = dynamic_llm.invoke(messages)
+            structure_dict = ensure_dict(structure_result)
+            last_structure_dict = structure_dict
+
+            section_count = len(structure_dict.get("sections", []))
+
+            # [Self-Reflection] 최소 섹션 수 검증
+            if section_count >= MIN_SECTIONS:
+                logger.info(f"[Structurer] ✅ 구조화 완료: {section_count}개 섹션")
+                return update_state(
+                    state,
+                    structure=structure_dict,
+                    current_step="structure"
+                )
+
+            # 섹션 부족 시 재시도
+            logger.warning(f"[Structurer] ⚠️ 섹션 부족 ({section_count}/{MIN_SECTIONS}개). 재설계합니다.")
+            feedback = f"""
+[System Critical Alert]:
+- 생성된 섹션: {section_count}개 (최소 {MIN_SECTIONS}개 필요)
+- 필수 섹션: 1.개요, 2.문제정의, 3.타겟/시장, 4.핵심기능, 5.비즈니스모델, 6.기술스택, 7.일정, 8.리스크, 9.KPI
+- 모든 필수 섹션을 포함하여 다시 설계하세요!
+"""
+            messages.append({"role": "user", "content": feedback})
+
+        # 재시도 후에도 부족하면 경고 후 사용
+        logger.warning(f"[Structurer] ⚠️ 최소 섹션 미달이지만 결과 사용 ({len(last_structure_dict.get('sections', []))}개)")
         return update_state(
             state,
-            structure=structure_dict,
+            structure=last_structure_dict,
             current_step="structure"
         )
         
     except Exception as e:
         logger.error(f"[Structurer] Failed: {e}")
-        # Fallback: 기본 구조 반환
+        # Fallback: 9개 표준 섹션 구조 반환
         fallback_structure = {
             "title": "기획서 (자동 생성됨 - Fallback)",
             "sections": [
                 {"name": "1. 서비스 개요", "content_guide": "서비스의 정의, 핵심 가치, 개발 배경을 작성하세요."},
-                {"name": "2. 주요 기능", "content_guide": "핵심 기능 3가지 이상을 상세히 기술하세요."},
-                {"name": "3. 타겟 및 시장 분석", "content_guide": "주요 타겟 사용자와 시장 규모를 분석하세요."},
-                {"name": "4. 비즈니스 모델", "content_guide": "수익 창출 방안을 구체적으로 제시하세요."},
-                {"name": "5. 기대 효과", "content_guide": "서비스 도입 시 기대되는 정량적/정성적 효과를 기술하세요."}
+                {"name": "2. 문제 정의 및 해결책", "content_guide": "해결하고자 하는 문제와 솔루션을 기술하세요."},
+                {"name": "3. 타겟 사용자 및 시장 분석", "content_guide": "주요 타겟 사용자와 시장 규모를 분석하세요."},
+                {"name": "4. 핵심 기능", "content_guide": "핵심 기능 3가지 이상을 상세히 기술하세요."},
+                {"name": "5. 비즈니스 모델", "content_guide": "수익 창출 방안을 구체적으로 제시하세요."},
+                {"name": "6. 기술 스택 및 아키텍처", "content_guide": "사용할 기술 스택과 시스템 구조를 설명하세요."},
+                {"name": "7. 개발 일정 및 로드맵", "content_guide": "마일스톤별 개발 일정을 마크다운 테이블로 작성하세요."},
+                {"name": "8. 리스크 분석 및 대응 방안", "content_guide": "예상 리스크와 대응 전략을 기술하세요."},
+                {"name": "9. KPI 및 성공 지표", "content_guide": "정량적 목표와 측정 방법을 마크다운 테이블로 작성하세요."}
             ]
         }
         return update_state(
-            state, 
-            structure=fallback_structure, 
+            state,
+            structure=fallback_structure,
             error=f"구조화 실패(Fallback 적용): {str(e)}"
         )
