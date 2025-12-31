@@ -140,29 +140,18 @@ def render_main():
         if "generation_preset" not in st.session_state:
             st.session_state.generation_preset = DEFAULT_PRESET
 
-        preset_options = {
-            key: f"{p.icon} {p.name}"
-            for key, p in GENERATION_PRESETS.items()
-        }
-        preset_keys = list(preset_options.keys())
-        preset_labels = list(preset_options.values())
-
-        current_preset_idx = preset_keys.index(st.session_state.generation_preset)
-
-        # 프리셋 변경 콜백 (on_change 패턴)
-        def on_preset_change():
-            selected_label = st.session_state.preset_dropdown
-            selected_key = preset_keys[preset_labels.index(selected_label)]
-            st.session_state.generation_preset = selected_key
+        # 프리셋 드롭다운 (format_func 패턴 - 베스트 프랙티스)
+        # key를 직접 options으로, format_func로 표시 변환 → session_state 자동 동기화
+        preset_keys = list(GENERATION_PRESETS.keys())
 
         st.selectbox(
             "생성 모드",
-            options=preset_labels,
-            index=current_preset_idx,
-            key="preset_dropdown",
+            options=preset_keys,
+            index=preset_keys.index(st.session_state.generation_preset),
+            format_func=lambda k: f"{GENERATION_PRESETS[k].icon} {GENERATION_PRESETS[k].name}",
+            key="generation_preset",  # session_state key와 동일 → 자동 동기화
             label_visibility="collapsed",
-            help="⚡빠른: 속도우선 | ⚖️균형: 권장 | 💎고품질: 품질우선",
-            on_change=on_preset_change
+            help="⚡빠른: 속도우선 | ⚖️균형: 권장 | 💎고품질: 품질우선"
         )
 
     with col_menu:
@@ -217,21 +206,13 @@ def render_main():
         # 카테고리 드롭다운 & AI 생성 버튼 (한 줄로 통합)
         from utils.prompt_examples import CATEGORIES, get_examples_by_category
 
-        # 드롭다운 옵션 생성 (아이콘 + 라벨)
-        cat_options = {key: f"{info['icon']} {info['label']}" for key, info in CATEGORIES.items()}
-        cat_keys = list(cat_options.keys())
-        cat_labels = list(cat_options.values())
+        # 카테고리 드롭다운 (format_func 패턴 - 베스트 프랙티스)
+        cat_keys = list(CATEGORIES.keys())
 
-        # 현재 선택된 인덱스
-        current_idx = cat_keys.index(st.session_state.idea_category) if st.session_state.idea_category in cat_keys else 0
-
-        # 카테고리 변경 콜백 (on_change 패턴 - 더블클릭 문제 해결)
+        # 카테고리 변경 시 예시 갱신 (side effect가 필요한 경우만 on_change 사용)
         def on_category_change():
-            selected_label = st.session_state.category_dropdown
-            selected_key = cat_keys[cat_labels.index(selected_label)]
-            if selected_key != st.session_state.idea_category:
-                st.session_state.idea_category = selected_key
-                st.session_state.random_examples = get_examples_by_category(selected_key, 3)
+            new_category = st.session_state.idea_category
+            st.session_state.random_examples = get_examples_by_category(new_category, 3)
 
         # 헤더 + 드롭다운 + 버튼을 한 줄로
         llm_remaining = max(0, 10 - st.session_state.idea_llm_count)
@@ -243,11 +224,12 @@ def render_main():
         with col_dropdown:
             st.selectbox(
                 "카테고리",
-                options=cat_labels,
-                index=current_idx,
-                key="category_dropdown",
+                options=cat_keys,
+                index=cat_keys.index(st.session_state.idea_category) if st.session_state.idea_category in cat_keys else 0,
+                format_func=lambda k: f"{CATEGORIES[k]['icon']} {CATEGORIES[k]['label']}",
+                key="idea_category",  # session_state key와 동일 → 자동 동기화
                 label_visibility="collapsed",
-                on_change=on_category_change  # 선택 완료 시에만 호출
+                on_change=on_category_change  # 예시 갱신을 위한 side effect
             )
 
         with col_btn:
