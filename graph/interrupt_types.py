@@ -1,0 +1,366 @@
+"""
+Human Interrupt Types - 모듈화된 인터럽트 타입 시스템
+
+LangGraph HITL 패턴을 위한 타입 안전한 인터럽트 페이로드 관리 모듈입니다.
+
+설계 원칙:
+    - 각 인터럽트 타입별 독립적인 Payload 클래스
+    - 공통 인터페이스(BaseInterruptPayload) 상속으로 일관된 API
+    - InterruptFactory를 통한 타입별 인스턴스 생성
+    - Pydantic 기반 유효성 검증
+
+지원 인터럽트 타입:
+    - OPTION: 옵션 선택 (단일/다중)
+    - FORM: 동적 폼 입력
+    - CONFIRM: 예/아니오 확인
+    - APPROVAL: 역할 기반 승인 (승인/반려)
+
+사용 예시:
+    from graph.interrupt_types import InterruptFactory, InterruptType
+
+    # 옵션 인터럽트 생성
+    payload = InterruptFactory.create(
+        InterruptType.OPTION,
+        question="방향을 선택하세요",
+        options=[{"title": "A", "description": "설명A"}]
+    )
+
+    # interrupt() 호출에 사용
+    user_response = interrupt(payload.to_dict())
+"""
+
+from abc import ABC, abstractmethod
+from enum import Enum
+from typing import Dict, List, Any, Optional, Union, Type
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing_extensions import Self
+
+
+# =============================================================================
+# InterruptType Enum - 타입 안전한 인터럽트 유형 정의
+# =============================================================================
+
+class InterruptType(str, Enum):
+    """
+    인터럽트 유형 상수
+
+    str 상속으로 JSON 직렬화 시 자동으로 문자열로 변환됩니다.
+    """
+    OPTION = "option"           # 옵션 선택 (단일/다중)
+    FORM = "form"               # 동적 폼 입력
+    CONFIRM = "confirm"         # 예/아니오 확인
+    APPROVAL = "approval"       # 역할 기반 승인
+    OPTION_SELECTOR = "option_selector"  # 기존 호환용
+
+
+# =============================================================================
+# Pydantic 기반 Payload 모델들
+# =============================================================================
+
+class InterruptOption(BaseModel):
+    """인터럽트 옵션 항목"""
+    title: str = Field(description="옵션 제목")
+    description: str = Field(default="", description="옵션 설명")
+    value: Optional[str] = Field(default=None, description="옵션 값 (선택적)")
+
+
+class BaseInterruptPayload(BaseModel, ABC):
+    """
+    인터럽트 페이로드 베이스 클래스
+
+    모든 인터럽트 타입이 상속하는 추상 기반 클래스입니다.
+    공통 필드와 메서드를 정의합니다.
+    """
+    type: InterruptType = Field(description="인터럽트 유형")
+    question: str = Field(description="사용자에게 보여줄 질문")
+    data: Dict[str, Any] = Field(default_factory=dict, description="추가 메타데이터")
+
+    @abstractmethod
+    def validate_response(self, response: Dict[str, Any]) -> bool:
+        """사용자 응답 유효성 검증 (서브클래스에서 구현)"""
+        pass
+
+    def to_dict(self) -> Dict[str, Any]:
+        """interrupt() 호출용 딕셔너리 변환"""
+        return self.model_dump(mode="json")
+
+    class Config:
+        use_enum_values = True  # Enum을 문자열로 직렬화
+
+
+class OptionInterruptPayload(BaseInterruptPayload):
+    """
+    옵션 선택 인터럽트 페이로드
+
+    사용자에게 옵션 목록을 제시하고 선택을 받습니다.
+    """
+    type: InterruptType = Field(default=InterruptType.OPTION)
+    options: List[InterruptOption] = Field(default_factory=list, description="선택 가능한 옵션들")
+    allow_multiple: bool = Field(default=False, description="다중 선택 허용 여부")
+    allow_custom: bool = Field(default=True, description="직접 입력 허용 여부")
+
+    @field_validator('options')
+    @classmethod
+    def validate_options_not_empty(cls, v: List[InterruptOption]) -> List[InterruptOption]:
+        """옵션은 최소 1개 이상 필요"""
+        if not v:
+            return [InterruptOption(title="계속 진행", description="기본값으로 진행합니다")]
+        return v
+
+    def validate_response(self, response: Dict[str, Any]) -> bool:
+        """옵션 선택 응답 검증"""
+        selected = response.get("selected_option")
+        text_input = response.get("text_input")
+
+        # 옵션 선택 또는 직접 입력 중 하나는 있어야 함
+        if selected or (self.allow_custom and text_input):
+            return True
+        return False
+
+
+class FormInterruptPayload(BaseInterruptPayload):
+    """
+    동적 폼 입력 인터럽트 페이로드
+
+    Pydantic 스키마 기반으로 동적 폼을 생성합니다.
+    """
+    type: InterruptType = Field(default=InterruptType.FORM)
+    input_schema_name: str = Field(description="입력 폼 스키마 이름 (Pydantic 모델명)")
+    required_fields: List[str] = Field(default_factory=list, description="필수 입력 필드 목록")
+
+    def validate_response(self, response: Dict[str, Any]) -> bool:
+        """폼 응답 검증 - 필수 필드 존재 여부"""
+        for field in self.required_fields:
+            if field not in response or not response[field]:
+                return False
+        return True
+
+
+class ConfirmInterruptPayload(BaseInterruptPayload):
+    """
+    확인(예/아니오) 인터럽트 페이로드
+
+    단순 예/아니오 선택을 받습니다.
+    """
+    type: InterruptType = Field(default=InterruptType.CONFIRM)
+    confirm_text: str = Field(default="예", description="확인 버튼 텍스트")
+    cancel_text: str = Field(default="아니오", description="취소 버튼 텍스트")
+    default_value: bool = Field(default=False, description="기본값")
+
+    def validate_response(self, response: Dict[str, Any]) -> bool:
+        """확인 응답 검증"""
+        confirmed = response.get("confirmed")
+        return confirmed is not None
+
+
+class ApprovalInterruptPayload(BaseInterruptPayload):
+    """
+    역할 기반 승인 인터럽트 페이로드
+
+    팀장/리더/QA 등 역할별 승인 워크플로우에 사용됩니다.
+    """
+    type: InterruptType = Field(default=InterruptType.APPROVAL)
+    role: str = Field(description="승인자 역할 (예: 팀장, 리더, QA)")
+    options: List[InterruptOption] = Field(
+        default_factory=lambda: [
+            InterruptOption(title="✅ 승인", value="approve", description="진행합니다"),
+            InterruptOption(title="🔄 반려", value="reject", description="수정이 필요합니다")
+        ]
+    )
+    rejection_feedback_enabled: bool = Field(default=True, description="반려 시 피드백 입력 활성화")
+
+    def validate_response(self, response: Dict[str, Any]) -> bool:
+        """승인 응답 검증"""
+        approved = response.get("approved")
+        selected = response.get("selected_option", {})
+
+        # approved 플래그 또는 선택된 옵션의 value로 판단
+        return approved is not None or selected.get("value") in ("approve", "reject")
+
+    def is_approved(self, response: Dict[str, Any]) -> bool:
+        """승인 여부 판단"""
+        if response.get("approved"):
+            return True
+        selected = response.get("selected_option", {})
+        return selected.get("value") == "approve"
+
+
+# =============================================================================
+# InterruptFactory - 타입별 페이로드 생성 팩토리
+# =============================================================================
+
+class InterruptFactory:
+    """
+    인터럽트 페이로드 팩토리
+
+    InterruptType에 따라 적절한 Payload 인스턴스를 생성합니다.
+    """
+
+    _registry: Dict[InterruptType, Type[BaseInterruptPayload]] = {
+        InterruptType.OPTION: OptionInterruptPayload,
+        InterruptType.OPTION_SELECTOR: OptionInterruptPayload,  # 기존 호환
+        InterruptType.FORM: FormInterruptPayload,
+        InterruptType.CONFIRM: ConfirmInterruptPayload,
+        InterruptType.APPROVAL: ApprovalInterruptPayload,
+    }
+
+    @classmethod
+    def create(
+        cls,
+        interrupt_type: Union[InterruptType, str],
+        question: str,
+        **kwargs
+    ) -> BaseInterruptPayload:
+        """
+        인터럽트 페이로드 생성
+
+        Args:
+            interrupt_type: 인터럽트 유형
+            question: 사용자에게 보여줄 질문
+            **kwargs: 타입별 추가 파라미터
+
+        Returns:
+            해당 타입의 BaseInterruptPayload 서브클래스 인스턴스
+
+        Raises:
+            ValueError: 지원하지 않는 인터럽트 타입
+        """
+        # 문자열 → Enum 변환
+        if isinstance(interrupt_type, str):
+            try:
+                interrupt_type = InterruptType(interrupt_type)
+            except ValueError:
+                raise ValueError(f"지원하지 않는 인터럽트 타입: {interrupt_type}")
+
+        payload_class = cls._registry.get(interrupt_type)
+        if not payload_class:
+            raise ValueError(f"등록되지 않은 인터럽트 타입: {interrupt_type}")
+
+        return payload_class(question=question, **kwargs)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> BaseInterruptPayload:
+        """
+        딕셔너리에서 페이로드 복원
+
+        UI에서 받은 JSON 데이터를 Payload 객체로 변환합니다.
+        """
+        interrupt_type = data.get("type", InterruptType.OPTION)
+        return cls.create(interrupt_type, **{k: v for k, v in data.items() if k != "type"})
+
+    @classmethod
+    def register(cls, interrupt_type: InterruptType, payload_class: Type[BaseInterruptPayload]):
+        """
+        새로운 인터럽트 타입 등록
+
+        확장 시 새로운 인터럽트 타입을 런타임에 추가할 수 있습니다.
+        """
+        cls._registry[interrupt_type] = payload_class
+
+
+# =============================================================================
+# Resume Handler - 응답 처리 유틸리티
+# =============================================================================
+
+class ResumeHandler:
+    """
+    인터럽트 응답 처리 핸들러
+
+    각 인터럽트 타입별 응답 처리 로직을 캡슐화합니다.
+    """
+
+    @staticmethod
+    def handle_option(response: Dict[str, Any]) -> Dict[str, Any]:
+        """옵션 선택 응답 처리"""
+        return {
+            "selected_option": response.get("selected_option"),
+            "text_input": response.get("text_input"),
+            "action": "option_selected"
+        }
+
+    @staticmethod
+    def handle_form(response: Dict[str, Any]) -> Dict[str, Any]:
+        """폼 입력 응답 처리"""
+        return {
+            "form_data": response,
+            "action": "form_submitted"
+        }
+
+    @staticmethod
+    def handle_confirm(response: Dict[str, Any]) -> Dict[str, Any]:
+        """확인 응답 처리"""
+        return {
+            "confirmed": response.get("confirmed", False),
+            "action": "confirmed" if response.get("confirmed") else "cancelled"
+        }
+
+    @staticmethod
+    def handle_approval(response: Dict[str, Any]) -> Dict[str, Any]:
+        """승인 응답 처리"""
+        approved = response.get("approved", False)
+        selected = response.get("selected_option", {})
+
+        is_approved = approved or selected.get("value") == "approve"
+
+        return {
+            "approved": is_approved,
+            "rejection_reason": response.get("rejection_reason", "") if not is_approved else "",
+            "action": "approved" if is_approved else "rejected"
+        }
+
+    _handlers = {
+        InterruptType.OPTION: handle_option,
+        InterruptType.OPTION_SELECTOR: handle_option,
+        InterruptType.FORM: handle_form,
+        InterruptType.CONFIRM: handle_confirm,
+        InterruptType.APPROVAL: handle_approval,
+    }
+
+    @classmethod
+    def handle(cls, interrupt_type: Union[InterruptType, str], response: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        타입에 맞는 핸들러로 응답 처리
+
+        Args:
+            interrupt_type: 인터럽트 유형
+            response: 사용자 응답 데이터
+
+        Returns:
+            정규화된 응답 딕셔너리
+        """
+        if isinstance(interrupt_type, str):
+            interrupt_type = InterruptType(interrupt_type)
+
+        handler = cls._handlers.get(interrupt_type, cls.handle_option)
+        return handler.__func__(response)  # staticmethod 호출
+
+
+# =============================================================================
+# 기존 코드 호환성 유틸리티
+# =============================================================================
+
+def create_option_payload_compat(
+    question: str,
+    options: List[Dict[str, str]],
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    기존 코드 호환용 옵션 페이로드 생성
+
+    기존 create_interrupt_payload 함수와 동일한 인터페이스를 제공합니다.
+    """
+    interrupt_options = [
+        InterruptOption(
+            title=opt.get("title", ""),
+            description=opt.get("description", "")
+        )
+        for opt in options
+    ]
+
+    payload = OptionInterruptPayload(
+        question=question,
+        options=interrupt_options,
+        data=kwargs.get("metadata", {})
+    )
+
+    return payload.to_dict()

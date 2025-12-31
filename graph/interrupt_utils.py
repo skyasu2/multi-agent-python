@@ -9,11 +9,36 @@ Analyzer에서 `need_more_info: true` 반환 시
 Human Interrupt가 발생하여 사용자의 추가 입력을 대기합니다.
 
 - Resume 시 Pydantic 검증을 통해 입력 데이터의 무결성을 보장합니다.
+
+모듈 구조:
+    - interrupt_types.py: 타입 안전한 Payload 클래스들 (Pydantic 기반)
+    - interrupt_utils.py: 기존 코드 호환 유틸리티 + State 연동 함수
+
+권장 사용법 (신규 코드):
+    from graph.interrupt_types import InterruptFactory, InterruptType
+
+    payload = InterruptFactory.create(InterruptType.OPTION, question="선택하세요", ...)
+
+기존 코드 호환:
+    from graph.interrupt_utils import create_option_interrupt, handle_user_response
 """
 
 from typing import Dict, List, Any, Optional, cast
 from utils.schemas import OptionChoice, ResumeInput
 from graph.state import PlanCraftState, InterruptPayload, InterruptOption
+
+# [NEW] 모듈화된 인터럽트 타입 시스템 임포트
+from graph.interrupt_types import (
+    InterruptType,
+    InterruptFactory,
+    ResumeHandler,
+    BaseInterruptPayload,
+    OptionInterruptPayload,
+    FormInterruptPayload,
+    ConfirmInterruptPayload,
+    ApprovalInterruptPayload,
+    InterruptOption as TypedInterruptOption,
+)
 
 def _format_resume_summary(response: Dict[str, Any]) -> str:
     """Resume 응답을 사람이 읽기 쉬운 요약으로 변환"""
@@ -380,5 +405,30 @@ def make_multi_approval_chain(approvers: List[Dict[str, str]], final_goto: str):
             goto_approved=next_goto,
             goto_rejected="refine"  # 반려 시 항상 refine으로
         )
-    
+
     return nodes
+
+
+# =============================================================================
+# Public API Export
+# =============================================================================
+
+__all__ = [
+    # 기존 호환 함수
+    "create_interrupt_payload",
+    "create_option_interrupt",
+    "handle_user_response",
+    "get_interrupt_handler",
+    "make_pause_node",
+    "make_approval_pause_node",
+    "make_multi_approval_chain",
+    # 신규 모듈화 시스템 (re-export)
+    "InterruptType",
+    "InterruptFactory",
+    "ResumeHandler",
+    "BaseInterruptPayload",
+    "OptionInterruptPayload",
+    "FormInterruptPayload",
+    "ConfirmInterruptPayload",
+    "ApprovalInterruptPayload",
+]

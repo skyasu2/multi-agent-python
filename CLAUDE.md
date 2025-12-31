@@ -127,6 +127,36 @@ agreed_action_items: List[str]   # 합의된 개선 사항
 | RAG (FAISS) | 작성 방법론, 체크리스트, 예시 | 불변 |
 | 웹 검색 (Tavily) | 시장 규모, 트렌드, 경쟁사 | 실시간 |
 
+### Human Interrupt 타입 시스템 (모듈화)
+```python
+# graph/interrupt_types.py - 타입 안전한 Payload 클래스
+
+from graph.interrupt_types import InterruptFactory, InterruptType
+
+# 옵션 선택 인터럽트
+payload = InterruptFactory.create(
+    InterruptType.OPTION,
+    question="방향을 선택하세요",
+    options=[InterruptOption(title="A", description="설명")]
+)
+
+# 승인 인터럽트 (역할 기반)
+payload = InterruptFactory.create(
+    InterruptType.APPROVAL,
+    question="승인하시겠습니까?",
+    role="팀장"
+)
+
+# 지원 타입: OPTION, FORM, CONFIRM, APPROVAL
+```
+
+| 타입 | 용도 | 응답 검증 |
+|------|------|----------|
+| OPTION | 옵션 선택/직접 입력 | selected_option 또는 text_input |
+| FORM | 동적 폼 입력 | required_fields 검증 |
+| CONFIRM | 예/아니오 확인 | confirmed 플래그 |
+| APPROVAL | 역할 기반 승인 | approve/reject 값 |
+
 ## Key Patterns
 
 ### ensure_dict (Pydantic/Dict 일관성)
@@ -220,6 +250,8 @@ CHECKPOINTER_TYPE=memory     # memory|postgres|redis
 | 프롬프트 | `prompts/{agent_name}_prompt.py` |
 | State 필드 | `graph/state.py` |
 | 라우팅 조건 | `graph/workflow.py` (_is_quality_* 함수) |
+| 인터럽트 타입 | `graph/interrupt_types.py` (Payload 클래스) |
+| 인터럽트 유틸 | `graph/interrupt_utils.py` (팩토리, 핸들러) |
 | UI 스타일 | `ui/styles.py` (CSS 변수) |
 | 브레인스토밍 카테고리 | `utils/prompt_examples.py` |
 | RAG 문서 | `rag/documents/*.md` |
