@@ -32,7 +32,7 @@ LangGraph HITL 패턴을 위한 타입 안전한 인터럽트 페이로드 관�
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Dict, List, Any, Optional, Union, Type
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from typing_extensions import Self
 
 
@@ -152,8 +152,7 @@ class BaseInterruptPayload(BaseModel, ABC):
         """interrupt() 호출용 딕셔너리 변환"""
         return self.model_dump(mode="json")
 
-    class Config:
-        use_enum_values = True  # Enum을 문자열로 직렬화
+    model_config = ConfigDict(use_enum_values=True)  # Enum을 문자열로 직렬화
 
 
 class OptionInterruptPayload(BaseInterruptPayload):
