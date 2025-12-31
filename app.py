@@ -147,7 +147,7 @@ def render_main():
         st.selectbox(
             "생성 모드",
             options=preset_keys,
-            index=preset_keys.index(st.session_state.generation_preset),
+            # index 제거: session_state.generation_preset이 자동으로 선택값 결정
             format_func=lambda k: f"{GENERATION_PRESETS[k].icon} {GENERATION_PRESETS[k].name}",
             key="generation_preset",  # session_state key와 동일 → 자동 동기화
             label_visibility="collapsed",
@@ -225,7 +225,7 @@ def render_main():
             st.selectbox(
                 "카테고리",
                 options=cat_keys,
-                index=cat_keys.index(st.session_state.idea_category) if st.session_state.idea_category in cat_keys else 0,
+                # index 제거: session_state.idea_category가 자동으로 선택값 결정
                 format_func=lambda k: f"{CATEGORIES[k]['icon']} {CATEGORIES[k]['label']}",
                 key="idea_category",  # session_state key와 동일 → 자동 동기화
                 label_visibility="collapsed",
