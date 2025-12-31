@@ -100,6 +100,7 @@ from agents import analyzer, structurer, writer, reviewer, refiner, formatter
 from utils.config import Config
 from utils.file_logger import get_file_logger
 from utils.error_handler import handle_node_error
+from utils.tracing import trace_node  # [NEW] LangSmith 상세 트레이싱
 from graph.interrupt_utils import create_option_interrupt, handle_user_response
 
 # =============================================================================
@@ -310,9 +311,14 @@ def should_refine_or_restart(state: PlanCraftState) -> str:
 #
 # =============================================================================
 
+@trace_node("context", tags=["rag", "retrieval"])
 @handle_node_error
 def retrieve_context(state: PlanCraftState) -> PlanCraftState:
-    """RAG 검색 노드"""
+    """
+    RAG 검색 노드
+
+    LangSmith: run_name="📚 컨텍스트 수집", tags=["rag", "retrieval"]
+    """
     from rag.retriever import Retriever
     from graph.state import update_state
 
@@ -335,6 +341,7 @@ def retrieve_context(state: PlanCraftState) -> PlanCraftState:
 
 # ... (상단 생략)
 
+@trace_node("context", tags=["web", "search", "tavily"])
 @handle_node_error
 def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
     """
@@ -343,6 +350,8 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
     Side-Effect: 외부 웹 API 호출 (Tavily Search)
     - 실패 시 재시도 안전함 (조회 전용, 멱등성 보장)
     - 중복 호출 시 동일 결과 반환 (검색 결과 캐싱 없음)
+
+    LangSmith: run_name="📚 컨텍스트 수집", tags=["rag", "retrieval", "web", "search", "tavily"]
     """
     import re
     from utils.config import Config
@@ -562,6 +571,7 @@ def general_response_node(state: PlanCraftState) -> PlanCraftState:
 # Agent 래퍼 함수 (TypedDict 호환)
 # =============================================================================
 
+@trace_node("analyze", tags=["critical"])
 @handle_node_error
 def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
     """
@@ -570,6 +580,10 @@ def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
     Side-Effect: LLM 호출 (Azure OpenAI)
     - 멱등성: 동일 입력에 유사한 결과 (LLM 특성상 약간의 변동 있음)
     - 재시도 안전: 상태 변경 없이 분석 결과만 반환
+
+    LangSmith 트레이싱:
+        - run_name: "🔍 요구사항 분석"
+        - tags: ["agent", "llm", "analysis", "critical"]
     """
     from agents.analyzer import run
     from graph.state import update_state
@@ -600,6 +614,7 @@ def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
         summary=f"주제 분석: {topic}" + (f" (재분석 #{current_restart_count})" if has_review else "")
     )
 
+@trace_node("structure")
 @handle_node_error
 def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
     """
@@ -608,6 +623,8 @@ def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
     Side-Effect: LLM 호출 (Azure OpenAI)
     - 기획서 목차/섹션 구조 설계
     - 재시도 안전: 구조만 생성, 외부 상태 변경 없음
+
+    LangSmith: run_name="🏗️ 구조 설계", tags=["agent", "llm", "planning"]
     """
     from agents.structurer import run
 
@@ -625,6 +642,7 @@ def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
         summary=f"섹션 {count}개 구조화"
     )
 
+@trace_node("write", tags=["slow"])
 @handle_node_error
 def run_writer_node(state: PlanCraftState) -> PlanCraftState:
     """
@@ -633,6 +651,8 @@ def run_writer_node(state: PlanCraftState) -> PlanCraftState:
     Side-Effect: LLM 호출 (Azure OpenAI)
     - 섹션별 상세 콘텐츠 작성 (가장 오래 걸리는 단계)
     - 재시도 안전: 콘텐츠만 생성, 외부 상태 변경 없음
+
+    LangSmith: run_name="✍️ 콘텐츠 작성", tags=["agent", "llm", "generation", "slow"]
     """
     from agents.writer import run
 
@@ -649,6 +669,7 @@ def run_writer_node(state: PlanCraftState) -> PlanCraftState:
         new_state, "write", "SUCCESS", summary=f"초안 작성 완료 ({draft_len}자)"
     )
 
+@trace_node("review", tags=["evaluation"])
 @handle_node_error
 def run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
     """
@@ -657,6 +678,8 @@ def run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
     Side-Effect: LLM 호출 (Azure OpenAI)
     - 품질 평가 및 verdict 결정 (PASS/REVISE/FAIL)
     - 재시도 안전: 평가 결과만 반환, 외부 상태 변경 없음
+
+    LangSmith: run_name="🔎 품질 검토", tags=["agent", "llm", "evaluation"]
     """
     from agents.reviewer import run
 
@@ -676,6 +699,7 @@ def run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
         new_state, "review", "SUCCESS", summary=f"심사 결과: {verdict} ({score}점)"
     )
 
+@trace_node("discuss", tags=["subgraph", "collaboration"])
 @handle_node_error
 def run_discussion_node(state: PlanCraftState) -> PlanCraftState:
     """
@@ -685,6 +709,8 @@ def run_discussion_node(state: PlanCraftState) -> PlanCraftState:
     - Reviewer가 피드백을 제시하고 Writer가 개선 계획을 설명
     - 최대 DISCUSSION_MAX_ROUNDS 라운드 진행
     - 재시도 안전: 대화 기록만 생성, 외부 상태 변경 없음
+
+    LangSmith: run_name="💬 에이전트 토론", tags=["agent", "llm", "collaboration", "subgraph"]
     """
     from graph.subgraphs import run_discussion_subgraph
 
@@ -700,6 +726,7 @@ def run_discussion_node(state: PlanCraftState) -> PlanCraftState:
     )
 
 
+@trace_node("refine")
 @handle_node_error
 def run_refiner_node(state: PlanCraftState) -> PlanCraftState:
     """
@@ -708,6 +735,8 @@ def run_refiner_node(state: PlanCraftState) -> PlanCraftState:
     Side-Effect: LLM 호출 (Azure OpenAI)
     - Reviewer 피드백 기반 개선 전략 수립
     - 재시도 안전: 전략만 생성, 외부 상태 변경 없음
+
+    LangSmith: run_name="✨ 개선 적용", tags=["agent", "llm", "refinement"]
     """
     from agents.refiner import run
 
@@ -721,10 +750,13 @@ def run_refiner_node(state: PlanCraftState) -> PlanCraftState:
         summary=f"기획서 개선 완료 (Round {refine_count})"
     )
 
+@trace_node("format", tags=["output", "final"])
 @handle_node_error
 def run_formatter_node(state: PlanCraftState) -> PlanCraftState:
     """
     포맷팅 Agent 실행 노드
+
+    LangSmith: run_name="📋 최종 포맷팅", tags=["agent", "output", "final"]
 
     Side-Effect: LLM 호출 (Azure OpenAI)
 

@@ -402,13 +402,15 @@ def render_main():
                 form_data = json.loads(pending_text.replace("FORM_DATA:", ""))
                 resume_cmd = {"resume": form_data}
             except (json.JSONDecodeError, ValueError):
-                st.error("입력 데이터 처리 중 오류 발생")
+                from ui.validation import show_validation_error, ValidationErrorType
+                show_validation_error(ValidationErrorType.INVALID_FORMAT, "폼 데이터를 확인해주세요")
         elif pending_text.startswith("OPTION:"):
             try:
                 option_data = json.loads(pending_text.replace("OPTION:", ""))
                 resume_cmd = {"resume": {"selected_option": option_data}}
             except (json.JSONDecodeError, ValueError):
-                st.error("입력 데이터 처리 중 오류 발생")
+                from ui.validation import show_validation_error, ValidationErrorType
+                show_validation_error(ValidationErrorType.INVALID_FORMAT, "선택 데이터를 확인해주세요")
         elif st.session_state.current_state and st.session_state.current_state.get("__interrupt__"):
             resume_cmd = {"resume": {"text_input": pending_text}}
         elif st.session_state.current_state and st.session_state.current_state.get("need_more_info"):
@@ -540,15 +542,23 @@ def render_main():
                     
                 except Exception as e:
                     import traceback
-                    st.error(f"실행 중 오류가 발생했습니다: {str(e)}")
-                    st.code(traceback.format_exc())
-                    
+                    from ui.validation import handle_exception_friendly, detect_error_type, ERROR_MESSAGES
+
+                    # 친화적인 에러 메시지 표시
+                    handle_exception_friendly(e, context="기획서 생성 중")
+
+                    # 상태 업데이트
                     if st.session_state.current_state:
                          if isinstance(st.session_state.current_state, dict):
                              st.session_state.current_state.update({"error": str(e), "step_status": "FAILED"})
 
+                    # 채팅 히스토리에 친화적 메시지 추가
+                    error_type = detect_error_type(e)
+                    error_info = ERROR_MESSAGES.get(error_type, ERROR_MESSAGES[error_type.UNKNOWN])
+                    friendly_msg = f"{error_info['icon']} **{error_info['title']}**\n\n{error_info['message']}\n\n{error_info['hint']}"
+
                     st.session_state.chat_history.append({
-                        "role": "assistant", "content": f"❌ 오류 발생: {str(e)}", "type": "error"
+                        "role": "assistant", "content": friendly_msg, "type": "error"
                     })
 
 
