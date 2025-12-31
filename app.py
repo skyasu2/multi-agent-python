@@ -382,13 +382,13 @@ def render_main():
             try:
                 form_data = json.loads(pending_text.replace("FORM_DATA:", ""))
                 resume_cmd = {"resume": form_data}
-            except:
+            except (json.JSONDecodeError, ValueError):
                 st.error("입력 데이터 처리 중 오류 발생")
         elif pending_text.startswith("OPTION:"):
             try:
                 option_data = json.loads(pending_text.replace("OPTION:", ""))
                 resume_cmd = {"resume": {"selected_option": option_data}}
-            except:
+            except (json.JSONDecodeError, ValueError):
                 st.error("입력 데이터 처리 중 오류 발생")
         elif st.session_state.current_state and st.session_state.current_state.get("__interrupt__"):
             resume_cmd = {"resume": {"text_input": pending_text}}
