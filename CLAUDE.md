@@ -265,3 +265,21 @@ CHECKPOINTER_TYPE=memory     # memory|postgres|redis
 - **에러 처리**: 모든 노드에 `@handle_node_error` 적용
 - **Writer 검증**: 최소 9개 섹션, 마크다운 테이블, 최대 3회 재시도
 - **시간 인식**: `time_context.py`로 연도/분기 정보 제공
+
+### SubGraph Interrupt 주의사항
+```
+⚠️ SubGraph 내부에서 interrupt() 호출 시:
+- Resume 시 부모 노드(run_*_subgraph) 전체가 재실행됨
+- interrupt() 이전 코드 모두 다시 실행됨
+- Side-Effect는 반드시 interrupt() 이후에 배치
+
+자세한 내용: docs/SUBGRAPH_INTERRUPT_GUIDE.md
+```
+
+## 참고 문서
+
+| 문서 | 설명 |
+|------|------|
+| `docs/SUBGRAPH_INTERRUPT_GUIDE.md` | SubGraph interrupt 동작 원리 |
+| `docs/PYDANTIC_MIGRATION_GUIDE.md` | Pydantic v2 마이그레이션 가이드 |
+| `docs/AGENT_IO_EXAMPLES.md` | 에이전트별 JSON 입출력 예시 |

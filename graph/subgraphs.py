@@ -14,6 +14,19 @@ Best Practice:
     - 각 Sub-graph는 독립적으로 컴파일 가능
     - 메인 Graph에서 Sub-graph를 노드로 추가
     - 명확한 책임 분리로 유지보수성 향상
+
+⚠️ INTERRUPT 동작 주의사항 (후임자/팀원 필독):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SubGraph 내부에서 interrupt()가 호출되면, Resume 시:
+1. SubGraph를 호출한 부모 노드(run_*_subgraph 함수) 전체가 재실행됨
+2. SubGraph 자체도 처음부터 다시 시작됨
+3. interrupt() 이전의 모든 코드가 다시 실행됨
+
+따라서:
+- interrupt() 전에는 Side-Effect(DB 저장, API 호출, 알림 발송) 금지
+- 초기화 코드(discussion_messages=[] 등)는 Resume 시 다시 실행됨을 인지
+- 자세한 내용: docs/SUBGRAPH_INTERRUPT_GUIDE.md 참조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
 from langgraph.graph import StateGraph, END
@@ -462,6 +475,13 @@ def run_discussion_subgraph(state: PlanCraftState) -> PlanCraftState:
 
     입력: draft, review
     출력: discussion_messages, agreed_action_items, consensus_reached
+
+    ⚠️ INTERRUPT 주의사항:
+    현재 이 SubGraph에는 interrupt()가 없으므로 안전합니다.
+    만약 향후 interrupt를 추가한다면, Resume 시 이 함수 전체가
+    재실행되므로 아래 초기화 코드가 다시 실행됩니다.
+    (discussion_messages=[], discussion_round=0 등)
+    → docs/SUBGRAPH_INTERRUPT_GUIDE.md 참조
     """
     from graph.state import update_state
     import time
