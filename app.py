@@ -127,15 +127,46 @@ def render_main():
         trigger_browser_notification("PlanCraft 알림", "기획서 작성이 완료되었습니다! 📄")
         st.session_state.trigger_notification = False
 
-    col_title, col_menu = st.columns([6, 1])
+    # 헤더: 타이틀 | 프리셋 선택 | 메뉴
+    col_title, col_preset, col_menu = st.columns([5, 1.5, 0.5])
 
     with col_title:
         st.markdown("### 📋 PlanCraft Agent")
-    
+
+    # [NEW] 프리셋 선택기 - 헤더에 직접 배치
+    with col_preset:
+        from utils.settings import GENERATION_PRESETS, DEFAULT_PRESET
+
+        if "generation_preset" not in st.session_state:
+            st.session_state.generation_preset = DEFAULT_PRESET
+
+        preset_options = {
+            key: f"{p.icon} {p.name}"
+            for key, p in GENERATION_PRESETS.items()
+        }
+        preset_keys = list(preset_options.keys())
+        preset_labels = list(preset_options.values())
+
+        current_preset_idx = preset_keys.index(st.session_state.generation_preset)
+
+        selected_preset_label = st.selectbox(
+            "생성 모드",
+            options=preset_labels,
+            index=current_preset_idx,
+            key="preset_dropdown",
+            label_visibility="collapsed",
+            help="⚡빠른: 속도우선 | ⚖️균형: 권장 | 💎고품질: 품질우선"
+        )
+
+        # 선택 변경 시 업데이트
+        selected_preset_key = preset_keys[preset_labels.index(selected_preset_label)]
+        if selected_preset_key != st.session_state.generation_preset:
+            st.session_state.generation_preset = selected_preset_key
+
     with col_menu:
-        with st.popover("메뉴"):
+        with st.popover("☰"):
             st.caption("PlanCraft v2.1")
-            
+
             if st.button("🆕 새 대화 시작", use_container_width=True):
                 st.session_state.chat_history = []
                 st.session_state.current_state = None
@@ -147,15 +178,15 @@ def render_main():
                 st.session_state.idea_llm_count = 0
                 st.session_state.random_examples = None
                 st.rerun()
-                
+
             if st.button("📜 대화 히스토리", use_container_width=True):
                 show_history_dialog()
-            
+
             st.divider()
-            
+
             if st.button("🛠 개발자 도구 (Dev)", use_container_width=True):
                 render_dev_tools()
-                
+
             with st.expander("⚙️ 설정 / 상태"):
                 try:
                     Config.validate()
@@ -163,41 +194,6 @@ def render_main():
                 except EnvironmentError:
                     st.error("Cloud: Disconnected ❌")
                 st.caption("Pipeline: Analyzer → Structurer → Writer")
-
-                st.divider()
-
-                # 생성 모드 프리셋 선택
-                from utils.settings import GENERATION_PRESETS, DEFAULT_PRESET
-
-                # 현재 선택된 프리셋
-                if "generation_preset" not in st.session_state:
-                    st.session_state.generation_preset = DEFAULT_PRESET
-
-                preset_options = {
-                    key: f"{p.icon} {p.name}"
-                    for key, p in GENERATION_PRESETS.items()
-                }
-                preset_keys = list(preset_options.keys())
-                preset_labels = list(preset_options.values())
-
-                current_preset_idx = preset_keys.index(st.session_state.generation_preset)
-
-                selected_label = st.selectbox(
-                    "생성 모드",
-                    options=preset_labels,
-                    index=current_preset_idx,
-                    key="preset_dropdown",
-                    help="생성 품질과 속도를 조절합니다"
-                )
-
-                # 선택 변경 시 업데이트
-                selected_key = preset_keys[preset_labels.index(selected_label)]
-                if selected_key != st.session_state.generation_preset:
-                    st.session_state.generation_preset = selected_key
-
-                # 선택된 프리셋 설명 표시
-                current_preset = GENERATION_PRESETS[st.session_state.generation_preset]
-                st.caption(f"📝 {current_preset.description}")
 
     st.divider()
 
@@ -216,13 +212,41 @@ def render_main():
             from utils.prompt_examples import get_examples_by_category
             st.session_state.random_examples = get_examples_by_category("random", 3)
 
-        # 헤더
-        col_ex_head, col_ex_refresh = st.columns([5, 1], vertical_alignment="bottom")
-        with col_ex_head:
-            llm_remaining = max(0, 10 - st.session_state.idea_llm_count)
-            st.markdown(f"#### 🎲 AI 브레인스토밍 <small style='color:gray;'>(AI 생성 {llm_remaining}회 남음)</small>", unsafe_allow_html=True)
-        with col_ex_refresh:
-            if st.button("🔄 AI 생성", key="refresh_hero_ex", help="AI가 실시간으로 새로운 아이디어를 제안합니다"):
+        # 카테고리 드롭다운 & AI 생성 버튼 (한 줄로 통합)
+        from utils.prompt_examples import CATEGORIES, get_examples_by_category
+
+        # 드롭다운 옵션 생성 (아이콘 + 라벨)
+        cat_options = {key: f"{info['icon']} {info['label']}" for key, info in CATEGORIES.items()}
+        cat_keys = list(cat_options.keys())
+        cat_labels = list(cat_options.values())
+
+        # 현재 선택된 인덱스
+        current_idx = cat_keys.index(st.session_state.idea_category) if st.session_state.idea_category in cat_keys else 0
+
+        # 헤더 + 드롭다운 + 버튼을 한 줄로
+        llm_remaining = max(0, 10 - st.session_state.idea_llm_count)
+        col_title, col_dropdown, col_btn = st.columns([2.5, 1.5, 1])
+
+        with col_title:
+            st.markdown(f"#### 🎲 AI 브레인스토밍 <small style='color:gray;'>({llm_remaining}회)</small>", unsafe_allow_html=True)
+
+        with col_dropdown:
+            selected_cat_label = st.selectbox(
+                "카테고리",
+                options=cat_labels,
+                index=current_idx,
+                key="category_dropdown",
+                label_visibility="collapsed"
+            )
+            # 선택 변경 감지
+            selected_cat_key = cat_keys[cat_labels.index(selected_cat_label)]
+            if selected_cat_key != st.session_state.idea_category:
+                st.session_state.idea_category = selected_cat_key
+                st.session_state.random_examples = get_examples_by_category(selected_cat_key, 3)
+                st.rerun()
+
+        with col_btn:
+            if st.button("🔄 AI 생성", key="refresh_hero_ex", use_container_width=True, help="AI가 실시간으로 새로운 아이디어를 제안합니다"):
                 from utils.idea_generator import generate_ideas
                 with st.spinner("💡 아이디어를 떠올리는 중..."):
                     ideas, used_llm = generate_ideas(
@@ -236,36 +260,9 @@ def render_main():
                         st.session_state.idea_llm_count += 1
                 st.rerun()
 
-        # 카테고리 드롭다운
-        from utils.prompt_examples import CATEGORIES, get_examples_by_category
-
-        # 드롭다운 옵션 생성 (아이콘 + 라벨)
-        cat_options = {key: f"{info['icon']} {info['label']}" for key, info in CATEGORIES.items()}
-        cat_keys = list(cat_options.keys())
-        cat_labels = list(cat_options.values())
-
-        # 현재 선택된 인덱스
-        current_idx = cat_keys.index(st.session_state.idea_category) if st.session_state.idea_category in cat_keys else 0
-
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            selected_label = st.selectbox(
-                "카테고리",
-                options=cat_labels,
-                index=current_idx,
-                key="category_dropdown",
-                label_visibility="collapsed"
-            )
-            # 선택 변경 감지
-            selected_key = cat_keys[cat_labels.index(selected_label)]
-            if selected_key != st.session_state.idea_category:
-                st.session_state.idea_category = selected_key
-                st.session_state.random_examples = get_examples_by_category(selected_key, 3)
-                st.rerun()
-
-        with col2:
-            current_cat = CATEGORIES.get(st.session_state.idea_category, {})
-            st.caption(f"{current_cat.get('description', '')}")
+        # 카테고리 설명
+        current_cat = CATEGORIES.get(st.session_state.idea_category, {})
+        st.caption(f"💡 {current_cat.get('description', '')}")
 
         # 아이디어 카드
         cols = st.columns(3)
