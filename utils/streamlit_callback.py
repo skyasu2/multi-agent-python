@@ -40,8 +40,8 @@ class StreamlitStatusCallback(BaseCallbackHandler):
         self.current_step_key: Optional[str] = None
         self.step_start_time: Optional[float] = None
 
-        # UI 컨테이너
-        self.log_container = self.status.container()
+        # UI 컨테이너 (st.status 내부에서는 empty() placeholder 사용)
+        self.log_placeholder = self.status.empty()
         self.progress_bar = self.status.progress(0)
         self.current_progress = 0
 
@@ -52,20 +52,23 @@ class StreamlitStatusCallback(BaseCallbackHandler):
 
     def _render_log(self):
         """실행 로그 UI 렌더링"""
-        self.log_container.empty()
+        # 로그 텍스트 생성
+        log_lines = []
 
-        with self.log_container:
-            # 완료된 단계들
-            for step_key, elapsed, extra_info in self.execution_log:
-                icon, label = STEP_INFO.get(step_key, ("▶️", step_key))
-                extra_str = f" ({extra_info})" if extra_info else ""
-                st.markdown(f"✅ {icon} **{label}** - {elapsed}s{extra_str}")
+        # 완료된 단계들
+        for step_key, elapsed, extra_info in self.execution_log:
+            icon, label = STEP_INFO.get(step_key, ("▶️", step_key))
+            extra_str = f" ({extra_info})" if extra_info else ""
+            log_lines.append(f"✅ {icon} **{label}** - {elapsed}s{extra_str}")
 
-            # 현재 진행 중인 단계
-            if self.current_step_key:
-                icon, label = STEP_INFO.get(self.current_step_key, ("▶️", self.current_step_key))
-                elapsed = round(time.time() - (self.step_start_time or self.start_time), 1)
-                st.markdown(f"⏳ {icon} **{label}** - {elapsed}s ...")
+        # 현재 진행 중인 단계
+        if self.current_step_key:
+            icon, label = STEP_INFO.get(self.current_step_key, ("▶️", self.current_step_key))
+            elapsed = round(time.time() - (self.step_start_time or self.start_time), 1)
+            log_lines.append(f"⏳ {icon} **{label}** - {elapsed}s ...")
+
+        # placeholder에 렌더링
+        self.log_placeholder.markdown("\n\n".join(log_lines) if log_lines else "🚀 시작 중...")
 
     def set_step(self, step_key: str, extra_info: str = ""):
         """
