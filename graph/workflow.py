@@ -834,11 +834,20 @@ def option_pause_node(state: PlanCraftState) -> Command:
     # [BEFORE INTERRUPT] 비효과적 코드만 (side effect 없음)
     # =========================================================================
     # 1. 인터럽트 페이로드 생성 (순수 함수, 외부 호출 없음)
-    payload = create_option_interrupt(state)
-    payload["type"] = "option_selector"
-
-    # [NEW] 추적용 메타필드 추가 (표준화된 페이로드 스키마)
-    payload["node_ref"] = "option_pause"
+    # [UPDATE] Interrupt Payload 생성 (Semantic Key 적용)
+    # 기존 코드: payload = create_option_interrupt(state)
+    # Refactoring: interrupt_id 명시
+    interrupt_id = "analyze_direction_select"
+    
+    payload = create_option_interrupt(state, interrupt_id=interrupt_id)
+    
+    # [NEW] Semantic Key for Safety (Resume Mismatch 방지)
+    # create_option_interrupt 내부에서 이미 설정되지만, 명시적으로 확인
+    if payload.get("interrupt_id") != interrupt_id:
+        # Should not happen if create_option_interrupt works correctly
+        payload["interrupt_id"] = interrupt_id
+        
+    print(f"[HITL] Option Interrupt Payload Created (ID: {interrupt_id})")
     payload["event_id"] = f"evt_{uuid.uuid4().hex[:12]}"
     payload["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     

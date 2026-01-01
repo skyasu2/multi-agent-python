@@ -157,6 +157,10 @@ class BaseInterruptPayload(BaseModel, ABC):
     node_ref: Optional[str] = Field(default=None, description="인터럽트 발생 노드 이름")
     event_id: Optional[str] = Field(default=None, description="이벤트 추적 ID (UUID)")
     timestamp: Optional[str] = Field(default=None, description="인터럽트 발생 시각 (ISO 8601)")
+    
+    # [NEW] Semantic Key & Expiry
+    interrupt_id: Optional[str] = Field(default=None, description="인터럽트 의미론적 식별자 (Semantic Key)")
+    expires_at: Optional[str] = Field(default=None, description="인터럽트 만료 시각 (ISO 8601)")
 
     @abstractmethod
     def validate_response(self, response: Dict[str, Any]) -> bool:

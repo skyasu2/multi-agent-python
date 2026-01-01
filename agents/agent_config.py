@@ -179,6 +179,7 @@ class ExecutionPlan:
     steps: List[ExecutionStep]
     reasoning: str        # 계획 수립 근거
     total_estimated_time: int = 0
+    human_readable_description: str = ""  # [NEW] 사용자 친화적 실행 설명
     
     def get_all_agents(self) -> List[str]:
         """모든 참여 에이전트 ID 반환"""
@@ -266,28 +267,40 @@ def resolve_execution_plan_dag(required_agents: List[str], reasoning: str = "") 
             remaining.remove(agent)
             completed.add(agent)
 
-    # 3. Plan 객체 생성
-    steps = []
+    # Create Steps
+    execution_steps = []
     total_time = 0
     
-    for i, layer_agents in enumerate(layers):
-        # 단계별 설명 생성
-        desc = f"분석 단계 {i+1}: {', '.join([AGENT_REGISTRY[a].name for a in layer_agents])}"
+    descriptions = []
+    
+    for i, layer in enumerate(layers):
+        step_agents = layer
         
-        # 예상 시간 (병렬이므로 레이어 내 최대 시간)
-        layer_time = max([AGENT_REGISTRY[a].timeout_seconds for a in layer_agents], default=0)
-        total_time += layer_time
+        # Priority sort within layer
+        step_agents.sort(key=lambda x: priority_map.get(x, 999))
         
-        steps.append(ExecutionStep(
-            step_id=i+1,
-            agent_ids=layer_agents,
-            description=desc
-        ))
+        # Calculate time (max of agents in parallel)
+        step_time = max([AGENT_REGISTRY[a].timeout_seconds for a in step_agents]) if step_agents else 0
+        total_time += step_time
         
+        # Step description
+        agent_names = [AGENT_REGISTRY[a].name for a in step_agents]
+        desc = f"단계 {i+1}: {', '.join(agent_names)} 병렬 실행"
+        execution_steps.append(ExecutionStep(step_id=i+1, agent_ids=step_agents, description=desc))
+        
+        # Human readable description part
+        if i == 0:
+            descriptions.append(f"먼저 {', '.join(agent_names)}을(를) 통해 기반 분석을 수행합니다.")
+        else:
+            descriptions.append(f"그 다음, 확보된 데이터를 바탕으로 {', '.join(agent_names)}을(를) 진행합니다.")
+
+    human_readable = " ".join(descriptions)
+
     return ExecutionPlan(
-        steps=steps,
-        reasoning=reasoning,
-        total_estimated_time=total_time
+        steps=execution_steps, 
+        reasoning=reasoning, 
+        total_estimated_time=total_time,
+        human_readable_description=human_readable
     )
 
 

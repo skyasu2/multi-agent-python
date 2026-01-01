@@ -61,6 +61,11 @@ STANDARD_PAYLOAD_FIELDS: Dict[str, PayloadFieldSpec] = {
         description="인터럽트 발생 시각 (ISO 8601)",
         required=True,
     ),
+    "interrupt_id": PayloadFieldSpec(
+        name="interrupt_id",
+        description="인터럽트 의미론적 식별자 (Semantic Key)",
+        required=True,
+    ),
     
     # === 컨텐츠 필드 ===
     "type": PayloadFieldSpec(
@@ -132,6 +137,7 @@ def create_base_payload(
     interrupt_type: InterruptType,
     question: str,
     node_ref: str,
+    interrupt_id: str,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -157,6 +163,7 @@ def create_base_payload(
         # 필수 필드
         "event_id": str(uuid.uuid4()),
         "node_ref": node_ref,
+        "interrupt_id": interrupt_id,
         "timestamp": now.isoformat(),
         "expires_at": expires_at.isoformat(),  # [NEW] 만료 시간
         "type": interrupt_type.value,
@@ -184,6 +191,7 @@ def create_option_payload(
     question: str,
     options: List[Dict],
     node_ref: str,
+    interrupt_id: str,
     **kwargs
 ) -> Dict[str, Any]:
     """Option 타입 페이로드 생성 헬퍼"""
@@ -191,6 +199,7 @@ def create_option_payload(
         interrupt_type=InterruptType.OPTION,
         question=question,
         node_ref=node_ref,
+        interrupt_id=interrupt_id,
         options=options,
         **kwargs
     )
@@ -216,6 +225,7 @@ def create_form_payload(
     question: str,
     input_schema_name: str,
     node_ref: str,
+    interrupt_id: str,
     **kwargs
 ) -> Dict[str, Any]:
     """Form 타입 페이로드 생성 헬퍼"""
@@ -223,6 +233,7 @@ def create_form_payload(
         interrupt_type=InterruptType.FORM,
         question=question,
         node_ref=node_ref,
+        interrupt_id=interrupt_id,
         input_schema_name=input_schema_name,
         **kwargs
     )

@@ -74,64 +74,57 @@ def _sanitize_response(response: Dict[str, Any]) -> Dict[str, Any]:
 
 def create_interrupt_payload(
     question: str,
+    interrupt_id: str,
     options: List[OptionChoice] = None,
     input_schema_name: str = None,
-    interrupt_type: str = "option",  # "option", "form", "confirm"
-    metadata: Dict[str, Any] = None
+    interrupt_type: str = "option",
+    metadata: Dict[str, Any] = None,
+    node_ref: str = "unknown_node"
 ) -> Dict[str, Any]:
     """
-    휴먼 인터럽트 페이로드 생성 (TypedDict 반환)
+    [Legacy Wrapper] hitl_config.py의 표준 함수로 위임
     """
-    # OptionChoice(Pydantic) -> InterruptOption(TypedDict) 변환
-    formatted_options: List[InterruptOption] = []
+    from graph.hitl_config import create_base_payload, InterruptType
+    
+    # 딕셔너리 변환 (Pydantic 호환)
+    opt_dicts = []
     if options:
         for opt in options:
-            formatted_options.append({
-                "title": opt.title,
-                "description": opt.description
-            })
+            opt_dicts.append({"title": opt.title, "description": opt.description})
 
-    payload: InterruptPayload = {
-        "type": interrupt_type,
-        "question": question,
-        "options": formatted_options,
-        "input_schema_name": input_schema_name,
-        "data": metadata or {}
-    }
-    
-    return payload
+    return create_base_payload(
+        interrupt_type=InterruptType(interrupt_type),
+        question=question,
+        node_ref=node_ref,
+        interrupt_id=interrupt_id,
+        options=opt_dicts,
+        input_schema_name=input_schema_name,
+        data=metadata or {}
+    )
 
 
-def create_option_interrupt(state: PlanCraftState) -> Dict[str, Any]:
+def create_option_interrupt(state: PlanCraftState, interrupt_id: str) -> Dict[str, Any]:
     """
     PlanCraftState에서 인터럽트 페이로드를 생성합니다.
-
-    [UPDATE] normalize_options()를 사용하여 다양한 형태의 옵션을
-    일관된 형식으로 변환합니다. (dict, Pydantic, duck-typing 모두 지원)
     """
+    from graph.hitl_config import create_option_payload
+    
     question = state.get("option_question") or "추가 정보가 필요합니다."
     options = state.get("options", [])
-    input_schema = state.get("input_schema_name")
-
-    interrupt_type = "form" if input_schema else "option"
-
-    # [UPDATE] normalize_options 유틸리티 사용 (일관성 보장)
-    # TypedInterruptOption → OptionChoice 변환
+    
+    # [UPDATE] normalize_options 사용
     typed_options = normalize_options(options)
-    normalized_options: List[OptionChoice] = [
-        OptionChoice(title=opt.title, description=opt.description)
-        for opt in typed_options
-    ]
+    opt_dicts = [{"title": opt.title, "description": opt.description} for opt in typed_options]
 
-    return create_interrupt_payload(
+    return create_option_payload(
         question=question,
-        options=normalized_options,
-        input_schema_name=input_schema,
-        interrupt_type=interrupt_type,
-        metadata={
+        options=opt_dicts,
+        node_ref="option_pause_node", # 호출부에서 넘겨받으면 좋겠지만 workflow 구조상 고정
+        interrupt_id=interrupt_id,
+        data={
             "user_input": state.get("user_input", ""),
             "need_more_info": state.get("need_more_info", False),
-            "retry_count": state.get("retry_count", 0),  # 재시도 횟수 추적
+            "retry_count": state.get("retry_count", 0),
         }
     )
 
