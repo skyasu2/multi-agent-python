@@ -99,7 +99,10 @@ def create_interrupt_payload(
         interrupt_id=interrupt_id,
         options=opt_dicts,
         input_schema_name=input_schema_name,
-        data=metadata or {}
+
+        data=metadata or {},
+        # [NEW] Snapshot from metadata if available (Legacy Wrapper limitation)
+        snapshot=metadata.get("snapshot") if metadata else None
     )
 
 
@@ -117,12 +120,21 @@ def create_option_interrupt(state: PlanCraftState, interrupt_id: str) -> Dict[st
         return create_form_payload(
             question=question,
             input_schema_name=input_schema_name,
+
             node_ref="option_pause_node",
             interrupt_id=interrupt_id,
+            retry_count=state.get("retry_count", 0), # [Fix] Pass top-level for hint generation
             data={
                 "user_input": state.get("user_input", ""),
                 "need_more_info": state.get("need_more_info", False),
                 "retry_count": state.get("retry_count", 0),
+
+            },
+            # [NEW] Snapshot
+            snapshot={
+                "user_input": state.get("user_input"),
+                "current_step": state.get("current_step"),
+                "retry_count": state.get("retry_count"),
             }
         )
     options = state.get("options", [])
@@ -136,10 +148,17 @@ def create_option_interrupt(state: PlanCraftState, interrupt_id: str) -> Dict[st
         options=opt_dicts,
         node_ref="option_pause_node", # 호출부에서 넘겨받으면 좋겠지만 workflow 구조상 고정
         interrupt_id=interrupt_id,
+        retry_count=state.get("retry_count", 0), # [Fix] Pass top-level for hint generation
         data={
             "user_input": state.get("user_input", ""),
             "need_more_info": state.get("need_more_info", False),
             "retry_count": state.get("retry_count", 0),
+        },
+        # [NEW] Snapshot
+        snapshot={
+            "user_input": state.get("user_input"),
+            "current_step": state.get("current_step"),
+            "retry_count": state.get("retry_count"),
         }
     )
 
@@ -248,7 +267,14 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
         "event_type": "HUMAN_RESPONSE",  # [NEW] 이벤트 타입 명시
         "pause_type": pause_type,  # [NEW] 인터럽트 타입 기록
         # [NEW] 직전 인터럽트 정보 백업 (추적용)
-        "last_interrupt_payload": last_interrupt
+        "last_interrupt_payload": last_interrupt,
+        # [NEW] Audit Trail including task context
+        "audit_trail": {
+            "task_step": state.get("current_step"),
+            "interrupt_id": last_interrupt.get("interrupt_id"),
+            "node_ref": last_interrupt.get("node_ref"),
+            "event_id": last_interrupt.get("event_id"),
+        }
     }
 
     # =========================================================================
@@ -263,6 +289,9 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
         "event_id": last_interrupt.get("event_id"),
     }
 
+    # [NEW] Update Phase 6 Task
+    # TODO: This logic should ideally be in the task boundary, but marking progress here
+    
     current_history = state.get("step_history", []) or []
     updated_history = current_history + [resume_history_item]
 

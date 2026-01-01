@@ -161,6 +161,10 @@ class BaseInterruptPayload(BaseModel, ABC):
     # [NEW] Semantic Key & Expiry
     interrupt_id: Optional[str] = Field(default=None, description="인터럽트 의미론적 식별자 (Semantic Key)")
     expires_at: Optional[str] = Field(default=None, description="인터럽트 만료 시각 (ISO 8601)")
+    
+    # [NEW] Phase 6 Enhancements
+    snapshot: Optional[Dict[str, Any]] = Field(default=None, description="직전 상태 스냅샷 (디버깅용)")
+    hint: Optional[str] = Field(default=None, description="사용자 가이드 힌트 (재시도 시)")
 
     @abstractmethod
     def validate_response(self, response: Dict[str, Any]) -> bool:

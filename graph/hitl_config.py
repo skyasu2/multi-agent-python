@@ -126,6 +126,16 @@ STANDARD_PAYLOAD_FIELDS: Dict[str, PayloadFieldSpec] = {
         description="인터럽트 만료 시각 (ISO 8601)",
         required=False,
     ),
+    "snapshot": PayloadFieldSpec(
+        name="snapshot",
+        description="직전 상태 스냅샷 (디버깅용)",
+        required=False,
+    ),
+    "hint": PayloadFieldSpec(
+        name="hint",
+        description="사용자 가이드 힌트 (재시도 시)",
+        required=False,
+    ),
 }
 
 
@@ -177,7 +187,14 @@ def create_base_payload(
         "retry_count": kwargs.get("retry_count", 0),
         "max_retries": kwargs.get("max_retries", 3),
         "thread_id": kwargs.get("thread_id"),
+        "snapshot": kwargs.get("snapshot"),
     }
+    
+    # [NEW] 재시도 힌트 자동 생성 (UI/UX)
+    if not kwargs.get("hint") and payload["retry_count"] >= 2:
+        payload["hint"] = "입력에 어려움이 있으신가요? 도움말을 확인해보세요."
+    else:
+        payload["hint"] = kwargs.get("hint")
     
     # 추가 커스텀 필드
     for key, value in kwargs.items():

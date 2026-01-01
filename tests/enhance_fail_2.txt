@@ -1,0 +1,52 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-9.0.2, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: D:\개인\ai ax\pro
+plugins: anyio-4.9.0, langsmith-0.5.1
+collecting ... collected 4 items
+
+tests/test_hitl_enhancements.py::TestHITLEnhancements::test_snapshot_in_payload PASSED [ 25%]
+tests/test_hitl_enhancements.py::TestHITLEnhancements::test_hint_generation_high_retry FAILED [ 50%]
+tests/test_hitl_enhancements.py::TestHITLEnhancements::test_hint_generation_low_retry PASSED [ 75%]
+tests/test_hitl_enhancements.py::TestHITLEnhancements::test_audit_trail_in_resume_history PASSED [100%]
+
+================================== FAILURES ===================================
+____________ TestHITLEnhancements.test_hint_generation_high_retry _____________
+
+self = <test_hitl_enhancements.TestHITLEnhancements object at 0x00000276F7210F50>
+base_state = {'agreed_action_items': [], 'analysis': None, 'chat_history': [], 'chat_summary': None, ...}
+
+    def test_hint_generation_high_retry(self, base_state):
+        """Verify that a hint is automatically added when retry_count >= 2."""
+        # Setup state with high retry count
+        state = update_state(
+            base_state,
+            retry_count=2,
+            option_question="Retry Question",
+            options=[{"title": "A", "description": "Opt A"}]
+        )
+    
+        # Create Payload
+        payload = create_option_interrupt(state, interrupt_id="test_hint_01")
+    
+        # Verify Hint
+        assert "hint" in payload
+>       assert payload["hint"] == "입력에 어려움이 있으신가요? 도움말을 확인해보세요."
+E       AssertionError: assert None == '입력에 어려움이 있으신가요? 도움말을 확인해보세요.'
+
+tests\test_hitl_enhancements.py:59: AssertionError
+============================== warnings summary ===============================
+utils\schemas.py:26
+utils\schemas.py:26
+  D:\개인\ai ax\pro\utils\schemas.py:26: DeprecationWarning: Importing FieldValidationInfo from `pydantic` is deprecated. This feature is either no longer supported, or is not public.
+    from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo, FieldValidationInfo
+
+C:\Users\skyasu-pc\AppData\Roaming\Python\Python313\site-packages\pydantic_core\core_schema.py:4324
+C:\Users\skyasu-pc\AppData\Roaming\Python\Python313\site-packages\pydantic_core\core_schema.py:4324
+  C:\Users\skyasu-pc\AppData\Roaming\Python\Python313\site-packages\pydantic_core\core_schema.py:4324: DeprecationWarning: `FieldValidationInfo` is deprecated, use `ValidationInfo` instead.
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_hitl_enhancements.py::TestHITLEnhancements::test_hint_generation_high_retry
+=================== 1 failed, 3 passed, 4 warnings in 1.35s ===================
