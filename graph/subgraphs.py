@@ -490,14 +490,16 @@ def run_discussion_subgraph(state: PlanCraftState) -> PlanCraftState:
     print("[Discussion SubGraph] 에이전트 간 대화 시작")
     start_time = time.time()
 
-    # 대화 상태 초기화
-    state = update_state(
-        state,
-        discussion_messages=[],
-        discussion_round=0,
-        consensus_reached=False,
-        agreed_action_items=[]
-    )
+    # 대화 상태 초기화 (기존 대화 이력이 없거나, 새 세션인 경우만)
+    # Resume 시에는 기존 상태를 유지해야 함 (Idempotency 보장)
+    if not state.get("discussion_messages"):
+        state = update_state(
+            state,
+            discussion_messages=[],
+            discussion_round=0,
+            consensus_reached=False,
+            agreed_action_items=[]
+        )
 
     # 서브그래프 실행
     discussion_app = get_discussion_app()

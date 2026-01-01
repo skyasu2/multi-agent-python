@@ -121,9 +121,10 @@ class RouteKey(str, Enum):
     RETRY = "retry"
 from agents import analyzer, structurer, writer, reviewer, refiner, formatter
 from utils.config import Config
-from utils.file_logger import get_file_logger
+from utils.tracing import trace_node
 from utils.error_handler import handle_node_error
-from utils.tracing import trace_node  # [NEW] LangSmith 상세 트레이싱
+from utils.decorators import require_state_keys
+from utils.file_logger import get_file_logger
 from graph.interrupt_utils import create_option_interrupt, handle_user_response
 
 # =============================================================================
@@ -487,20 +488,7 @@ def is_general_query(state: PlanCraftState) -> bool:
 
 # ... (중략) ...
 
-def create_routing_branch():
-    """RunnableBranch 분기 (TypedDict 호환)"""
-    from graph.state import update_state
-    return RunnableBranch(
-        (
-            is_human_interrupt_required,
-            lambda state: update_state(state, routing_decision="ask_user")
-        ),
-        (
-            is_general_query,
-            lambda state: update_state(state, routing_decision="general_response")
-        ),
-        lambda state: update_state(state, routing_decision="continue")
-    )
+# [REMOVED] create_routing_branch: should_ask_user 함수가 조건부 엣지 로직을 전담함
 
 # ... (option_pause_node, general_response_node 생략, 아래에서 처리) ...
 
@@ -578,6 +566,7 @@ def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
     )
 
 @trace_node("structure")
+@require_state_keys(["analysis"])
 @handle_node_error
 def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
     """
@@ -606,6 +595,7 @@ def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
     )
 
 @trace_node("write", tags=["slow"])
+@require_state_keys(["structure"])
 @handle_node_error
 def run_writer_node(state: PlanCraftState) -> PlanCraftState:
     """

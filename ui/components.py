@@ -340,12 +340,83 @@ def render_specialist_agents_status(specialist_analysis: dict = None, is_running
     
     # 상세 결과 Expander
     with st.expander("🔍 전문 에이전트 분석 상세 결과", expanded=False):
-        tabs = st.tabs([f"{a['icon']} {a['name']}" for a in agents])
+        # [NEW] 실행 통계 탭 추가: _execution_stats가 있으면 통계 탭을 가장 앞에 표시
+        stats = specialist_analysis.get("_execution_stats")
         
-        for i, (tab, agent) in enumerate(zip(tabs, agents)):
-            with tab:
+        tab_titles = []
+        if stats:
+            tab_titles.append("📊 시스템 통계")
+            
+        tab_titles.extend([f"{a['icon']} {a['name']}" for a in agents])
+        tabs = st.tabs(tab_titles)
+        
+        current_tab_idx = 0
+        
+        # 1. 시스템 통계 렌더링
+        if stats:
+            with tabs[current_tab_idx]:
+                st.markdown("#### ⚡ Multi-Agent Execution Stats")
+                
+                # 요약 메트릭
+                m1, m2, m3, m4 = st.columns(4)
+                
+                # Duration 계산
+                start = stats.get("started_at")
+                end = stats.get("completed_at")
+                duration = "N/A"
+                if start and end:
+                    from datetime import datetime
+                    try:
+                        s = datetime.fromisoformat(start)
+                        e = datetime.fromisoformat(end)
+                        duration = f"{(e-s).total_seconds():.2f}s"
+                    except:
+                        pass
+                
+                # Fallback duration if calculation fails
+                if duration == "N/A" and "agent_stats" in stats:
+                     total_ms = sum(a.get("execution_time_ms", 0) for a in stats["agent_stats"].values())
+                     # Simply sum might be wrong for parallel, but good enough approximation if start/end missing
+                     pass 
+
+                with m1:
+                    st.metric("총 소요 시간", duration)
+                with m2:
+                    st.metric("성공/실패", f"{stats.get('successful_agents', 0)} / {stats.get('failed_agents', 0)}")
+                with m3:
+                    st.metric("재시도 횟수", f"{stats.get('retried_agents', 0)}")
+                with m4:
+                    st.metric("Fallback 사용", f"{stats.get('fallback_used_count', 0)}")
+                
+                st.divider()
+                
+                # 에이전트별 상세 테이블
+                agent_stats = stats.get("agent_stats", {})
+                if agent_stats:
+                    st.markdown("##### 🕵️ 에이전트별 성능")
+                    stat_data = []
+                    for aid, a_stat in agent_stats.items():
+                        stat_data.append({
+                             "Agent": aid,
+                             "Status": "✅ Success" if a_stat.get("success") else "❌ Failed",
+                             "Time": f"{a_stat.get('execution_time_ms', 0):.0f}ms",
+                             "Retries": a_stat.get("retry_count", 0),
+                             "Fallback": "⚡ Yes" if a_stat.get("fallback_used") else "-",
+                             "Error": a_stat.get("error_category", "-")
+                        })
+                    st.dataframe(stat_data, use_container_width=True)
+
+            current_tab_idx += 1
+        
+        # 2. 각 에이전트 결과 렌더링
+        for i, agent in enumerate(agents):
+            with tabs[current_tab_idx + i]:
                 result = specialist_analysis.get(agent["key"])
                 if result:
+                    # 마크다운 렌더링 지원 (fallback 필드 등 확인)
+                    if isinstance(result, dict) and "_fallback_reason" in result:
+                        st.warning(f"⚠️ Fallback 사용됨: {result['_fallback_reason']}")
+                    
                     st.json(result)
                 else:
                     st.info("분석 결과 없음")
