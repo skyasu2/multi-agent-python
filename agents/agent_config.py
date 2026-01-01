@@ -100,7 +100,7 @@ AGENT_REGISTRY: Dict[str, AgentSpec] = {
         description="수익 모델 다각화, 가격 전략 수립, B2B/B2C 계층 설계",
         execution_mode=ExecutionMode.CONDITIONAL,
         approval_mode=ApprovalMode.AUTO,
-        depends_on=[],  # market 참조 가능하지만 필수 아님
+        depends_on=["market"],  # 시장 분석 후 BM 수립 (순서 보장)
         provides=["revenue_model", "pricing", "moat"],
         routing_keywords=["수익", "가격", "BM", "비즈니스", "모델", "구독", "광고", "B2B", "B2C"],
         timeout_seconds=60,
@@ -135,7 +135,30 @@ AGENT_REGISTRY: Dict[str, AgentSpec] = {
 
 
 # =============================================================================
-# 의존성 그래프 유틸리티
+# 실행 계획 (Execution Plan) - Plan-and-Execute 패턴
+# =============================================================================
+
+@dataclass
+class ExecutionStep:
+    """실행 계획의 한 단계 (병렬 실행 가능한 에이전트 그룹)"""
+    step_id: int
+    agent_ids: List[str]  # 병렬 실행할 에이전트 ID 목록
+    description: str = "" # 단계 설명
+
+@dataclass
+class ExecutionPlan:
+    """전체 실행 계획"""
+    steps: List[ExecutionStep]
+    reasoning: str        # 계획 수립 근거
+    total_estimated_time: int = 0
+    
+    def get_all_agents(self) -> List[str]:
+        """모든 참여 에이전트 ID 반환"""
+        return [agent_id for step in self.steps for agent_id in step.agent_ids]
+
+
+# =============================================================================
+# 의존성 그래프 유틸리티 (DAG)
 # =============================================================================
 
 def get_dependency_graph() -> Dict[str, List[str]]:
@@ -146,55 +169,110 @@ def get_dependency_graph() -> Dict[str, List[str]]:
     }
 
 
-def resolve_execution_order(required_agents: List[str]) -> List[str]:
+def resolve_execution_plan_dag(required_agents: List[str], reasoning: str = "") -> ExecutionPlan:
     """
-    의존성 기반 실행 순서 결정 (위상 정렬)
+    DAG 기반 병렬 실행 계획 생성 (Topological Sort with Grouping)
     
-    Args:
-        required_agents: 실행이 필요한 에이전트 ID 목록
-        
     Returns:
-        실행 순서대로 정렬된 에이전트 ID 목록
+        ExecutionPlan: 단계별로 병렬 실행 가능한 에이전트 그룹이 정의된 계획
     """
     if not required_agents:
-        return []
+        return ExecutionPlan(steps=[], reasoning=reasoning)
     
     graph = get_dependency_graph()
     
-    # 의존성 충족 여부 확인 및 누락된 의존성 추가
+    # 1. 누락된 의존성 추가 (Closure)
     all_required = set(required_agents)
-    for agent_id in list(all_required):
-        for dep in graph.get(agent_id, []):
-            if dep not in all_required:
-                all_required.add(dep)
+    while True:
+        added = False
+        current_list = list(all_required)
+        for agent_id in current_list:
+            for dep in graph.get(agent_id, []):
+                if dep not in all_required:
+                    all_required.add(dep)
+                    added = True
+        if not added:
+            break
+            
+    # 2. 진입 차수(Indegree) 계산
+    # subset에 대해서만 그래프 구축
+    subset_graph = {a: [d for d in graph.get(a, []) if d in all_required] for a in all_required}
+    in_degree = {a: 0 for a in all_required}
     
-    # 위상 정렬
-    in_degree = {agent: 0 for agent in all_required}
-    for agent in all_required:
-        for dep in graph.get(agent, []):
-            if dep in all_required:
-                in_degree[agent] += 1
+    for agent, deps in subset_graph.items():
+        # deps는 'agent'가 의존하는 대상들.
+        # 즉 deps -> agent 방향. 따라서 의존성이 있으면 내 indegree가 증가하지 않음?
+        # 아니, 의존성 A->B (B가 A에 의존)라면 A가 끝나야 B 시작.
+        # 여기선 depends_on이 [A]면 A가 선행되어야 함.
+        pass
+
+    # Kahn's Algorithm 변형 (Layer별 그룹핑)
+    # 1. depends_on에 있는 에이전트들이 완료되었는지를 체크
     
-    # 진입 차수 0인 노드부터 시작
-    queue = [agent for agent, degree in in_degree.items() if degree == 0]
-    result = []
+    layers = []
+    remaining = set(all_required)
+    completed = set()
     
-    while queue:
-        # 우선순위: market > bm > financial > risk
+    while remaining:
+        # 현재 완료된(또는 의존성 없는) 에이전트들에만 의존하는 에이전트들 찾기
+        # 즉, 자신의 모든 의존성이 completed 집합에 있는 경우
+        layer = []
+        for agent in remaining:
+            dependencies = subset_graph.get(agent, [])
+            if all(dep in completed for dep in dependencies):
+                layer.append(agent)
+        
+        if not layer:
+            # 순환 의존성 발생 시 비상 탈출 (남은거 순차 처리)
+            layer = list(remaining)
+            # break or handle error
+        
+        # 이름순/우선순위 정렬 (결정적 순서 보장)
         priority = ["market", "bm", "financial", "risk"]
-        queue.sort(key=lambda x: priority.index(x) if x in priority else 99)
+        layer.sort(key=lambda x: priority.index(x) if x in priority else 99)
         
-        current = queue.pop(0)
-        result.append(current)
+        layers.append(layer)
         
-        # 진입 차수 감소
-        for agent in all_required:
-            if current in graph.get(agent, []):
-                in_degree[agent] -= 1
-                if in_degree[agent] == 0:
-                    queue.append(agent)
+        # 상태 업데이트
+        for agent in layer:
+            remaining.remove(agent)
+            completed.add(agent)
+
+    # 3. Plan 객체 생성
+    steps = []
+    total_time = 0
     
-    return result
+    for i, layer_agents in enumerate(layers):
+        # 단계별 설명 생성
+        desc = f"분석 단계 {i+1}: {', '.join([AGENT_REGISTRY[a].name for a in layer_agents])}"
+        
+        # 예상 시간 (병렬이므로 레이어 내 최대 시간)
+        layer_time = max([AGENT_REGISTRY[a].timeout_seconds for a in layer_agents], default=0)
+        total_time += layer_time
+        
+        steps.append(ExecutionStep(
+            step_id=i+1,
+            agent_ids=layer_agents,
+            description=desc
+        ))
+        
+    return ExecutionPlan(
+        steps=steps,
+        reasoning=reasoning,
+        total_estimated_time=total_time
+    )
+
+
+def resolve_execution_order(required_agents: List[str]) -> List[str]:
+    """
+    (구버전 호환용) 단순 순차 리스트 반환
+    ExecutionPlan을 생성하고 플랫하게 펼침
+    """
+    plan = resolve_execution_plan_dag(required_agents)
+    flat_order = []
+    for step in plan.steps:
+        flat_order.extend(step.agent_ids)
+    return flat_order
 
 
 def get_agents_for_purpose(purpose: str) -> List[str]:

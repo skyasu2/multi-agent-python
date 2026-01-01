@@ -193,6 +193,7 @@ class NativeSupervisor:
                 priority_order=["market", "bm", "financial", "risk"]
             )
     
+    
     def run(
         self,
         service_overview: str,
@@ -205,19 +206,16 @@ class NativeSupervisor:
         force_all: bool = False
     ) -> Dict[str, Any]:
         """
-        전문 에이전트 실행 (동적 라우팅)
-        
-        Args:
-            force_all: True면 모든 에이전트 강제 실행
+        전문 에이전트 실행 (Plan-and-Execute DAG)
         """
         logger.info("=" * 60)
-        logger.info("[NativeSupervisor] 전문 에이전트 오케스트레이션 시작")
+        logger.info("[NativeSupervisor] 전문 에이전트 오케스트레이션 시작 (DAG)")
         logger.info(f"  서비스: {service_overview[:50]}...")
         logger.info("=" * 60)
         
         results = {}
         
-        # 1. 동적 라우팅 (필요한 에이전트 결정)
+        # 1. 동적 라우팅 -> Execution Plan 생성
         if force_all:
             required = ["market", "bm", "financial", "risk"]
             reasoning = "강제 전체 분석"
@@ -226,57 +224,99 @@ class NativeSupervisor:
             required = decision.required_analyses
             reasoning = decision.reasoning
         
-        results["_routing"] = {
-            "required_analyses": required,
-            "reasoning": reasoning
+        # DAG 기반 실행 계획 수립
+        from agents.agent_config import resolve_execution_plan_dag
+        execution_plan = resolve_execution_plan_dag(required, reasoning)
+        
+        results["_plan"] = execution_plan
+        logger.info(f"[NativeSupervisor] 실행 계획 수립: {len(execution_plan.steps)}단계")
+        logger.info(f"  근거: {reasoning}")
+        
+        # 2. 단계별 병렬 실행
+        self._execute_plan(execution_plan, results, {
+            "service_overview": service_overview,
+            "target_market": target_market,
+            "target_users": target_users,
+            "tech_stack": tech_stack,
+            "development_scope": development_scope,
+            "web_search_results": web_search_results
+        })
+        
+        # 3. 결과 통합
+        results["integrated_context"] = self._integrate_results(results)
+        
+        logger.info("[NativeSupervisor] 오케스트레이션 완료")
+        return results
+
+    def _execute_plan(self, plan, results: Dict, context: Dict):
+        """실행 계획에 따라 단계별 병렬 실행"""
+        
+        for step in plan.steps:
+            logger.info(f"--- 단계 {step.step_id}: {step.description} ---")
+            
+            # 병렬 실행을 위한 Future 목록
+            futures = {}
+            
+            with ThreadPoolExecutor() as executor:
+                for agent_id in step.agent_ids:
+                    if agent_id in self.agents:
+                        # 실행 컨텍스트 준비
+                        agent_context = self._prepare_agent_context(agent_id, context, results)
+                        
+                        # 비동기 제출
+                        future = executor.submit(self.agents[agent_id].run, **agent_context)
+                        futures[future] = agent_id
+                        logger.info(f"  🚀 [Running] {agent_id}...")
+            
+                # 완료 대기 및 결과 수집
+                for future in as_completed(futures):
+                    agent_id = futures[future]
+                    try:
+                        result = future.result()
+                        # 결과 키 매핑 (Legacy 호환)
+                        result_key = self._get_result_key(agent_id)
+                        results[result_key] = result
+                        logger.info(f"  ✅ [Done] {agent_id}")
+                    except Exception as e:
+                        logger.error(f"  ❌ [Error] {agent_id}: {e}")
+                        results[self._get_result_key(agent_id)] = {"error": str(e)}
+
+    def _prepare_agent_context(self, agent_id: str, base_context: Dict, current_results: Dict) -> Dict:
+        """각 에이전트에 필요한 입력 파라미터 구성"""
+        ctx = {"service_overview": base_context["service_overview"]}
+        
+        if agent_id == "market":
+            ctx["target_market"] = base_context.get("target_market", "")
+            ctx["web_search_results"] = base_context.get("web_search_results")
+            
+        elif agent_id == "bm":
+            ctx["target_users"] = base_context.get("target_users", "")
+            # market 결과 참조
+            market_res = current_results.get("market_analysis", {})
+            ctx["competitors"] = market_res.get("competitors", [])
+            
+        elif agent_id == "financial":
+            ctx["development_scope"] = base_context.get("development_scope", "")
+            # bm, market 결과 참조
+            ctx["business_model"] = current_results.get("business_model", {})
+            ctx["market_analysis"] = current_results.get("market_analysis", {})
+            
+        elif agent_id == "risk":
+            ctx["tech_stack"] = base_context.get("tech_stack", "")
+            # bm 결과 참조
+            ctx["business_model"] = current_results.get("business_model", {})
+            
+        return ctx
+
+    def _get_result_key(self, agent_id: str) -> str:
+        """에이전트 ID -> 결과 키 매핑"""
+        mapping = {
+            "market": "market_analysis",
+            "bm": "business_model",
+            "financial": "financial_plan",
+            "risk": "risk_analysis"
         }
-        
-        # 2. 의존성 기반 실행 순서 결정
-        execution_order = self._resolve_dependencies(required)
-        logger.info(f"[NativeSupervisor] 실행 순서: {execution_order}")
-        
-        # 3. 순차 실행 (의존성 있는 경우)
-        for agent_type in execution_order:
-            if agent_type == "market":
-                logger.info("[NativeSupervisor] 📊 Market Agent 실행...")
-                results["market_analysis"] = self.agents["market"].run(
-                    service_overview=service_overview,
-                    target_market=target_market,
-                    web_search_results=web_search_results
-                )
-                logger.info("[NativeSupervisor] ✓ Market Agent 완료")
-                
-            elif agent_type == "bm":
-                logger.info("[NativeSupervisor] 💰 BM Agent 실행...")
-                competitors = results.get("market_analysis", {}).get("competitors", [])
-                results["business_model"] = self.agents["bm"].run(
-                    service_overview=service_overview,
-                    target_users=target_users,
-                    competitors=competitors
-                )
-                logger.info("[NativeSupervisor] ✓ BM Agent 완료")
-                
-            elif agent_type == "financial":
-                logger.info("[NativeSupervisor] 📈 Financial Agent 실행...")
-                bm = results.get("business_model", {})
-                market = results.get("market_analysis", {})
-                results["financial_plan"] = self.agents["financial"].run(
-                    service_overview=service_overview,
-                    business_model=bm,
-                    market_analysis=market,
-                    development_scope=development_scope
-                )
-                logger.info("[NativeSupervisor] ✓ Financial Agent 완료")
-                
-            elif agent_type == "risk":
-                logger.info("[NativeSupervisor] ⚠️ Risk Agent 실행...")
-                bm = results.get("business_model", {})
-                results["risk_analysis"] = self.agents["risk"].run(
-                    service_overview=service_overview,
-                    business_model=bm,
-                    tech_stack=tech_stack
-                )
-                logger.info("[NativeSupervisor] ✓ Risk Agent 완료")
+        return mapping.get(agent_id, f"{agent_id}_result")
         
         # 4. 결과 통합
         results["integrated_context"] = self._integrate_results(results)
