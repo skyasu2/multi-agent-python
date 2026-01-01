@@ -387,7 +387,10 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
     
     # 1. 웹 검색 실행 (Executor 위임)
     result = execute_web_search(user_input, rag_context)
-    
+
+    # [DEBUG] 웹 검색 결과 상세 로그
+    print(f"[FETCH_WEB DEBUG] urls={len(result.get('urls', []))}, sources={len(result.get('sources', []))}, context_len={len(result.get('context') or '')}, error={result.get('error')}")
+
     # 2. 상태 업데이트
     existing_context = state.get("web_context")
     existing_urls = state.get("web_urls") or []
@@ -797,6 +800,15 @@ def run_formatter_node(state: PlanCraftState) -> PlanCraftState:
         elif web_context and "웹 검색 결과" in web_context:
             final_md += "---\n\n## 📚 참고 자료\n\n"
             final_md += "> 본 기획서는 웹 검색을 통해 수집한 최신 정보를 반영하였습니다.\n\n"
+        else:
+            # [FIX] 웹 검색 결과가 없어도 RAG 기반 출처 표시
+            rag_context = state.get("rag_context")
+            if rag_context:
+                final_md += "---\n\n## 📚 참고 자료\n\n"
+                final_md += "> 본 기획서는 PlanCraft 내부 기획 가이드를 참고하여 작성되었습니다.\n\n"
+                final_md += "- PlanCraft 기획서 작성 가이드\n"
+                final_md += "- 사용자 여정 가이드\n"
+                final_md += "- 서비스 기획 베스트 프랙티스\n\n"
 
     # =========================================================================
     # 2단계: Formatter Agent 호출 (chat_summary 생성 + refine_count=0 리셋)
