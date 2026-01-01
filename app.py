@@ -144,11 +144,14 @@ def render_main():
         # 프리셋 드롭다운 (format_func 패턴 - 베스트 프랙티스)
         # key를 직접 options으로, format_func로 표시 변환 → session_state 자동 동기화
         preset_keys = list(GENERATION_PRESETS.keys())
+        
+        # [FIX] 기본 선택값 index 설정 - 'balanced'가 권장 모드
+        default_index = preset_keys.index(DEFAULT_PRESET) if DEFAULT_PRESET in preset_keys else 1
 
         st.selectbox(
             "생성 모드",
             options=preset_keys,
-            # index 제거: session_state.generation_preset이 자동으로 선택값 결정
+            index=default_index,  # [FIX] 명시적 기본값 설정 (balanced = 권장)
             # [FIX] 항목 옆에 설명을 함께 표시 (User Request)
             format_func=lambda k: f"{GENERATION_PRESETS[k].icon} {GENERATION_PRESETS[k].name} ({GENERATION_PRESETS[k].description})",
             key="generation_preset",  # session_state key와 동일 → 자동 동기화
