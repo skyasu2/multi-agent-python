@@ -88,10 +88,22 @@ class InterruptType(str, Enum):
 # =============================================================================
 
 class InterruptOption(BaseModel):
-    """인터럽트 옵션 항목"""
+    """인터럽트 옵션 항목
+
+    파이프라인 추적을 위해 각 옵션에 고유 id를 부여합니다.
+    id는 HITL 이벤트 로깅, step_history 기록, 디버깅에 활용됩니다.
+    """
+    id: str = Field(default="", description="고유 식별자 (파이프라인 추적용)")
     title: str = Field(description="옵션 제목")
     description: str = Field(default="", description="옵션 설명")
-    value: Optional[str] = Field(default=None, description="옵션 값 (선택적)")
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # id가 없으면 title 기반으로 자동 생성
+        if not self.id:
+            import re
+            # title을 snake_case로 변환하여 id 생성
+            self.id = re.sub(r'[^a-zA-Z0-9가-힣]', '_', self.title).lower().strip('_')
 
     @classmethod
     def from_any(cls, obj: Any) -> "InterruptOption":
@@ -113,16 +125,16 @@ class InterruptOption(BaseModel):
             return obj
         if isinstance(obj, dict):
             return cls(
+                id=obj.get("id", ""),
                 title=obj.get("title", ""),
                 description=obj.get("description", ""),
-                value=obj.get("value")
             )
         if hasattr(obj, "title") and hasattr(obj, "description"):
             # Duck typing: OptionChoice 등 호환 객체
             return cls(
+                id=getattr(obj, "id", ""),
                 title=getattr(obj, "title", ""),
                 description=getattr(obj, "description", ""),
-                value=getattr(obj, "value", None)
             )
         raise ValueError(f"InterruptOption으로 변환 불가: {type(obj)}")
 

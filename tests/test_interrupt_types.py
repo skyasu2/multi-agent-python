@@ -363,10 +363,10 @@ class TestInterruptOptionFromAny:
         assert opt.title == "A"
         assert opt.description == "설명A"
 
-    def test_from_dict_with_value(self):
-        """value 포함 딕셔너리에서 변환"""
-        opt = InterruptOption.from_any({"title": "A", "description": "설명", "value": "opt_a"})
-        assert opt.value == "opt_a"
+    def test_from_dict_with_id(self):
+        """id 포함 딕셔너리에서 변환"""
+        opt = InterruptOption.from_any({"id": "opt_a", "title": "A", "description": "설명"})
+        assert opt.id == "opt_a"
 
     def test_from_interrupt_option(self):
         """InterruptOption 인스턴스는 그대로 반환"""

@@ -9,6 +9,7 @@ LangGraph 최신 Best Practice에 따라 Input/Output/Internal State를 명확�
 
 from typing import Optional, List, Dict, Any, Literal, Annotated
 from typing_extensions import TypedDict, NotRequired
+from pydantic import BaseModel, Field
 
 # 참고: LangGraph RemainingSteps는 버전 호환성 이슈로 사용하지 않음
 # 대신 refine_count + MAX_REFINE_LOOPS로 무한 루프 방지
@@ -18,6 +19,70 @@ from typing_extensions import TypedDict, NotRequired
 # =============================================================================
 # NOTE: 실제 설정값은 utils.settings에서 관리합니다.
 # MAX_REFINE_LOOPS, MIN_REMAINING_STEPS 등은 settings.py를 참조하세요.
+
+
+# =============================================================================
+# Config Schema (LangGraph v0.5+ Runtime Configuration)
+# =============================================================================
+
+class PlanCraftConfig(BaseModel):
+    """
+    워크플로우 런타임 구성 스키마 (LangGraph config_schema)
+
+    UI/API에서 워크플로우 동작을 제어하는 파라미터를 정의합니다.
+    StateGraph(config_schema=PlanCraftConfig)로 연동됩니다.
+
+    사용 예시:
+        graph.invoke(input, config={"configurable": {"generation_preset": "quality"}})
+    """
+    # 생성 모드 프리셋
+    generation_preset: Literal["fast", "balanced", "quality"] = Field(
+        default="balanced",
+        description="생성 품질 프리셋 (fast: 빠른 응답, balanced: 균형, quality: 고품질)"
+    )
+
+    # 실행 제한
+    max_refine_loops: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="최대 리파인 반복 횟수"
+    )
+    max_restart_count: int = Field(
+        default=2,
+        ge=0,
+        le=5,
+        description="최대 재시작 횟수 (FAIL 시)"
+    )
+
+    # 모델 설정
+    model_name: str = Field(
+        default="gpt-4o-mini",
+        description="사용할 LLM 모델 이름"
+    )
+    temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=2.0,
+        description="LLM 생성 온도 (0: 결정적, 2: 창의적)"
+    )
+
+    # 컨텍스트 설정
+    enable_rag: bool = Field(
+        default=True,
+        description="RAG 컨텍스트 수집 활성화"
+    )
+    enable_web_search: bool = Field(
+        default=False,
+        description="웹 검색 컨텍스트 수집 활성화"
+    )
+
+    # 디버깅
+    verbose: bool = Field(
+        default=False,
+        description="상세 로깅 활성화"
+    )
+
 
 # =============================================================================
 # Input Schema (External API/UI Interface)

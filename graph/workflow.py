@@ -964,11 +964,26 @@ def option_pause_node(state: PlanCraftState) -> Command[Literal["analyze"]]:
 # =============================================================================
 
 def create_workflow() -> StateGraph:
-    """PlanCraft 워크플로우 생성 (기본 버전)"""
+    """
+    PlanCraft 워크플로우 생성 (기본 버전)
+
+    Runtime Config 사용법 (PlanCraftConfig 참조):
+        graph.invoke(input, config={"configurable": {
+            "generation_preset": "quality",
+            "max_refine_loops": 5,
+            "temperature": 0.5,
+        }})
+    """
     from graph.state import PlanCraftInput, PlanCraftOutput
 
-    # LangGraph V0.5+ 호환: input_schema/output_schema 사용
-    workflow = StateGraph(PlanCraftState, input_schema=PlanCraftInput, output_schema=PlanCraftOutput)
+    # LangGraph 1.x: input_schema/output_schema 사용
+    # config는 invoke() 시 configurable 딕셔너리로 전달
+    # 스키마 정의: graph.state.PlanCraftConfig 참조
+    workflow = StateGraph(
+        PlanCraftState,
+        input_schema=PlanCraftInput,
+        output_schema=PlanCraftOutput,
+    )
 
     # 노드 등록 (래퍼 함수 사용)
     # [UPDATE] 컨텍스트 수집 단계 병렬화 (Sub-graph Node)
@@ -1171,8 +1186,14 @@ def create_subgraph_workflow() -> StateGraph:
         run_qa_subgraph
     )
     
-    workflow = StateGraph(PlanCraftState)
-    
+    from graph.state import PlanCraftInput, PlanCraftOutput
+
+    workflow = StateGraph(
+        PlanCraftState,
+        input_schema=PlanCraftInput,
+        output_schema=PlanCraftOutput,
+    )
+
     # Sub-graph를 단일 노드로 등록
     workflow.add_node("context_gathering", run_context_subgraph)
     workflow.add_node("content_generation", run_generation_subgraph)
