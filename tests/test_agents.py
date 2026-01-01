@@ -32,13 +32,13 @@ class TestAnalysisResultSchema:
             topic="점심 메뉴 추천 앱",
             purpose="직장인 점심 고민 해결",
             target_users="직장인",
-            key_features=["랜덤 추천", "주변 식당 지도"],
+            key_features=["랜덤 추천", "주변 식당 지도", "인기 메뉴 랭킹", "칼로리 정보", "리뷰 기반 추천"],
             need_more_info=False
         )
-        
+
         assert result.topic == "점심 메뉴 추천 앱"
         assert result.need_more_info is False
-        assert len(result.key_features) == 2
+        assert len(result.key_features) >= 5  # 최소 5개 이상
     
     def test_need_more_info_auto_options(self):
         """need_more_info=True일 때 options 자동 생성 검증"""

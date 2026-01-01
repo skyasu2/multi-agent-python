@@ -63,17 +63,19 @@ def show_plan_dialog():
 
             if final_doc:
                 import re
-                # 1. "핵심 기능" 섹션 찾기
+                # 1. "핵심 기능" 섹션 찾기 (다음 메인 섹션 ##N. 전까지 캡처)
+                # 정규식: "## 4. 핵심 기능" ~ "## 5. 비즈니스" 전까지 (###는 포함)
                 feature_section_match = re.search(
-                    r"(?:##\s*)?핵심\s*기능.*?\n(.*?)(?=\n##|\n#|\Z)",
+                    r"(?:##\s*)?(?:\d+\.\s*)?핵심\s*기능.*?\n(.*?)(?=\n##\s*\d+\.|\n##\s*[가-힣]|\Z)",
                     final_doc,
                     re.DOTALL | re.IGNORECASE
                 )
 
                 if feature_section_match:
                     feature_content = feature_section_match.group(1)
-                    # bullet points 카운팅 (-, *, 1. 등)
-                    bullets = re.findall(r"^\s*[-*\d]+[.)]\s+.+", feature_content, re.MULTILINE)
+                    # bullet points 카운팅 (-, *, 1. 등) - 기능명이 있는 줄만
+                    # 예: "- 리뷰 작성 및 별점 부여: ..." 또는 "1. **기능명**"
+                    bullets = re.findall(r"^\s*[-*]\s+\*?\*?[가-힣A-Za-z].+", feature_content, re.MULTILINE)
                     feature_count = len(bullets)
 
                 # 2. 섹션을 못 찾으면 분석 결과 참조 (fallback)
