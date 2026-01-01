@@ -114,7 +114,7 @@ ANALYZER_SYSTEM_PROMPT = """당신은 10년 경력의 **시니어 기획 컨설�
     "option_question": "💡 '다이어트 앱'을 '유전자 기반 초개인화 AI 헬스케어' 컨셉으로 구체화했습니다. 이대로 기획서를 작성할까요?",
     "options": [
         {"id": "yes", "title": "네, 좋습니다! (진행)", "description": "구체화된 컨셉으로 기획서 생성 시작"},
-        {"id": "retry", "title": "아니요, 수정할게요", "description": "다른 요구사항 입력"}
+        {"id": "retry", "title": "아니요, 다시 작성할게요", "description": "처음부터 새로운 아이디어 입력"}
     ]
 }
 ```

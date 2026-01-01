@@ -419,10 +419,11 @@ def run_context_subgraph(state: PlanCraftState) -> PlanCraftState:
         "rag_context": rag_result.get("rag_context") if rag_result else None,
         "web_context": web_result.get("web_context") if web_result else None,
         "web_urls": web_result.get("web_urls") if web_result else None,
+        "web_sources": web_result.get("web_sources") if web_result else None,  # [FIX] 출처 정보 전달
         "current_step": "context_gathering",
         # History 병합 (둘 다 합침)
-        "step_history": (rag_result.get("step_history") or []) + 
-                       [h for h in (web_result.get("step_history") or []) 
+        "step_history": (rag_result.get("step_history") or []) +
+                       [h for h in (web_result.get("step_history") or [])
                         if h not in (rag_result.get("step_history") or [])]
     }
     

@@ -56,9 +56,12 @@ def execute_web_search(user_input: str, rag_context: str = "") -> dict:
         # 2. URL이 없으면 조건부 웹 검색
         else:
             decision = should_search_web(user_input, rag_context if rag_context else "")
+            print(f"[WebSearch] Decision: should_search={decision['should_search']}, reason={decision.get('reason', 'N/A')}")
+
             if decision["should_search"]:
                 base_query = decision["search_query"]
-                
+                print(f"[WebSearch] Generated Query: '{base_query}'")
+
                 if base_query:
                     queries = [base_query]
                     if "트렌드" in base_query:
@@ -85,6 +88,8 @@ def execute_web_search(user_input: str, rag_context: str = "") -> dict:
                         results.sort(key=lambda x: x[0])
                         
                         for idx, q, search_result in results:
+                            print(f"[WebSearch] Query '{q}' result: success={search_result.get('success')}, source={search_result.get('source', 'unknown')}")
+
                             if search_result.get("success"):
                                 formatted_result = ""
                                 if "results" in search_result and isinstance(search_result["results"], list):

@@ -260,7 +260,23 @@ def render_main():
                 if st.button(title, key=f"hero_ex_{i}", use_container_width=True, help=prompt):
                     st.session_state.prefill_prompt = prompt
 
-    
+        # [NEW] 입력 팁 안내
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-left: 4px solid #667eea;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 1rem;
+        ">
+            <strong>💡 Tip: 빠른 기획서 생성을 위한 입력 가이드</strong>
+            <p style="margin: 8px 0 0 0; color: #495057; font-size: 0.9rem;">
+                <b>20자 이상</b> 입력 시 확인 절차 없이 바로 기획서가 생성됩니다.<br/>
+                예) "직장인을 위한 AI 기반 식단 관리 앱" ✅ &nbsp; vs &nbsp; "다이어트 앱" ❓ (확인 필요)
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
     # =========================================================================
     # 3. 화면 렌더링 (채팅 히스토리 & 현재 상태 UI) [위치 이동됨]
     # =========================================================================
@@ -499,14 +515,14 @@ def render_main():
                     if options and len(options) > 0 and not is_general:
                         # B. 기획 제안 & 미리보기 표시
                         # q = option_question # 위에서 설정됨
-                        
+
                         preview_msg = ""
-                        # Analyzer 단계인 경우에만 preview_msg 구성 (Topic 등)
-                        if analysis_res and not interrupt_data:
+                        # [FIX] Analyzer가 증폭한 컨셉 정보 항상 표시 (interrupt 유무와 무관)
+                        if analysis_res:
                             p_topic = analysis_res.get("topic", "미정")
                             p_purpose = analysis_res.get("purpose", "")
                             p_features = analysis_res.get("key_features", [])
-                            
+
                             preview_msg += f"**📌 제안 컨셉**: {p_topic}\n"
                             preview_msg += f"**🎯 기획 의도**: {p_purpose}\n"
                             if p_features:

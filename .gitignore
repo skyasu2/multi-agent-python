@@ -47,3 +47,8 @@ tests/test_mock_agents_manual.py
 
 # 프로젝트 발표 자료 (GitHub 미공개)
 PROJECT_PRESENTATION.md
+
+# 시각화/다이어그램 HTML 파일 (로컬 전용)
+*_diagram.html
+*_viz.html
+*_architecture.html
