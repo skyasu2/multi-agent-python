@@ -13,8 +13,8 @@ PlanCraft - LangGraph 네이티브 Supervisor (개선된 버전)
     Supervisor (Router)
         ↓ (동적 결정)
     ┌───┴───┬───────┬───────┐
-    ↓       ↓       ↓       ↓
-  Market   BM   Financial  Risk
+    ↓       ↓       ↓       ↓ (Tech, Content 포함)
+  Market   BM   Tech   Content
     ↓       ↓       ↓       ↓
     └───────┴───┬───┴───────┘
                 ↓
@@ -30,16 +30,38 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.llm import get_llm
 from utils.file_logger import FileLogger
-from agents.specialist_tools import (
-    get_specialist_tools,
-    get_tool_descriptions_for_llm,
-    analyze_market,
-    analyze_business_model,
-    analyze_financials,
-    analyze_risks,
-)
 
 logger = FileLogger()
+
+
+# [NEW] LambdaAgent를 최상위에 정의
+class LambdaAgent:
+    """함수 기반 에이전트를 클래스처럼 래핑"""
+    def __init__(self, run_func):
+        self.run_func = run_func
+        
+    def run(self, **kwargs):
+        return self.run_func(kwargs)
+    
+    def format_as_markdown(self, result: Dict[str, Any]) -> str:
+        """간단한 JSON to Markdown 변환"""
+        if "error" in result:
+            return f"Error: {result['error']}"
+            
+        md = ""
+        for k, v in result.items():
+            title = k.replace('_', ' ').title()
+            md += f"#### {title}\n"
+            if isinstance(v, dict):
+                for sub_k, sub_v in v.items():
+                    md += f"- **{sub_k}**: {sub_v}\n"
+            elif isinstance(v, list):
+                for item in v:
+                    md += f"- {item}\n"
+            else:
+                md += f"{v}\n"
+            md += "\n"
+        return md
 
 
 # =============================================================================
@@ -122,40 +144,6 @@ class NativeSupervisor:
         
         logger.info(f"[NativeSupervisor] 초기화 완료 (에이전트 {len(self.agents)}개)")
     
-class LambdaAgent:
-    """함수 기반 에이전트를 클래스처럼 래핑"""
-    def __init__(self, run_func):
-        self.run_func = run_func
-        
-    def run(self, **kwargs):
-        return self.run_func(kwargs)
-    
-    def format_as_markdown(self, result: Dict[str, Any]) -> str:
-        """간단한 JSON to Markdown 변환"""
-        if "error" in result:
-            return f"Error: {result['error']}"
-            
-        md = ""
-        for k, v in result.items():
-            title = k.replace('_', ' ').title()
-            md += f"#### {title}\n"
-            if isinstance(v, dict):
-                for sub_k, sub_v in v.items():
-                    md += f"- **{sub_k}**: {sub_v}\n"
-            elif isinstance(v, list):
-                for item in v:
-                    md += f"- {item}\n"
-            else:
-                md += f"{v}\n"
-            md += "\n"
-        return md
-
-
-class NativeSupervisor:
-    # ... (ROUTER_SYSTEM_PROMPT는 이미 수정됨) ...
-    
-    # ... (__init__ 생략) ...
-
     def _init_agents(self):
         """Config 기반 에이전트 초기화"""
         # 1. 클래스 기반 에이전트 매핑
@@ -202,16 +190,7 @@ class NativeSupervisor:
         service_overview: str,
         purpose: str = "기획서 작성"
     ) -> RoutingDecision:
-        """
-        동적 라우팅: 필요한 에이전트 결정
-        
-        Args:
-            service_overview: 서비스 개요
-            purpose: 분석 목적
-            
-        Returns:
-            RoutingDecision: 필요한 분석 목록
-        """
+        """동적 라우팅: 필요한 에이전트 결정"""
         logger.info("[NativeSupervisor] 🧭 라우팅 결정 시작...")
         
         messages = [
@@ -252,17 +231,11 @@ class NativeSupervisor:
         force_all: bool = False,
         user_constraints: List[str] = None  # [NEW]
     ) -> Dict[str, Any]:
-        """
-        전문 에이전트 실행 (Plan-and-Execute DAG)
-        """
+        """전문 에이전트 실행 (Plan-and-Execute DAG)"""
         logger.info("=" * 60)
         logger.info("[NativeSupervisor] 전문 에이전트 오케스트레이션 시작 (DAG)")
-        # ... (로그 생략) ...
         
         results = {}
-        
-        # 1. 동적 라우팅 -> Execution Plan 생성
-        # ... (라우팅 로직 그대로) ...
         
         if force_all:
             required = ["market", "bm", "financial", "risk"]
@@ -277,9 +250,8 @@ class NativeSupervisor:
         execution_plan = resolve_execution_plan_dag(required, reasoning)
         
         results["_plan"] = execution_plan
-        # ... (로그 생략) ...
         
-        # 2. 단계별 병렬 실행
+        # 단계별 병렬 실행
         self._execute_plan(execution_plan, results, {
             "service_overview": service_overview,
             "target_market": target_market,
@@ -287,10 +259,9 @@ class NativeSupervisor:
             "tech_stack": tech_stack,
             "development_scope": development_scope,
             "web_search_results": web_search_results,
-            "user_constraints": user_constraints or []  # [NEW] 전달
+            "user_constraints": user_constraints or []
         })
         
-        # 3. 결과 통합
         results["integrated_context"] = self._integrate_results(results)
         
         logger.info("[NativeSupervisor] 오케스트레이션 완료")
@@ -423,26 +394,8 @@ class NativeSupervisor:
         
         return integrated
 
-
-# =============================================================================
-# 기존 PlanSupervisor 대체
-# =============================================================================
-
 # 하위 호환성을 위해 alias 제공
 PlanSupervisor = NativeSupervisor
 
-
-# =============================================================================
-# 단독 실행 테스트
-# =============================================================================
-
 if __name__ == "__main__":
     supervisor = NativeSupervisor()
-    
-    # 동적 라우팅 테스트
-    decision = supervisor.decide_required_agents(
-        service_overview="위치 기반 소셜 러닝 앱",
-        purpose="투자 유치용 기획서"
-    )
-    print(f"필요한 분석: {decision.required_analyses}")
-    print(f"이유: {decision.reasoning}")
