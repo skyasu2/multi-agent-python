@@ -145,23 +145,23 @@ def run(state: PlanCraftState) -> PlanCraftState:
         # 5. 상태 업데이트 (Pydantic -> Dict 일관성 보장)
         analysis_dict = ensure_dict(analysis_result)
 
-        # [Rule Override] 입력 길이가 충분히 길면(20자 이상), LLM이 확인 요청을 하더라도 강제로 진행
-        # LLM이 안전 성향(Safety Bias)으로 인해 불필요한 확인을 시도하는 경우를 방지
+        # [HITL 정책] Fast Track vs Propose & Confirm 분기
+        # - 구체적 입력(20자 이상): 사용자 의도가 명확하므로 바로 진행 (Fast Track)
+        # - 빈약한 입력(20자 미만): 컨셉 제안 후 사용자 확인 요청 (Propose & Confirm)
         is_general = analysis_dict.get("is_general_query", False)
         need_info = analysis_dict.get("need_more_info", False)
-        
+
         if need_info and not is_general:
-            # 공백 제외 길이 체크
             input_len = len(user_input.strip())
-            if input_len >= 20: 
-                print(f"[Override] Input length({input_len}) >= 20. Forcing need_more_info=False (Fast Track).")
+            if input_len >= 20:
+                # 구체적 입력이므로 Fast Track 적용
+                print(f"[HITL] Fast Track: 입력 길이({input_len}자) >= 20자, 바로 진행")
                 analysis_dict["need_more_info"] = False
                 analysis_dict["option_question"] = None
                 analysis_dict["options"] = []
 
-        # [Rule Override 2] (Safety Net)
-        # 옵션 리스트가 비어있지 않다면, 이는 LLM이 추가 질문을 의도한 것이므로 무조건 need_more_info=True여야 함.
-        # 또한, 옵션을 준다는 것은 '기획 제안'이므로 일반 잡담(is_general_query)일 수 없음.
+        # [HITL 정책] 옵션이 있으면 사용자 확인 필요
+        # LLM이 옵션을 제공했다면 이는 사용자에게 선택권을 주려는 의도이므로 HITL 활성화
         opts = analysis_dict.get("options", [])
 
         if opts and len(opts) > 0:
