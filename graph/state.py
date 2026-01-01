@@ -7,6 +7,7 @@ LangGraph 최신 Best Practice에 따라 Input/Output/Internal State를 명확�
 - 문서화, 테스트, 자동화 이점 극대화
 """
 
+import copy
 from typing import Optional, List, Dict, Any, Literal, Annotated
 from typing_extensions import TypedDict, NotRequired
 from pydantic import BaseModel, Field
@@ -341,12 +342,20 @@ def update_state(base_state: PlanCraftState, **updates) -> PlanCraftState:
     """
     State 업데이트 헬퍼 (Pydantic의 model_copy 대체)
 
-    새로운 dict를 반환하여 불변성을 보장합니다.
+    deepcopy를 사용하여 중첩 객체의 불변성을 보장합니다.
+    이를 통해 여러 에이전트가 동시에 상태를 수정해도 부작용이 없습니다.
 
     Usage:
         new_state = update_state(state, current_step="analyze", error=None)
+
+    Note:
+        - 중첩 객체(analysis, structure, draft, review 등)도 안전하게 복사됨
+        - 성능이 중요한 경우 shallow_update_state() 사용 고려
     """
-    return {**base_state, **updates}
+    # 기존 상태를 깊은 복사하여 불변성 보장
+    new_state = copy.deepcopy(dict(base_state))
+    new_state.update(updates)
+    return new_state
 
 
 def safe_get(obj: Any, key: str, default: Any = None) -> Any:
