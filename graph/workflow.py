@@ -1002,12 +1002,12 @@ def create_workflow() -> StateGraph:
         skip_threshold = settings.DISCUSSION_SKIP_THRESHOLD
 
         # PASS 판정: 바로 완료
-        if score >= 9 and verdict == "PASS":
+        if score >= settings.SCORE_THRESHOLD_PASS and verdict == "PASS":
             logger.info(f"[ROUTING] 품질 우수 ({score}점), 바로 완료")
             return RouteKey.COMPLETE
 
         # FAIL 판정: Analyzer 복귀
-        if score < 5 or verdict == "FAIL":
+        if score < settings.SCORE_THRESHOLD_FAIL or verdict == "FAIL":
             logger.info(f"[ROUTING] 품질 부족 ({score}점), Analyzer 복귀")
             return RouteKey.RESTART
 

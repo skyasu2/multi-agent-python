@@ -114,6 +114,38 @@ stateDiagram-v2
     Formatter --> [*]
 ```
 
+### 2.4 Agent Interface Protocol (Standard Contract)
+
+모든 Specialist Agent는 아래의 공통 인터페이스 규약을 준수해야 합니다. 이를 통해 미래의 Agent 추가 및 Tool 확장이 용이해집니다.
+
+```python
+# Protocol Definition
+class SpecialistAgent(Protocol):
+    def run(self, **kwargs) -> Dict[str, Any]:
+        """
+        에이전트 실행 진입점 (Stateless)
+        
+        Args:
+            **kwargs: 실행 컨텍스트 (e.g., service_overview, target_users)
+            
+        Returns:
+            Dict[str, Any]: 분석 결과 (반드시 JSON Serializable 해야 함)
+            
+        Raises:
+            AgentExecutionError: 실행 실패 시 표준 예외 발생
+        """
+        ...
+    
+    def format_as_markdown(self, result: Dict[str, Any]) -> str:
+        """결과를 마크다운 보고서 형식으로 변환"""
+        ...
+```
+
+**표준 입출력 키 (Keys)**:
+*   `user_constraints` (Input): 사용자의 하드 제약조건 (List[str])
+*   `error` (Output): 실패 시 에러 메시지 (str)
+*   `_meta` (Output): 실행 메타데이터 (latency, tokens 등)
+
 ---
 
 ## 3. 에이전트 상세 (Agent Roles)

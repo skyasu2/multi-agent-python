@@ -131,6 +131,11 @@ class ProjectSettings(BaseModel):
     # === Workflow Settings ===
     MAX_REFINE_LOOPS: int = Field(default=2, description="Refiner 최대 개선 루프 횟수")
     MIN_REMAINING_STEPS: int = Field(default=5, description="루프 종료 안전장치 (RecursionLimit 대비)")
+    
+    # [NEW] 점수 임계값 (매직 넘버 제거)
+    SCORE_THRESHOLD_PASS: int = Field(default=9, description="통과 기준 점수 (이상)")
+    SCORE_THRESHOLD_FAIL: int = Field(default=5, description="실패 기준 점수 (미만)")
+    
     DISCUSSION_MAX_ROUNDS: int = Field(default=2, description="Reviewer-Writer 대화 최대 라운드 (데모 효과 강화)")
     DISCUSSION_SKIP_THRESHOLD: int = Field(default=9, description="Discussion 건너뛰기 점수 (9점 미만은 무조건 토론)")
 
