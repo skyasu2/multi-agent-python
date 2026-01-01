@@ -79,6 +79,9 @@ def init_session_state():
     # [NEW] 알림 트리거 플래그
     if "trigger_notification" not in st.session_state:
         st.session_state.trigger_notification = False
+    # [FIX] 생성 모드 프리셋 기본값 (balanced = 균형)
+    if "generation_preset" not in st.session_state:
+        st.session_state.generation_preset = "balanced"
 
 
 # =============================================================================
@@ -141,18 +144,12 @@ def render_main():
         # 프리셋 드롭다운 옵션
         preset_keys = list(GENERATION_PRESETS.keys())
 
-        # [FIX] 세션 초기화 시 기본값 "balanced" 설정
-        if "generation_preset" not in st.session_state:
-            st.session_state.generation_preset = DEFAULT_PRESET  # "balanced"
-
-        # 현재 선택된 프리셋의 인덱스 계산
-        current_preset = st.session_state.generation_preset
-        current_index = preset_keys.index(current_preset) if current_preset in preset_keys else 1
-
+        # [FIX] Streamlit 위젯 key와 session_state 충돌 방지
+        # - key 사용 시 index 파라미터 제거 (Streamlit 권장 패턴)
+        # - 기본값은 init_session_state()에서 설정
         st.selectbox(
             "생성 모드",
             options=preset_keys,
-            index=current_index,  # [FIX] 현재 세션 값으로 인덱스 설정
             format_func=lambda k: f"{GENERATION_PRESETS[k].icon} {GENERATION_PRESETS[k].name} ({GENERATION_PRESETS[k].description})",
             key="generation_preset",
             label_visibility="collapsed",
