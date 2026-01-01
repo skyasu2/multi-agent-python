@@ -93,36 +93,50 @@ class NativeSupervisor:
     Tool 기반 Handoff + 동적 라우팅 구현
     """
     
-    ROUTER_SYSTEM_PROMPT = """당신은 기획서 분석 작업을 조율하는 Supervisor입니다.
+    ROUTER_SYSTEM_PROMPT = """당신은 사업 기획서 분석 작업을 조율하는 Supervisor입니다.
 
 사용자의 서비스 아이디어를 분석하여, 어떤 전문 분석이 필요한지 결정하세요.
 
-## 사용 가능한 분석 유형
+## 사용 가능한 분석 유형 (6개)
 
-1. **market**: 시장 분석 (TAM/SAM/SOM, 경쟁사) -- 필수
-2. **bm**: 비즈니스 모델 (수익화, 가격 전략) -- 필수
-3. **tech**: 기술 아키텍처 (스택, 로드맵)
-   - 필요 시점: 앱/웹 개발, 플랫폼 구축, 특정 기술(AI, 블록체인 등) 언급 시
-4. **content**: 콘텐츠/브랜딩 전략 (마케팅, 홍보)
-   - 필요 시점: 커뮤니티, SNS, 플랫폼 활성화, 마케팅 전략 필요 시
-5. **financial**: 재무 계획 (비용/매출 예측)
-   - 필요 시점: 사업성 검토, 투자 유치, 구체적 예산 산정 필요 시
-6. **risk**: 리스크 분석 (규제, 기술 난관)
-   - 필요 시점: 법적 이슈 가능성, 기술적 불확실성이 높을 때
+### 핵심 분석 (대부분 필요)
+1. **market**: 시장 분석 - TAM/SAM/SOM 시장 규모, 경쟁사 분석, 트렌드
+2. **bm**: 비즈니스 모델 - 수익화 전략, 가격 정책, 해자(Moat) 설계
+3. **financial**: 재무 계획 - 초기 투자비, 월별 손익, BEP 계산
+4. **risk**: 리스크 분석 - 기술/법률/시장/운영 리스크 및 대응 전략
 
-## 판단 기준
+### 선택적 분석 (조건부)
+5. **tech**: 기술 아키텍처 - 기술 스택, 시스템 설계, 개발 로드맵
+   - 조건: 앱/웹/플랫폼 개발, AI/블록체인 등 특수 기술 포함 시
+6. **content**: 콘텐츠 전략 - 브랜딩, 마케팅, 사용자 유입 전략
+   - 조건: 커뮤니티/SNS 운영, 콘텐츠 마케팅 필요 시
 
-1. **Market/BM은 기본**: 대부분의 기획서에 `market`, `bm`은 필수입니다.
-2. **목적별 추가**:
-   - **IT 개발**: + `tech`
-   - **플랫폼/서비스**: + `content`
-   - **사업계획서**: + `financial`, `risk`
-3. **의존성**: `tech`는 독립적이지만, `content`는 `market`(타겟)이 필요합니다.
+## 판단 원칙
+
+### 기본 규칙
+- **기획서 작성**: market, bm, financial, risk 모두 필수
+- **아이디어 검증만**: market, bm으로 충분
+
+### 추가 판단
+- IT 서비스/플랫폼: + tech
+- 커뮤니티/미디어: + content
+- 앱/웹 개발 명시: + tech
+- 마케팅/홍보 중요: + content
+
+### 의존성 (실행 순서에 영향)
+- bm → market 분석 후 수행
+- financial → bm 결과 참조
+- risk → bm 결과 참조
+- content → market(타겟) 참조
+- tech → 독립적 실행 가능
 
 ## 출력 예시
-- 일반 앱 기획: ["market", "bm", "tech"]
-- 커뮤니티 기획: ["market", "bm", "content"]
-- 투자용 사업계획: ["market", "bm", "financial", "risk", "tech"]
+- 사업 기획서: ["market", "bm", "financial", "risk"]
+- IT 서비스 기획서: ["market", "bm", "financial", "risk", "tech"]
+- 커뮤니티 플랫폼: ["market", "bm", "financial", "risk", "tech", "content"]
+- 단순 아이디어 검토: ["market", "bm"]
+
+**주의**: 기획서 목적이면 financial, risk를 생략하지 마세요!
 """
 
     def __init__(self, llm=None):
@@ -145,44 +159,28 @@ class NativeSupervisor:
         logger.info(f"[NativeSupervisor] 초기화 완료 (에이전트 {len(self.agents)}개)")
     
     def _init_agents(self):
-        """Config 기반 에이전트 초기화"""
-        # 1. 클래스 기반 에이전트 매핑
+        """Config 기반 에이전트 초기화 (모두 클래스 기반으로 통일)"""
+        # [REFACTOR] 모든 에이전트를 클래스 기반으로 통일
         agent_classes = {
             "market": "agents.specialists.market_agent.MarketAgent",
             "bm": "agents.specialists.bm_agent.BMAgent",
             "financial": "agents.specialists.financial_agent.FinancialAgent",
             "risk": "agents.specialists.risk_agent.RiskAgent",
+            "tech": "agents.specialists.tech_architect.TechArchitectAgent",
+            "content": "agents.specialists.content_strategist.ContentStrategistAgent",
         }
-        
-        # 2. 함수 기반 에이전트 매핑 [NEW]
-        function_agents = {
-            "tech": "agents.specialists.tech_architect.run_tech_architect",
-            "content": "agents.specialists.content_strategist.run_content_strategist"
-        }
-        
+
         import importlib
 
-        # 클래스 에이전트 로드
         for agent_id, class_path in agent_classes.items():
             try:
                 module_path, class_name = class_path.rsplit(".", 1)
                 module = importlib.import_module(module_path)
                 agent_class = getattr(module, class_name)
                 self.agents[agent_id] = agent_class(llm=self.llm)
-                logger.info(f"  - [Class] {agent_id} 초기화 완료")
+                logger.info(f"  - {agent_id} 초기화 완료")
             except Exception as e:
-                logger.error(f"  - [Class] {agent_id} 초기화 실패: {e}")
-
-        # 함수 에이전트 로드
-        for agent_id, func_path in function_agents.items():
-            try:
-                module_path, func_name = func_path.rsplit(".", 1)
-                module = importlib.import_module(module_path)
-                run_func = getattr(module, func_name)
-                self.agents[agent_id] = LambdaAgent(run_func)
-                logger.info(f"  - [Func] {agent_id} 초기화 완료")
-            except Exception as e:
-                logger.error(f"  - [Func] {agent_id} 초기화 실패: {e}")
+                logger.error(f"  - {agent_id} 초기화 실패: {e}")
 
     
     def decide_required_agents(
@@ -242,8 +240,18 @@ class NativeSupervisor:
             reasoning = "강제 전체 분석"
         else:
             decision = self.decide_required_agents(service_overview, purpose)
-            required = decision.required_analyses
+            required = list(decision.required_analyses)
             reasoning = decision.reasoning
+
+            # [FIX] 기획서 목적일 때 financial/risk 필수 포함
+            # LLM Router가 조건부로 판단해도 기획서에는 필수 섹션임
+            if "기획서" in purpose:
+                must_have = ["market", "bm", "financial", "risk"]
+                missing = [a for a in must_have if a not in required]
+                if missing:
+                    logger.info(f"[NativeSupervisor] 기획서 필수 에이전트 추가: {missing}")
+                    required = list(set(required) | set(must_have))
+                    reasoning += f" (기획서 필수 추가: {missing})"
         
         # DAG 기반 실행 계획 수립
         from agents.agent_config import resolve_execution_plan_dag

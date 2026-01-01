@@ -58,19 +58,31 @@ def show_plan_dialog():
                 draft = state.get("draft", {})
                 section_count = len(draft.get("sections", []))
 
-            analysis = state.get("analysis")
-            key_features = []
+            # [FIX] 핵심 기능 개수를 최종 문서에서 직접 추출 (분석 결과와 동기화 문제 해결)
+            feature_count = 0
 
-            if analysis:
-                from graph.state import safe_get
-                key_features = safe_get(analysis, "key_features", [])
-            
-            feature_count = len(key_features)
-            
-            if feature_count == 0 and final_doc:
-                bullet_count = final_doc.count("\n- ")
-                if bullet_count > 0:
-                    feature_count = max(3, int(bullet_count * 0.3)) 
+            if final_doc:
+                import re
+                # 1. "핵심 기능" 섹션 찾기
+                feature_section_match = re.search(
+                    r"(?:##\s*)?핵심\s*기능.*?\n(.*?)(?=\n##|\n#|\Z)",
+                    final_doc,
+                    re.DOTALL | re.IGNORECASE
+                )
+
+                if feature_section_match:
+                    feature_content = feature_section_match.group(1)
+                    # bullet points 카운팅 (-, *, 1. 등)
+                    bullets = re.findall(r"^\s*[-*\d]+[.)]\s+.+", feature_content, re.MULTILINE)
+                    feature_count = len(bullets)
+
+                # 2. 섹션을 못 찾으면 분석 결과 참조 (fallback)
+                if feature_count == 0:
+                    analysis = state.get("analysis")
+                    if analysis:
+                        from graph.state import safe_get
+                        key_features = safe_get(analysis, "key_features", [])
+                        feature_count = len(key_features) 
 
             col1, col2, col3 = st.columns(3)
             with col1:

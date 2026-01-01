@@ -138,25 +138,25 @@ def render_main():
     with col_preset:
         from utils.settings import GENERATION_PRESETS, DEFAULT_PRESET
 
-        if "generation_preset" not in st.session_state:
-            st.session_state.generation_preset = DEFAULT_PRESET
-
-        # 프리셋 드롭다운 (format_func 패턴 - 베스트 프랙티스)
-        # key를 직접 options으로, format_func로 표시 변환 → session_state 자동 동기화
+        # 프리셋 드롭다운 옵션
         preset_keys = list(GENERATION_PRESETS.keys())
-        
-        # [FIX] 기본 선택값 index 설정 - 'balanced'가 권장 모드
-        default_index = preset_keys.index(DEFAULT_PRESET) if DEFAULT_PRESET in preset_keys else 1
+
+        # [FIX] 세션 초기화 시 기본값 "balanced" 설정
+        if "generation_preset" not in st.session_state:
+            st.session_state.generation_preset = DEFAULT_PRESET  # "balanced"
+
+        # 현재 선택된 프리셋의 인덱스 계산
+        current_preset = st.session_state.generation_preset
+        current_index = preset_keys.index(current_preset) if current_preset in preset_keys else 1
 
         st.selectbox(
             "생성 모드",
             options=preset_keys,
-            # [FIX] index 파라미터 제거 (session_state와 충돌 방지)
-            # st.session_state.generation_preset 값이 자동으로 선택됨
+            index=current_index,  # [FIX] 현재 세션 값으로 인덱스 설정
             format_func=lambda k: f"{GENERATION_PRESETS[k].icon} {GENERATION_PRESETS[k].name} ({GENERATION_PRESETS[k].description})",
-            key="generation_preset",  # session_state key와 동일 → 자동 동기화
+            key="generation_preset",
             label_visibility="collapsed",
-            help="⚡빠른: 속도우선 | ⚖️균형: 권장 | 💎고품질: 품질우선"
+            help="⚡빠른: 속도우선 | ⚖️균형: 권장 (기본값) | 💎고품질: 품질우선"
         )
 
     with col_menu:

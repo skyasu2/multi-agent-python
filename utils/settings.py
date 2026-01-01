@@ -174,10 +174,44 @@ class ProjectSettings(BaseModel):
 
     @classmethod
     def load(cls) -> "ProjectSettings":
-        """환경변수 오버라이드 지원 (Simple Factory)"""
-        # Pydantic BaseSettings를 안 쓰는 대신 간단한 오버라이드 로직
-        # 필요 시 os.getenv로 값 교체 가능
-        return cls()
+        """
+        환경변수 오버라이드 지원 (Simple Factory)
+
+        지원 환경변수:
+        - PLANCRAFT_PRESET: 기본 프리셋 (fast/balanced/quality)
+        - PLANCRAFT_LLM_TIMEOUT: LLM 타임아웃 (초)
+        - PLANCRAFT_MAX_REFINE: 최대 개선 루프
+        - PLANCRAFT_DISCUSSION_ROUNDS: 토론 최대 라운드
+        """
+        overrides = {}
+
+        # 프리셋 오버라이드
+        if preset := os.getenv("PLANCRAFT_PRESET"):
+            if preset in GENERATION_PRESETS:
+                overrides["active_preset"] = preset
+
+        # LLM 타임아웃
+        if timeout := os.getenv("PLANCRAFT_LLM_TIMEOUT"):
+            try:
+                overrides["LLM_TIMEOUT_SEC"] = int(timeout)
+            except ValueError:
+                pass
+
+        # 최대 개선 루프
+        if max_refine := os.getenv("PLANCRAFT_MAX_REFINE"):
+            try:
+                overrides["MAX_REFINE_LOOPS"] = int(max_refine)
+            except ValueError:
+                pass
+
+        # 토론 최대 라운드
+        if disc_rounds := os.getenv("PLANCRAFT_DISCUSSION_ROUNDS"):
+            try:
+                overrides["DISCUSSION_MAX_ROUNDS"] = int(disc_rounds)
+            except ValueError:
+                pass
+
+        return cls(**overrides)
 
 
 # 전역 설정 인스턴스 (Singleton)

@@ -240,6 +240,19 @@ Action Items (실행 지침):
     web_urls_str = "없음"
     if web_urls:
         web_urls_str = "\n".join([f"- {url}" for url in web_urls])
+    
+    # [NEW] User Constraints Formatting
+    user_constraints_str = "없음"
+    # analysis는 위 Supervisor 섹션에서 이미 로드되었을 수 있으나, 안전하게 다시 확인
+    analysis_obj = state.get("analysis")
+    if analysis_obj:
+        if isinstance(analysis_obj, dict):
+            u_constraints = analysis_obj.get("user_constraints", [])
+        else:
+            u_constraints = getattr(analysis_obj, "user_constraints", [])
+            
+        if u_constraints:
+            user_constraints_str = "\n".join([f"- {c}" for c in u_constraints])
         
     try:
         formatted_prompt = user_prompt_template.format(
@@ -248,7 +261,8 @@ Action Items (실행 지침):
             web_context=web_context if web_context else "없음",
             web_urls=web_urls_str,
             context=rag_context if rag_context else "없음",
-            visual_instruction=visual_instruction  # [NEW] 시각화 지침 주입
+            visual_instruction=visual_instruction,  # [NEW] 시각화 지침 주입
+            user_constraints=user_constraints_str   # [NEW] 사용자 제약사항 주입
         )
     except KeyError as e:
         logger.error(f"[ERROR] Prompt Formatting Failed: {e}")
@@ -371,6 +385,7 @@ Action Items (실행 지침):
             sections = draft_dict.get("sections", [])
             section_count = len(sections)
             validation_issues = []
+            missing_specialist = []  # Specialist 검증용 (초기화)
 
             # [UPDATE] 프리셋 기반 최소 섹션 수 (fast:7, balanced:9, quality:10)
             MIN_SECTIONS = preset.min_sections
@@ -403,11 +418,62 @@ Action Items (실행 지침):
             if not has_table:
                 logger.info("[Writer Reflection] ℹ️ 마크다운 테이블 없음 (권장 사항)")
 
+            # [FIX] 검증 4: 시각적 요소 (다이어그램) - 프리셋에서 요구 시 필수
+            if preset.include_diagrams > 0:
+                has_mermaid = any(
+                    "```mermaid" in (sec.get("content", "") if isinstance(sec, dict) else getattr(sec, "content", ""))
+                    for sec in sections
+                )
+                if not has_mermaid:
+                    validation_issues.append(f"Mermaid 다이어그램 누락 (필수 {preset.include_diagrams}개)")
+
+            # [FIX] 검증 5: 시각적 요소 (차트/그래프) - 프리셋에서 요구 시 필수
+            if preset.include_charts > 0:
+                chart_indicators = ["▓", "░", "█", "■", "□", "●", "○"]
+                has_chart = any(
+                    any(ind in (sec.get("content", "") if isinstance(sec, dict) else getattr(sec, "content", "")) for ind in chart_indicators)
+                    for sec in sections
+                )
+                if not has_chart:
+                    validation_issues.append(f"ASCII 차트 누락 (필수 {preset.include_charts}개)")
+
+            # [NEW] 검증 6: Specialist 분석 결과 반영 여부 (핵심 데이터 포함 체크)
+            if specialist_context and refine_count == 0:
+                all_content = " ".join(
+                    sec.get("content", "") if isinstance(sec, dict) else getattr(sec, "content", "")
+                    for sec in sections
+                )
+                specialist_checks = {
+                    "TAM/SAM/SOM": any(kw in all_content for kw in ["TAM", "SAM", "SOM", "시장 규모"]),
+                    "경쟁사 분석": any(kw in all_content for kw in ["경쟁사", "Competitor", "차별점"]),
+                    "BEP/손익분기": any(kw in all_content for kw in ["BEP", "손익분기", "손익 분기"]),
+                    "리스크": any(kw in all_content for kw in ["리스크", "Risk", "대응 방안", "위험"]),
+                }
+                missing_specialist = [k for k, v in specialist_checks.items() if not v]
+                if missing_specialist:
+                    logger.warning(f"[Writer Reflection] ⚠️ Specialist 분석 미반영: {missing_specialist}")
+                    # [FIX] 누락된 핵심 데이터를 validation_issues에 추가하여 재생성 유도
+                    validation_issues.append(f"Specialist 핵심 데이터 누락: {', '.join(missing_specialist)}")
+
             # 검증 실패 시 재시도
             if validation_issues:
                 logger.warning(f"[Writer Reflection] ⚠️ 검증 실패: {', '.join(validation_issues)}. 재작성합니다.")
 
                 # 피드백 메시지 추가하여 다시 시도
+                visual_feedback = ""
+                if preset.include_diagrams > 0:
+                    visual_feedback += f"\n- Mermaid 다이어그램 필수: ```mermaid 코드블록으로 사용자 여정 또는 시스템 아키텍처를 표현하세요!"
+                if preset.include_charts > 0:
+                    visual_feedback += f"\n- ASCII 차트 필수: ▓░█ 등의 문자로 MAU 성장, 매출 추이 막대 그래프를 포함하세요!"
+
+                # [NEW] Specialist 데이터 누락 시 구체적 피드백 추가
+                specialist_feedback = ""
+                if missing_specialist:
+                    specialist_feedback = f"""
+- ⚠️ Specialist 분석 핵심 데이터 누락: {', '.join(missing_specialist)}
+- TAM/SAM/SOM 시장규모, 경쟁사 분석, BEP/손익분기점, 리스크 분석이 반드시 포함되어야 합니다!
+- 위에서 제공된 '전문 에이전트 분석 결과' 내용을 그대로 활용하세요!"""
+
                 feedback = f"""
 [System Critical Alert]:
 - 검증 실패 항목: {', '.join(validation_issues)}
@@ -415,7 +481,7 @@ Action Items (실행 지침):
 - 최소 필수 섹션: {MIN_SECTIONS}개
 - 필수 섹션 목록: 1.요약, 2.문제정의, 3.타겟/시장, 4.핵심기능, 5.비즈니스모델, 6.기술스택, 7.일정, 8.리스크, 9.KPI, 10.팀
 - 각 섹션은 최소 {MIN_CONTENT_LENGTH}자 이상 작성하세요!
-- 일정/KPI 섹션에는 마크다운 테이블을 포함하세요!
+- 일정/KPI 섹션에는 마크다운 테이블을 포함하세요!{visual_feedback}{specialist_feedback}
 """
                 messages.append({"role": "user", "content": feedback})
                 current_try += 1
