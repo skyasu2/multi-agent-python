@@ -239,6 +239,32 @@ def get_dependency_graph() -> Dict[str, List[str]]:
     }
 
 
+def _get_dependency_reason(from_agent: str, to_agent: str) -> str:
+    """
+    에이전트 간 의존 이유 반환 (Plan step description에 의존 이유 명시)
+
+    Args:
+        from_agent: 선행 에이전트 (데이터 제공)
+        to_agent: 후행 에이전트 (데이터 소비)
+
+    Returns:
+        str: 의존 이유 설명
+
+    Example:
+        >>> _get_dependency_reason("market", "bm")
+        "시장 데이터 기반"
+    """
+    # 의존 이유 매핑 (from -> to)
+    dependency_reasons = {
+        ("market", "bm"): "시장 데이터 기반",
+        ("market", "content"): "타겟 정보 참조",
+        ("bm", "financial"): "수익 모델 반영",
+        ("bm", "risk"): "BM 리스크 분석",
+    }
+
+    return dependency_reasons.get((from_agent, to_agent), "참조")
+
+
 def resolve_execution_plan_dag(required_agents: List[str], reasoning: str = "") -> ExecutionPlan:
     """
     DAG 기반 병렬 실행 계획 생성 (Topological Sort with Grouping)
@@ -313,29 +339,53 @@ def resolve_execution_plan_dag(required_agents: List[str], reasoning: str = "") 
     # Create Steps
     execution_steps = []
     total_time = 0
-    
+
     descriptions = []
-    
+
     for i, layer in enumerate(layers):
         step_agents = layer
-        
+
         # Priority sort within layer
         step_agents.sort(key=lambda x: priority_map.get(x, 999))
-        
+
         # Calculate time (max of agents in parallel)
         step_time = max([AGENT_REGISTRY[a].timeout_seconds for a in step_agents]) if step_agents else 0
         total_time += step_time
-        
-        # Step description
+
+        # [ENHANCED] Step description에 의존 이유 포함
         agent_names = [AGENT_REGISTRY[a].name for a in step_agents]
-        desc = f"단계 {i+1}: {', '.join(agent_names)} 병렬 실행"
+
+        # 각 에이전트의 의존 이유 수집
+        dep_reasons = []
+        for agent_id in step_agents:
+            deps = subset_graph.get(agent_id, [])
+            for dep in deps:
+                reason = _get_dependency_reason(dep, agent_id)
+                dep_spec = AGENT_REGISTRY.get(dep)
+                agent_spec = AGENT_REGISTRY.get(agent_id)
+                if dep_spec and agent_spec:
+                    dep_reasons.append(f"{dep_spec.name} → {agent_spec.name} ({reason})")
+
+        # Step description 생성
+        if dep_reasons:
+            desc = f"단계 {i+1}: {', '.join(agent_names)} 병렬 실행 [{'; '.join(dep_reasons)}]"
+        else:
+            desc = f"단계 {i+1}: {', '.join(agent_names)} 병렬 실행 [독립 실행 가능]"
+
         execution_steps.append(ExecutionStep(step_id=i+1, agent_ids=step_agents, description=desc))
-        
-        # Human readable description part
+
+        # Human readable description part (의존 이유 포함)
         if i == 0:
             descriptions.append(f"먼저 {', '.join(agent_names)}을(를) 통해 기반 분석을 수행합니다.")
         else:
-            descriptions.append(f"그 다음, 확보된 데이터를 바탕으로 {', '.join(agent_names)}을(를) 진행합니다.")
+            # 의존 관계 설명 추가
+            if dep_reasons:
+                dep_summary = ", ".join([r.split(" (")[1].rstrip(")") for r in dep_reasons[:2]])
+                descriptions.append(
+                    f"그 다음, {dep_summary} 데이터를 바탕으로 {', '.join(agent_names)}을(를) 진행합니다."
+                )
+            else:
+                descriptions.append(f"그 다음, {', '.join(agent_names)}을(를) 진행합니다.")
 
     human_readable = " ".join(descriptions)
 
@@ -357,6 +407,119 @@ def resolve_execution_order(required_agents: List[str]) -> List[str]:
     for step in plan.steps:
         flat_order.extend(step.agent_ids)
     return flat_order
+
+
+# =============================================================================
+# DAG → Mermaid 그래프 Export (디버깅/문서화용)
+# =============================================================================
+
+def export_plan_to_mermaid(plan: ExecutionPlan, title: str = "Execution Plan") -> str:
+    """
+    실행 계획을 Mermaid 다이어그램 코드로 변환
+
+    디버깅, 문서화, UI 시각화에 활용 가능.
+
+    Args:
+        plan: 실행 계획 (ExecutionPlan)
+        title: 다이어그램 제목
+
+    Returns:
+        str: Mermaid flowchart 코드
+
+    Example:
+        >>> plan = resolve_execution_plan_dag(["market", "bm", "financial"])
+        >>> mermaid_code = export_plan_to_mermaid(plan)
+        >>> print(mermaid_code)
+        ```mermaid
+        flowchart TD
+            subgraph Step1["단계 1: 시장 분석"]
+                market["📊 시장 분석"]
+            end
+            subgraph Step2["단계 2: 비즈니스 모델"]
+                bm["💰 비즈니스 모델"]
+            end
+            Step1 --> Step2
+        ```
+    """
+    lines = ["```mermaid", f"flowchart TD", f"    %% {title}"]
+
+    # 각 단계를 subgraph로 표현
+    for step in plan.steps:
+        step_id = f"Step{step.step_id}"
+        agent_names = [AGENT_REGISTRY[a].name for a in step.agent_ids if a in AGENT_REGISTRY]
+        step_label = f"단계 {step.step_id}: {', '.join(agent_names)}"
+
+        lines.append(f"    subgraph {step_id}[\"{step_label}\"]")
+
+        for agent_id in step.agent_ids:
+            spec = AGENT_REGISTRY.get(agent_id)
+            if spec:
+                lines.append(f"        {agent_id}[\"{spec.icon} {spec.name}\"]")
+
+        lines.append("    end")
+
+    # 단계 간 연결 (순차적)
+    for i in range(len(plan.steps) - 1):
+        lines.append(f"    Step{plan.steps[i].step_id} --> Step{plan.steps[i+1].step_id}")
+
+    # 의존성 관계 표시 (점선)
+    dep_graph = get_dependency_graph()
+    for agent_id, deps in dep_graph.items():
+        if agent_id in plan.get_all_agents():
+            for dep in deps:
+                if dep in plan.get_all_agents():
+                    lines.append(f"    {dep} -.->|의존| {agent_id}")
+
+    lines.append("```")
+
+    return "\n".join(lines)
+
+
+def export_dag_to_mermaid(required_agents: List[str] = None) -> str:
+    """
+    에이전트 의존성 그래프를 Mermaid 코드로 변환
+
+    Args:
+        required_agents: 포함할 에이전트 목록 (None이면 전체)
+
+    Returns:
+        str: Mermaid flowchart 코드
+
+    Example:
+        >>> print(export_dag_to_mermaid(["market", "bm", "financial", "risk"]))
+        ```mermaid
+        flowchart LR
+            market["📊 시장 분석"]
+            bm["💰 비즈니스 모델"]
+            market --> bm
+            bm --> financial
+            bm --> risk
+        ```
+    """
+    agents = required_agents or list(AGENT_REGISTRY.keys())
+    dep_graph = get_dependency_graph()
+
+    lines = ["```mermaid", "flowchart LR"]
+
+    # 노드 정의
+    for agent_id in agents:
+        spec = AGENT_REGISTRY.get(agent_id)
+        if spec:
+            lines.append(f"    {agent_id}[\"{spec.icon} {spec.name}\"]")
+
+    lines.append("")
+
+    # 의존성 엣지
+    for agent_id in agents:
+        for dep in dep_graph.get(agent_id, []):
+            if dep in agents:
+                # 의존 이유 추가
+                dep_reason = _get_dependency_reason(dep, agent_id)
+                lines.append(f"    {dep} -->|{dep_reason}| {agent_id}")
+
+    lines.append("```")
+
+    return "\n".join(lines)
 
 
 def get_agents_for_purpose(purpose: str) -> List[str]:

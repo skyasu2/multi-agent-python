@@ -24,6 +24,8 @@ PlanCraft - LangGraph 네이티브 Supervisor (개선된 버전)
 """
 
 from typing import Dict, Any, List, Optional, Literal, TYPE_CHECKING
+from dataclasses import dataclass, field
+from datetime import datetime
 from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -32,6 +34,132 @@ from utils.llm import get_llm
 from utils.file_logger import FileLogger
 
 logger = FileLogger()
+
+
+# =============================================================================
+# 실행 통계 (retry/fail 카운터 로깅 강화)
+# =============================================================================
+
+@dataclass
+class AgentExecutionStats:
+    """에이전트 실행 통계 (운영 분석용)"""
+    agent_id: str
+    started_at: datetime = None
+    completed_at: datetime = None
+    retry_count: int = 0
+    success: bool = False
+    error_messages: List[str] = field(default_factory=list)
+    error_category: str = ""
+    fallback_used: bool = False
+    execution_time_ms: float = 0.0
+
+    def record_start(self):
+        self.started_at = datetime.now()
+
+    def record_end(self, success: bool = True):
+        self.completed_at = datetime.now()
+        self.success = success
+        if self.started_at:
+            self.execution_time_ms = (self.completed_at - self.started_at).total_seconds() * 1000
+
+    def record_error(self, error_msg: str, category: str = "UNKNOWN"):
+        self.error_messages.append(error_msg)
+        self.error_category = category
+        self.retry_count += 1
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "agent_id": self.agent_id,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "retry_count": self.retry_count,
+            "success": self.success,
+            "error_messages": self.error_messages,
+            "error_category": self.error_category,
+            "fallback_used": self.fallback_used,
+            "execution_time_ms": round(self.execution_time_ms, 2),
+        }
+
+
+@dataclass
+class ExecutionStats:
+    """전체 실행 통계"""
+    plan_id: str = ""
+    started_at: datetime = None
+    completed_at: datetime = None
+    total_agents: int = 0
+    successful_agents: int = 0
+    failed_agents: int = 0
+    retried_agents: int = 0
+    fallback_used_count: int = 0
+    agent_stats: Dict[str, AgentExecutionStats] = field(default_factory=dict)
+
+    def record_start(self, plan_id: str, total_agents: int):
+        self.plan_id = plan_id
+        self.started_at = datetime.now()
+        self.total_agents = total_agents
+
+    def record_end(self):
+        self.completed_at = datetime.now()
+        # 집계
+        for stats in self.agent_stats.values():
+            if stats.success:
+                self.successful_agents += 1
+            else:
+                self.failed_agents += 1
+            if stats.retry_count > 0:
+                self.retried_agents += 1
+            if stats.fallback_used:
+                self.fallback_used_count += 1
+
+    def get_agent_stats(self, agent_id: str) -> AgentExecutionStats:
+        if agent_id not in self.agent_stats:
+            self.agent_stats[agent_id] = AgentExecutionStats(agent_id=agent_id)
+        return self.agent_stats[agent_id]
+
+    def to_summary(self) -> str:
+        """실행 통계 요약 (로그용)"""
+        duration = 0
+        if self.started_at and self.completed_at:
+            duration = (self.completed_at - self.started_at).total_seconds()
+
+        lines = [
+            "=" * 50,
+            f"📊 실행 통계 요약 (Plan: {self.plan_id})",
+            "=" * 50,
+            f"총 에이전트: {self.total_agents}",
+            f"✅ 성공: {self.successful_agents}",
+            f"❌ 실패: {self.failed_agents}",
+            f"🔄 재시도: {self.retried_agents}",
+            f"⚠️ Fallback: {self.fallback_used_count}",
+            f"⏱️ 총 소요시간: {duration:.2f}초",
+        ]
+
+        # 실패한 에이전트 상세
+        failed = [s for s in self.agent_stats.values() if not s.success]
+        if failed:
+            lines.append("-" * 50)
+            lines.append("실패 에이전트 상세:")
+            for s in failed:
+                lines.append(f"  - {s.agent_id}: {s.error_category} (재시도 {s.retry_count}회)")
+                if s.error_messages:
+                    lines.append(f"    마지막 에러: {s.error_messages[-1][:100]}")
+
+        lines.append("=" * 50)
+        return "\n".join(lines)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "plan_id": self.plan_id,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "total_agents": self.total_agents,
+            "successful_agents": self.successful_agents,
+            "failed_agents": self.failed_agents,
+            "retried_agents": self.retried_agents,
+            "fallback_used_count": self.fallback_used_count,
+            "agent_stats": {k: v.to_dict() for k, v in self.agent_stats.items()},
+        }
 
 
 # [NEW] LambdaAgent를 최상위에 정의
@@ -88,9 +216,50 @@ class RoutingDecision(BaseModel):
 
 class NativeSupervisor:
     """
-    LangGraph 네이티브 Supervisor
-    
-    Tool 기반 Handoff + 동적 라우팅 구현
+    LangGraph 네이티브 Supervisor (Plan-and-Execute 패턴)
+
+    전문 에이전트들을 조율하여 사업 기획서 분석을 수행합니다.
+    DAG 기반 병렬 실행, 동적 라우팅, 에러 복구를 지원합니다.
+
+    Features:
+        - Agent Registry 기반 Factory 패턴
+        - DAG 기반 병렬 실행 (Topological Sort)
+        - LLM 라우팅 (필요한 에이전트 동적 결정)
+        - 에러 복구 (재시도 + Fallback)
+        - 실행 통계 (retry/fail 카운터)
+
+    Attributes:
+        llm: LLM 인스턴스
+        agents: 초기화된 에이전트 딕셔너리
+        agent_registry: 에이전트 스펙 레지스트리
+
+    Example:
+        >>> from agents.supervisor import NativeSupervisor
+        >>>
+        >>> # 1. Supervisor 초기화
+        >>> supervisor = NativeSupervisor()
+        >>>
+        >>> # 2. 서비스 분석 실행
+        >>> results = supervisor.run(
+        ...     service_overview="점심 메뉴 추천 앱",
+        ...     target_market="직장인",
+        ...     purpose="기획서 작성"
+        ... )
+        >>>
+        >>> # 3. 결과 확인
+        >>> print(results["market_analysis"])  # 시장 분석
+        >>> print(results["business_model"])    # 비즈니스 모델
+        >>> print(results["integrated_context"]) # 통합 컨텍스트
+
+    Note:
+        - 기획서 목적 시 market, bm, financial, risk 필수 포함
+        - 실행 통계는 results["_execution_stats"]에 저장
+        - Mermaid 그래프는 export_plan_to_mermaid()로 생성
+
+    See Also:
+        - agents.agent_config: 에이전트 레지스트리
+        - agents.agent_config.resolve_execution_plan_dag: DAG 생성
+        - agents.agent_config.export_plan_to_mermaid: Mermaid 변환
     """
     
     ROUTER_SYSTEM_PROMPT = """당신은 사업 기획서 분석 작업을 조율하는 Supervisor입니다.
@@ -286,11 +455,22 @@ class NativeSupervisor:
         Exception 카테고리화:
         - LLM_ERROR, NETWORK_ERROR: 재시도 가능
         - VALIDATION_ERROR, UNKNOWN: 재시도 불가, Fallback 사용
+
+        [NEW] 실행 통계 기록:
+        - 각 에이전트별 시작/종료 시간, 재시도 횟수, 에러 메시지 추적
+        - 전체 실행 요약 로그 출력
         """
         from utils.error_handler import categorize_error
 
         # 실패한 에이전트 추적 (Replan용)
         failed_agents = []
+
+        # [NEW] 실행 통계 초기화
+        stats = ExecutionStats()
+        stats.record_start(
+            plan_id=f"plan_{datetime.now().strftime('%H%M%S')}",
+            total_agents=len(plan.get_all_agents())
+        )
 
         for step in plan.steps:
             logger.info(f"--- 단계 {step.step_id}: {step.description} ---")
@@ -301,6 +481,10 @@ class NativeSupervisor:
             with ThreadPoolExecutor() as executor:
                 for agent_id in step.agent_ids:
                     if agent_id in self.agents:
+                        # [NEW] 에이전트 통계 시작
+                        agent_stats = stats.get_agent_stats(agent_id)
+                        agent_stats.record_start()
+
                         # 실행 컨텍스트 준비
                         agent_context = self._prepare_agent_context(agent_id, context, results)
 
@@ -312,30 +496,42 @@ class NativeSupervisor:
                 # 완료 대기 및 결과 수집
                 for future in as_completed(futures):
                     agent_id = futures[future]
+                    agent_stats = stats.get_agent_stats(agent_id)
+
                     try:
                         result = future.result()
                         # 결과 키 매핑 (Registry 기반)
                         result_key = self._get_result_key(agent_id)
                         results[result_key] = result
-                        logger.info(f"  ✅ [Done] {agent_id}")
+
+                        # [NEW] 성공 통계 기록
+                        agent_stats.record_end(success=True)
+                        logger.info(f"  ✅ [Done] {agent_id} ({agent_stats.execution_time_ms:.0f}ms)")
+
                     except Exception as e:
                         # [REFACTOR] 에러 카테고리화 적용
                         error_category = categorize_error(e)
                         error_msg = str(e)
+
+                        # [NEW] 에러 통계 기록
+                        agent_stats.record_error(error_msg, error_category)
 
                         # 카테고리별 로깅
                         logger.error(f"  ❌ [{error_category}] {agent_id}: {error_msg}")
 
                         # [NEW] 동적 Replan: 복구 가능한 에러는 재시도
                         if error_category in ["LLM_ERROR", "NETWORK_ERROR"]:
-                            retry_result = self._retry_agent(agent_id, context, results)
+                            retry_result = self._retry_agent(agent_id, context, results, stats)
                             if retry_result:
                                 results[self._get_result_key(agent_id)] = retry_result
-                                logger.info(f"  🔄 [Retried] {agent_id} 재시도 성공")
+                                agent_stats.record_end(success=True)
+                                logger.info(f"  🔄 [Retried] {agent_id} 재시도 성공 (시도 {agent_stats.retry_count}회)")
                                 continue
 
                         # 재시도 실패 또는 복구 불가 에러
                         failed_agents.append(agent_id)
+                        agent_stats.record_end(success=False)
+                        agent_stats.fallback_used = True
 
                         # [NEW] Fallback 데이터 사용
                         fallback = self._get_fallback_result(agent_id, context)
@@ -344,15 +540,30 @@ class NativeSupervisor:
                             "error_category": error_category,
                             "agent_id": agent_id,
                             "fallback_used": True,
+                            "retry_count": agent_stats.retry_count,
                             **fallback
                         }
-                        logger.warning(f"  ⚠️ [Fallback] {agent_id} Fallback 데이터 사용")
+                        logger.warning(f"  ⚠️ [Fallback] {agent_id} Fallback 데이터 사용 (재시도 {agent_stats.retry_count}회 실패)")
 
         # [NEW] 동적 Replan: 실패한 에이전트가 있으면 의존 에이전트 체크
         if failed_agents:
             self._handle_failed_dependencies(failed_agents, plan, results, context)
 
-    def _retry_agent(self, agent_id: str, context: Dict, results: Dict, max_retries: int = 1) -> Optional[Dict]:
+        # [NEW] 실행 통계 완료 및 로깅
+        stats.record_end()
+        logger.info(stats.to_summary())
+
+        # 결과에 통계 포함
+        results["_execution_stats"] = stats.to_dict()
+
+    def _retry_agent(
+        self,
+        agent_id: str,
+        context: Dict,
+        results: Dict,
+        stats: ExecutionStats = None,
+        max_retries: int = 1
+    ) -> Optional[Dict]:
         """
         실패한 에이전트 재시도 (동적 Replan 패턴)
 
@@ -360,6 +571,7 @@ class NativeSupervisor:
             agent_id: 재시도할 에이전트 ID
             context: 실행 컨텍스트
             results: 현재까지의 결과
+            stats: 실행 통계 (재시도 횟수 기록용)
             max_retries: 최대 재시도 횟수
 
         Returns:
@@ -372,7 +584,12 @@ class NativeSupervisor:
                 result = self.agents[agent_id].run(**agent_context)
                 return result
             except Exception as e:
-                logger.warning(f"  ⚠️ [Retry Failed] {agent_id}: {e}")
+                error_msg = str(e)
+                logger.warning(f"  ⚠️ [Retry Failed] {agent_id}: {error_msg}")
+                # [NEW] 재시도 실패도 통계에 기록
+                if stats:
+                    from utils.error_handler import categorize_error
+                    stats.get_agent_stats(agent_id).record_error(error_msg, categorize_error(e))
         return None
 
     def _get_fallback_result(self, agent_id: str, context: Dict) -> Dict:

@@ -24,8 +24,92 @@ Human Interrupt가 발생하여 사용자의 추가 입력을 대기합니다.
 """
 
 from typing import Dict, List, Any, Optional, cast
+from enum import Enum
 from utils.schemas import OptionChoice, ResumeInput
 from graph.state import PlanCraftState, InterruptPayload, InterruptOption
+
+
+# =============================================================================
+# HITL 이벤트 라벨 (운영 로그/감사 추적용)
+# =============================================================================
+
+class HITLEventLabel(str, Enum):
+    """
+    Human-in-the-Loop 이벤트 라벨
+
+    운영 로그와 감사 추적에서 HITL 이벤트를 명확히 식별합니다.
+
+    Labels:
+        PAUSE_OPTION: 옵션 선택 대기
+        PAUSE_FORM: 폼 입력 대기
+        PAUSE_CONFIRM: 확인 대기
+        PAUSE_APPROVAL: 승인 대기
+        RESUME_SELECT: 옵션 선택 완료
+        RESUME_INPUT: 텍스트 입력 완료
+        RESUME_APPROVE: 승인 완료
+        RESUME_REJECT: 반려 완료
+        TIMEOUT: 입력 시간 만료
+        RETRY: 재입력 요청
+
+    Example:
+        >>> event = {"label": HITLEventLabel.RESUME_SELECT, "data": {...}}
+        >>> if event["label"] == HITLEventLabel.RESUME_APPROVE:
+        ...     print("승인 처리")
+    """
+    # Pause Events (인터럽트 발생)
+    PAUSE_OPTION = "HITL:PAUSE:OPTION"
+    PAUSE_FORM = "HITL:PAUSE:FORM"
+    PAUSE_CONFIRM = "HITL:PAUSE:CONFIRM"
+    PAUSE_APPROVAL = "HITL:PAUSE:APPROVAL"
+
+    # Resume Events (사용자 응답)
+    RESUME_SELECT = "HITL:RESUME:SELECT"
+    RESUME_INPUT = "HITL:RESUME:INPUT"
+    RESUME_APPROVE = "HITL:RESUME:APPROVE"
+    RESUME_REJECT = "HITL:RESUME:REJECT"
+
+    # Special Events
+    TIMEOUT = "HITL:TIMEOUT"
+    RETRY = "HITL:RETRY"
+    FALLBACK = "HITL:FALLBACK"
+
+
+def get_hitl_event_label(pause_type: str, response: Dict[str, Any]) -> str:
+    """
+    응답 내용에 따른 HITL 이벤트 라벨 반환
+
+    Args:
+        pause_type: 인터럽트 타입 (option, form, confirm, approval)
+        response: 사용자 응답 데이터
+
+    Returns:
+        str: HITL 이벤트 라벨
+
+    Example:
+        >>> get_hitl_event_label("option", {"selected_option": {...}})
+        "HITL:RESUME:SELECT"
+        >>> get_hitl_event_label("approval", {"approved": True})
+        "HITL:RESUME:APPROVE"
+    """
+    # 승인/반려 처리
+    if pause_type == "approval":
+        if response.get("approved") or response.get("selected_option", {}).get("value") == "approve":
+            return HITLEventLabel.RESUME_APPROVE.value
+        return HITLEventLabel.RESUME_REJECT.value
+
+    # 옵션 선택
+    if response.get("selected_option"):
+        return HITLEventLabel.RESUME_SELECT.value
+
+    # 텍스트 입력
+    if response.get("text_input"):
+        return HITLEventLabel.RESUME_INPUT.value
+
+    # Fallback
+    if response.get("value") == "default_fallback":
+        return HITLEventLabel.FALLBACK.value
+
+    return f"HITL:RESUME:{pause_type.upper()}"
 
 # [NEW] 모듈화된 인터럽트 타입 시스템 임포트
 from graph.interrupt_types import (
@@ -255,6 +339,9 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
     pause_type = last_interrupt.get("type", "option")  # 기본값: option
     current_timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
 
+    # [ENHANCED] HITL 이벤트 라벨 생성 (운영 로그용)
+    hitl_label = get_hitl_event_label(pause_type, response)
+
     # =========================================================================
     # [NEW] Resume 입력 내역을 step_history에 기록 (디버깅/리플레이용)
     # =========================================================================
@@ -265,6 +352,7 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
         "timestamp": current_timestamp,
         "response_data": _sanitize_response(response),  # 민감 정보 제거된 사본
         "event_type": "HUMAN_RESPONSE",  # [NEW] 이벤트 타입 명시
+        "hitl_label": hitl_label,  # [ENHANCED] 명시적 HITL 라벨 (HITL:RESUME:SELECT 등)
         "pause_type": pause_type,  # [NEW] 인터럽트 타입 기록
         # [NEW] 직전 인터럽트 정보 백업 (추적용)
         "last_interrupt_payload": last_interrupt,
@@ -282,6 +370,7 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
     # =========================================================================
     last_human_event = {
         "event_type": "HITL_RESUME",
+        "hitl_label": hitl_label,  # [ENHANCED] 명시적 라벨
         "pause_type": pause_type,
         "resume_value": _sanitize_response(response),
         "timestamp": current_timestamp,
@@ -636,4 +725,7 @@ __all__ = [
     "ApprovalInterruptPayload",
     # [NEW] 옵션 정규화 유틸리티
     "normalize_options",
+    # [ENHANCED] HITL 이벤트 라벨
+    "HITLEventLabel",
+    "get_hitl_event_label",
 ]
