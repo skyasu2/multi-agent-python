@@ -906,6 +906,13 @@ def option_pause_node(state: PlanCraftState) -> Command:
     # 3. 사용자 응답으로 상태 업데이트 (last_interrupt 정보 포함)
     updated_state = handle_user_response(state_with_interrupt, user_response)
 
+    # [NEW] 재시도 초과로 인한 강제 진행인 경우 UI 알림(Error) 추가
+    if isinstance(user_response, dict) and user_response.get("value") == "default_fallback":
+        # 기존 에러가 있다면 덮어쓰지 않도록 주의 (또는 이어붙이기)
+        base_err = updated_state.get("error", "")
+        fallback_msg = "⚠️ 입력 횟수 초과: 기본 설정으로 자동 진행합니다."
+        updated_state["error"] = f"{base_err}\n{fallback_msg}" if base_err else fallback_msg
+
     return Command(
         update=updated_state,
         goto="analyze"  # 새 정보로 다시 분석

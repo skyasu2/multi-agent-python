@@ -187,13 +187,29 @@ def create_option_payload(
     **kwargs
 ) -> Dict[str, Any]:
     """Option 타입 페이로드 생성 헬퍼"""
-    return create_base_payload(
+    payload = create_base_payload(
         interrupt_type=InterruptType.OPTION,
         question=question,
         node_ref=node_ref,
         options=options,
         **kwargs
     )
+    
+    # [NEW] Pydantic 검증 (Safety Guard)
+    try:
+        from graph.interrupt_types import OptionInterruptPayload
+        # Pydantic 모델로 검증 수행
+        # 주의: Pydantic 모델의 필드명과 payload 키가 일치해야 함
+        validated = OptionInterruptPayload(**payload)
+        return validated.model_dump()
+    except ImportError:
+        pass  # 모듈이 없을 경우 건너뜀 (안전장치)
+    except Exception as e:
+        print(f"[WARNING] Payload Validation Error: {e}")
+        # 검증 실패 시에도 흐름을 막지 않으려면 원본 반환 (개발 단계에선 raise 권장)
+        # raise e  
+    
+    return payload
 
 
 def create_form_payload(
