@@ -508,10 +508,35 @@ def render_option_selector(current_state):
         # dict 또는 Pydantic 객체 모두 지원
         title = safe_get(opt, "title", "")
         description = safe_get(opt, "description", "")
+        opt_id = safe_get(opt, "id", "")
 
         with cols[i]:
             if st.button(f"{title}", key=f"opt_{i}", use_container_width=True, help=description):
-                # 선택 처리 로직
+                # [FIX] "수정" 옵션 선택 시 초기 화면으로 리셋
+                # 사용자가 처음부터 다시 입력하고 파일 업로드할 수 있게 함
+                is_retry_option = (
+                    opt_id == "retry" or
+                    "수정" in title or
+                    "아니요" in title or
+                    "취소" in title
+                )
+
+                if is_retry_option:
+                    # 세션 상태 초기화 (처음 화면으로)
+                    st.session_state.chat_history = []
+                    st.session_state.current_state = None
+                    st.session_state.generated_plan = None
+                    st.session_state.uploaded_content = None
+                    st.session_state.pending_input = None
+                    st.session_state.prefill_prompt = None
+                    st.session_state.input_key += 1
+                    import uuid
+                    st.session_state.thread_id = str(uuid.uuid4())
+                    st.toast("🔄 처음 화면으로 돌아갑니다. 새로운 아이디어를 입력해주세요!")
+                    st.rerun()
+                    return
+
+                # 일반 옵션 선택 처리 로직
                 st.session_state.chat_history.append({
                     "role": "user", "content": f"'{title}' 선택", "type": "text"
                 })
