@@ -216,6 +216,21 @@ Action Items (실행 지침):
 
 
 
+    # [NEW] 시각화 지침 생성 (프리셋 기반)
+    from utils.settings import get_preset
+    active_preset = state.get("generation_preset", settings.active_preset)
+    preset = get_preset(active_preset)
+    
+    visual_instruction = ""
+    if preset.include_diagrams > 0 or preset.include_charts > 0:
+        visual_instruction = "\n\n📊 **시각적 요소 필수 요구사항 (Visual Elements Required)**:\n"
+        if preset.include_diagrams > 0:
+            visual_instruction += f"- **Mermaid 다이어그램**: {preset.include_diagrams}개 이상 포함 (사용자 여정 또는 시스템 아키텍처)\n"
+        if preset.include_charts > 0:
+            visual_instruction += f"- **마크다운 차트/그래프**: {preset.include_charts}개 이상 포함 (MAU 성장, 매출 추이 등에 ▓░ 또는 █ 막대 사용)\n"
+        visual_instruction += "\n위 시각적 요소가 없으면 기획서가 불완전합니다!\n"
+        logger.info(f"[Writer] 시각적 요소 요청: 다이어그램 {preset.include_diagrams}개, 그래프 {preset.include_charts}개")
+
     # 2. 프롬프트 구성 (시간 컨텍스트 주입)
     structure_str = str(structure)
     
@@ -230,7 +245,8 @@ Action Items (실행 지침):
             structure=structure_str,
             web_context=web_context if web_context else "없음",
             web_urls=web_urls_str,
-            context=rag_context if rag_context else "없음"
+            context=rag_context if rag_context else "없음",
+            visual_instruction=visual_instruction  # [NEW] 시각화 지침 주입
         )
     except KeyError as e:
         logger.error(f"[ERROR] Prompt Formatting Failed: {e}")
@@ -297,22 +313,6 @@ Action Items (실행 지침):
     # =========================================================================
     # [NEW] 프리셋 기반 시각적 요소 지침 추가
     # =========================================================================
-    from utils.settings import get_preset
-    active_preset = state.get("generation_preset", settings.active_preset)
-    preset = get_preset(active_preset)
-    
-    visual_instruction = ""
-    if preset.include_diagrams > 0 or preset.include_charts > 0:
-        visual_instruction = "\n\n📊 **시각적 요소 필수 요구사항 (Visual Elements Required)**:\n"
-        if preset.include_diagrams > 0:
-            visual_instruction += f"- **Mermaid 다이어그램**: {preset.include_diagrams}개 이상 포함 (사용자 여정 또는 시스템 아키텍처)\n"
-        if preset.include_charts > 0:
-            visual_instruction += f"- **마크다운 차트/그래프**: {preset.include_charts}개 이상 포함 (MAU 성장, 매출 추이 등에 ▓░ 또는 █ 막대 사용)\n"
-        visual_instruction += "\n위 시각적 요소가 없으면 기획서가 불완전합니다!\n"
-        
-        formatted_prompt += visual_instruction
-        logger.info(f"[Writer] 시각적 요소 요청: 다이어그램 {preset.include_diagrams}개, 그래프 {preset.include_charts}개")
-
     messages = [
         {"role": "system", "content": get_time_context() + system_prompt},
         {"role": "user", "content": formatted_prompt}
