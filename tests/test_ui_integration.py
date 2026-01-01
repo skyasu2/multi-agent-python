@@ -49,7 +49,7 @@ class TestInterruptPayloadCreation:
 
     def test_option_type_payload(self, hitl_state):
         """옵션 선택형 페이로드 생성"""
-        payload = create_option_interrupt(hitl_state)
+        payload = create_option_interrupt(hitl_state, interrupt_id="test_id_opt")
 
         assert payload["type"] == "option"
         assert payload["question"] == "어떤 방향의 서비스를 원하시나요?"
@@ -66,7 +66,7 @@ class TestInterruptPayloadCreation:
             input_schema_name="UserInputSchema"
         )
 
-        payload = create_option_interrupt(state)
+        payload = create_option_interrupt(state, interrupt_id="test_id_form")
 
         assert payload["type"] == "form"
         assert payload["input_schema_name"] == "UserInputSchema"
@@ -75,7 +75,7 @@ class TestInterruptPayloadCreation:
         """페이로드 JSON 직렬화 가능 여부"""
         import json
 
-        payload = create_option_interrupt(hitl_state)
+        payload = create_option_interrupt(hitl_state, interrupt_id="test_id_json")
 
         # JSON 직렬화 가능해야 함
         json_str = json.dumps(payload, ensure_ascii=False)
@@ -158,7 +158,7 @@ class TestInterruptUIData:
 
     def test_option_ui_data(self, hitl_state):
         """옵션 UI 렌더링 데이터"""
-        payload = create_option_interrupt(hitl_state)
+        payload = create_option_interrupt(hitl_state, interrupt_id="test_id_ui")
 
         # UI에 필요한 모든 필드 존재 확인
         assert "type" in payload
@@ -180,7 +180,7 @@ class TestInterruptUIData:
             error_message="입력값이 유효하지 않습니다"
         )
 
-        payload = create_option_interrupt(state)
+        payload = create_option_interrupt(state, interrupt_id="test_id_err")
 
         # 에러 메시지가 data에 포함되어야 함
         assert "data" in payload
@@ -190,7 +190,7 @@ class TestInterruptUIData:
         """재시도 횟수 추적"""
         state = update_state(hitl_state, retry_count=2)
 
-        payload = create_option_interrupt(state)
+        payload = create_option_interrupt(state, interrupt_id="test_id_retry")
 
         # data에 retry_count 포함
         assert payload.get("data", {}).get("retry_count", 0) == 2
@@ -237,7 +237,7 @@ class TestMultipleInterruptScenarios:
             options=[{"title": "A", "description": "옵션 A"}]
         )
 
-        payload1 = create_option_interrupt(state1)
+        payload1 = create_option_interrupt(state1, interrupt_id="test_id_seq1")
         assert payload1["question"] == "질문 1"
 
         # 첫 번째 응답 처리
@@ -251,7 +251,7 @@ class TestMultipleInterruptScenarios:
             options=[{"title": "B", "description": "옵션 B"}]
         )
 
-        payload2 = create_option_interrupt(state3)
+        payload2 = create_option_interrupt(state3, interrupt_id="test_id_seq2")
         assert payload2["question"] == "질문 2 (상세)"
 
     def test_max_retry_exceeded(self, hitl_state):
@@ -261,7 +261,7 @@ class TestMultipleInterruptScenarios:
         state = update_state(hitl_state, retry_count=settings.HITL_MAX_RETRIES)
 
         # 최대 재시도 도달 시에도 페이로드 생성 가능
-        payload = create_option_interrupt(state)
+        payload = create_option_interrupt(state, interrupt_id="test_id_max")
         assert payload is not None
 
 

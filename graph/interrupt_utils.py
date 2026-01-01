@@ -107,9 +107,24 @@ def create_option_interrupt(state: PlanCraftState, interrupt_id: str) -> Dict[st
     """
     PlanCraftState에서 인터럽트 페이로드를 생성합니다.
     """
-    from graph.hitl_config import create_option_payload
+    from graph.hitl_config import create_option_payload, create_form_payload
     
     question = state.get("option_question") or "추가 정보가 필요합니다."
+    
+    # [NEW] Form 타입 처리 (input_schema_name 존재 시)
+    input_schema_name = state.get("input_schema_name")
+    if input_schema_name:
+        return create_form_payload(
+            question=question,
+            input_schema_name=input_schema_name,
+            node_ref="option_pause_node",
+            interrupt_id=interrupt_id,
+            data={
+                "user_input": state.get("user_input", ""),
+                "need_more_info": state.get("need_more_info", False),
+                "retry_count": state.get("retry_count", 0),
+            }
+        )
     options = state.get("options", [])
     
     # [UPDATE] normalize_options 사용

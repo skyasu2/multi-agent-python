@@ -104,8 +104,11 @@ def test_hitl_interrupt_and_resume(test_app, mock_llm_chain):
     interrupt_value = task.interrupts[0].value
     
     print(f"[Test] 인터럽트 페이로드: {interrupt_value}")
-    assert interrupt_value["type"] == "option_selector"
+    # [UPDATE] InterruptType Enum 표준화로 'option'으로 변경됨
+    assert interrupt_value["type"] == "option"
     assert interrupt_value["question"] == "어디로 갈까요?"
+    # [NEW] Semantic Key 검증
+    assert interrupt_value.get("interrupt_id") == "analyze_direction_select"
     
     # 3. Resume (재개)
     print("\n[Test] 3. Resume (옵션 선택)...")
@@ -124,10 +127,15 @@ def test_hitl_interrupt_and_resume(test_app, mock_llm_chain):
     
     mock_llm_chain.invoke.side_effect = [
         # 첫 번째 호출 (위에서 이미 소비됨)
-        AnalysisResult(need_more_info=True, options=[], option_question=""), 
+        AnalysisResult(
+            topic="Dummy", purpose="Dummy", target_users="Dummy",
+            need_more_info=True, options=[], option_question=""
+        ), 
         # 두 번째 호출 (Resume 후) -> 이제 정보 충분
         AnalysisResult(
             topic="옵션A 기반 기획", 
+            purpose="테스트 목적",
+            target_users="테스터",
             need_more_info=False, # 진행!
             is_general_query=False
         )
@@ -138,6 +146,8 @@ def test_hitl_interrupt_and_resume(test_app, mock_llm_chain):
     mock_llm_chain.invoke.side_effect = [
          AnalysisResult(
             topic="옵션A 기반 기획", 
+            purpose="테스트 목적",
+            target_users="테스터",
             need_more_info=False
         )
     ]
@@ -189,7 +199,14 @@ def test_time_travel_forking(test_app, mock_llm_chain):
     print(f"\n[Test] 분기점 Checkpoint ID: {fork_checkpoint_id}")
     
     # 2. 경로 A 진행
-    mock_llm_chain.invoke.side_effect = [AnalysisResult(topic="Plan A", need_more_info=False)]
+    mock_llm_chain.invoke.side_effect = [
+        AnalysisResult(
+            topic="Plan A", 
+            purpose="Dummy", 
+            target_users="Dummy", 
+            need_more_info=False
+        )
+    ]
     
     from langgraph.types import Command
     list(test_app.stream(
@@ -216,7 +233,14 @@ def test_time_travel_forking(test_app, mock_llm_chain):
     print("\n[Test] 3. Time Travel (되감기 및 경로 B 선택)...")
     
     # 경로 B 진행 (Mock 응답 변경)
-    mock_llm_chain.invoke.side_effect = [AnalysisResult(topic="Plan B", need_more_info=False)]
+    mock_llm_chain.invoke.side_effect = [
+        AnalysisResult(
+            topic="Plan B", 
+            purpose="Dummy", 
+            target_users="Dummy", 
+            need_more_info=False
+        )
+    ]
     
     # Resume with different option
     list(test_app.stream(

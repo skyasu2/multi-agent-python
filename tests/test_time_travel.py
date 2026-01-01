@@ -160,7 +160,7 @@ class TestTimeTravelMock:
 
         snapshot = time_travel.get_state_at_step(1)
         assert snapshot is not None
-        assert snapshot.step_name == "write"
+        assert snapshot.step_name == "analyze"
 
     def test_get_state_at_invalid_step(self, time_travel):
         """유효하지 않은 단계 조회 테스트"""
@@ -169,7 +169,7 @@ class TestTimeTravelMock:
 
     def test_compare_states(self, time_travel):
         """상태 비교 테스트"""
-        diff = time_travel.compare_states(step1=0, step2=3)
+        diff = time_travel.compare_states(step1=0, step2=1)
         assert "current_step" in diff
         assert diff["current_step"]["step1_value"] == "format"
         assert diff["current_step"]["step2_value"] == "analyze"

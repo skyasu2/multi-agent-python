@@ -88,6 +88,8 @@ class TestAdvancedScenarios:
             payload = mock_interrupt.call_args[0][0]
             assert payload['question'] == "어떤 종류인가요?"
             assert len(payload['options']) == 2
+            # [NEW] Semantic Key 검증
+            assert payload.get('interrupt_id') == "analyze_direction_select"
 
         # 5. 사용자 응답 시뮬레이션 (UI에서 선택)
         user_response = {

@@ -93,7 +93,8 @@ class TestWorkflowRouting:
         options = [OptionChoice(title="A", description="Desc A")]
         payload = create_interrupt_payload(
             question="질문",
-            options=options
+            options=options,
+            interrupt_id="test_id_unit"
         )
         assert payload["question"] == "질문"
         assert payload["options"][0]["title"] == "A"
@@ -107,7 +108,7 @@ class TestWorkflowRouting:
             need_more_info=True
         )
         
-        opt_payload = create_option_interrupt(state)
+        opt_payload = create_option_interrupt(state, interrupt_id="test_id_state")
         assert opt_payload["question"] == "어떤 앱인가요?"
         assert opt_payload["options"][0]["title"] == "웹"
         assert opt_payload["data"]["need_more_info"] is True

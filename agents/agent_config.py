@@ -257,8 +257,10 @@ def resolve_execution_plan_dag(required_agents: List[str], reasoning: str = "") 
             # break or handle error
         
         # 이름순/우선순위 정렬 (결정적 순서 보장)
-        priority = ["market", "tech", "bm", "content", "financial", "risk"]
-        layer.sort(key=lambda x: priority.index(x) if x in priority else 99)
+        priority_list = ["market", "tech", "bm", "content", "financial", "risk"]
+        priority_map = {name: i for i, name in enumerate(priority_list)}
+        
+        layer.sort(key=lambda x: priority_map.get(x, 99))
         
         layers.append(layer)
         
