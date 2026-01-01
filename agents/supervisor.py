@@ -112,20 +112,44 @@ class NativeSupervisor:
         self.llm = llm or get_llm(temperature=0.3)
         self.router_llm = self.llm.with_structured_output(RoutingDecision)
         
-        # 전문 에이전트 (기존 방식 유지 - Tool 래핑)
-        from agents.specialists.market_agent import MarketAgent
-        from agents.specialists.bm_agent import BMAgent
-        from agents.specialists.financial_agent import FinancialAgent
-        from agents.specialists.risk_agent import RiskAgent
+        # [NEW] Config 기반 에이전트 로드
+        from agents.agent_config import (
+            AGENT_REGISTRY,
+            get_routing_prompt,
+            resolve_execution_order,
+        )
+        self.agent_registry = AGENT_REGISTRY
+        self.routing_prompt = get_routing_prompt()
         
-        self.agents = {
-            "market": MarketAgent(llm=self.llm),
-            "bm": BMAgent(llm=self.llm),
-            "financial": FinancialAgent(llm=self.llm),
-            "risk": RiskAgent(llm=self.llm),
+        # 전문 에이전트 동적 초기화
+        self.agents = {}
+        self._init_agents()
+        
+        logger.info(f"[NativeSupervisor] 초기화 완료 (에이전트 {len(self.agents)}개)")
+    
+    def _init_agents(self):
+        """Config 기반 에이전트 초기화"""
+        # 에이전트 클래스 매핑
+        agent_classes = {
+            "market": "agents.specialists.market_agent.MarketAgent",
+            "bm": "agents.specialists.bm_agent.BMAgent",
+            "financial": "agents.specialists.financial_agent.FinancialAgent",
+            "risk": "agents.specialists.risk_agent.RiskAgent",
         }
         
-        logger.info("[NativeSupervisor] 초기화 완료")
+        for agent_id, spec in self.agent_registry.items():
+            if agent_id in agent_classes:
+                try:
+                    # 동적 임포트
+                    module_path, class_name = agent_classes[agent_id].rsplit(".", 1)
+                    import importlib
+                    module = importlib.import_module(module_path)
+                    agent_class = getattr(module, class_name)
+                    self.agents[agent_id] = agent_class(llm=self.llm)
+                    logger.info(f"  - {spec.icon} {spec.name} 초기화 완료")
+                except Exception as e:
+                    logger.error(f"  - {agent_id} 초기화 실패: {e}")
+
     
     def decide_required_agents(
         self,
@@ -261,38 +285,9 @@ class NativeSupervisor:
         return results
     
     def _resolve_dependencies(self, required: List[str]) -> List[str]:
-        """의존성 기반 실행 순서 결정"""
-        # 의존성 그래프
-        dependencies = {
-            "market": [],
-            "bm": [],  # market 권장이지만 필수 아님
-            "financial": ["bm"],  # bm 결과 필요
-            "risk": ["bm"],  # bm 결과 필요
-        }
-        
-        # 위상 정렬 (간단 버전)
-        order = []
-        remaining = set(required)
-        
-        while remaining:
-            # 의존성이 충족된 것 먼저
-            ready = [
-                agent for agent in remaining
-                if all(dep not in remaining or dep in order for dep in dependencies.get(agent, []))
-            ]
-            
-            if not ready:
-                # 순환 의존성 방지
-                ready = list(remaining)[:1]
-            
-            # 우선순위: market > bm > financial > risk
-            priority = ["market", "bm", "financial", "risk"]
-            ready.sort(key=lambda x: priority.index(x) if x in priority else 99)
-            
-            order.append(ready[0])
-            remaining.discard(ready[0])
-        
-        return order
+        """의존성 기반 실행 순서 결정 (Config 기반)"""
+        from agents.agent_config import resolve_execution_order
+        return resolve_execution_order(required)
     
     def _integrate_results(self, results: Dict[str, Any]) -> str:
         """전문 에이전트 결과를 마크다운으로 통합"""
