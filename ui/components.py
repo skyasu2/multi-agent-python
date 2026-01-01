@@ -10,16 +10,57 @@ from ui.dynamic_form import render_pydantic_form  # [NEW]
   # [NEW] HTML 컴포넌트용
 
 
-def render_mermaid(code: str, height: int = 400):
-    """Mermaid 다이어그램 렌더링"""
+def render_mermaid(code: str, height: int = 800, scale: float = 1.8):
+    """
+    Mermaid 다이어그램 렌더링 (사이드바 최적화)
+
+    Args:
+        code: Mermaid 다이어그램 코드
+        height: 렌더링 높이 (기본 800px)
+        scale: 확대 배율 (기본 1.8배, 좁은 사이드바 대응)
+    """
     components.html(
         f"""
-        <div class="mermaid">
-            {code}
+        <style>
+            .mermaid-container {{
+                overflow: auto;
+                padding: 10px;
+            }}
+            .mermaid {{
+                transform: scale({scale});
+                transform-origin: top left;
+            }}
+            .mermaid svg {{
+                max-width: none !important;
+            }}
+        </style>
+        <div class="mermaid-container">
+            <div class="mermaid">
+                {code}
+            </div>
         </div>
         <script type="module">
             import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-            mermaid.initialize({{ startOnLoad: true, theme: 'neutral' }});
+            mermaid.initialize({{
+                startOnLoad: true,
+                theme: 'neutral',
+                themeVariables: {{
+                    fontSize: '18px',
+                    fontFamily: 'Pretendard, -apple-system, sans-serif'
+                }},
+                flowchart: {{
+                    nodeSpacing: 80,
+                    rankSpacing: 100,
+                    padding: 20,
+                    htmlLabels: true,
+                    curve: 'basis'
+                }},
+                gantt: {{
+                    fontSize: 16,
+                    barHeight: 30,
+                    barGap: 8
+                }}
+            }});
         </script>
         """,
         height=height,
@@ -63,10 +104,10 @@ def render_markdown_with_mermaid(content: str):
             # 일반 마크다운 텍스트
             st.markdown(part)
         else:
-            # Mermaid 코드 블록 - 시각적 렌더링
+            # Mermaid 코드 블록 - 시각적 렌더링 (사이드바 최적화)
             st.markdown("---")
-            st.caption("📊 Mermaid 다이어그램")
-            render_mermaid(part.strip(), height=300)
+            st.caption("📊 Mermaid 다이어그램 (스크롤하여 전체 확인)")
+            render_mermaid(part.strip(), height=600, scale=1.5)
             st.markdown("---")
 
 
