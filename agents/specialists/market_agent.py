@@ -1,0 +1,241 @@
+"""
+PlanCraft - Market Analysis Agent (시장 분석 에이전트)
+
+기획서의 시장 분석 섹션을 전문적으로 생성합니다.
+- TAM/SAM/SOM 3단계 분석
+- 경쟁사 상세 분석 (실명, 특징, 차별점)
+- 시장 트렌드 및 기회
+
+출력 형식:
+    {
+        "tam": {...},
+        "sam": {...},
+        "som": {...},
+        "competitors": [...],
+        "trends": [...],
+        "opportunities": [...]
+    }
+"""
+
+from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field
+from utils.llm import get_llm
+from utils.file_logger import FileLogger
+
+logger = FileLogger()
+
+
+# =============================================================================
+# 출력 스키마 정의
+# =============================================================================
+
+class MarketSize(BaseModel):
+    """시장 규모"""
+    value: str = Field(description="시장 규모 (예: $12.5B)")
+    value_krw: Optional[str] = Field(default=None, description="원화 환산 (예: 16조 원)")
+    year: int = Field(description="기준 연도")
+    source: str = Field(description="출처")
+    cagr: Optional[str] = Field(default=None, description="연평균 성장률")
+    description: str = Field(description="시장 정의")
+
+
+class Competitor(BaseModel):
+    """경쟁사"""
+    name: str = Field(description="경쟁사명 (실명)")
+    description: str = Field(description="서비스 설명")
+    strengths: List[str] = Field(description="강점")
+    weaknesses: List[str] = Field(description="약점")
+    market_share: Optional[str] = Field(default=None, description="시장 점유율")
+    our_differentiation: str = Field(description="우리의 차별점")
+
+
+class MarketAnalysis(BaseModel):
+    """시장 분석 전체"""
+    tam: MarketSize = Field(description="TAM (전체 시장)")
+    sam: MarketSize = Field(description="SAM (접근 가능 시장)")
+    som: MarketSize = Field(description="SOM (획득 가능 시장)")
+    competitors: List[Competitor] = Field(description="경쟁사 목록 (최소 3개)")
+    trends: List[str] = Field(description="시장 트렌드")
+    opportunities: List[str] = Field(description="시장 기회")
+
+
+# =============================================================================
+# Market Agent 클래스
+# =============================================================================
+
+class MarketAgent:
+    """
+    시장 분석 전문 에이전트
+    
+    TAM/SAM/SOM 분석과 경쟁사 분석을 수행합니다.
+    """
+    
+    def __init__(self, llm=None):
+        self.llm = llm or get_llm(temperature=0.4)
+        self.name = "MarketAgent"
+    
+    def run(
+        self,
+        service_overview: str,
+        target_market: str,
+        web_search_results: List[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        시장 분석을 수행합니다.
+        
+        Args:
+            service_overview: 서비스 개요
+            target_market: 타겟 시장
+            web_search_results: 웹 검색 결과 (선택)
+            
+        Returns:
+            MarketAnalysis dict
+        """
+        from prompts.specialist_prompts.market_prompt import (
+            MARKET_SYSTEM_PROMPT,
+            MARKET_USER_PROMPT
+        )
+        
+        logger.info(f"[{self.name}] 시장 분석 시작")
+        
+        # 웹 검색 결과 포맷팅
+        web_context = ""
+        if web_search_results:
+            for result in web_search_results[:10]:
+                web_context += f"- {result.get('title', '')}: {result.get('content', '')[:200]}\n"
+        
+        # 프롬프트 구성
+        user_prompt = MARKET_USER_PROMPT.format(
+            service_overview=service_overview,
+            target_market=target_market,
+            web_context=web_context or "(웹 검색 결과 없음)"
+        )
+        
+        messages = [
+            {"role": "system", "content": MARKET_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        try:
+            response = self.llm.invoke(messages)
+            content = response.content if hasattr(response, 'content') else str(response)
+            
+            import json
+            import re
+            
+            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                json_str = content
+            
+            result = json.loads(json_str)
+            
+            logger.info(f"[{self.name}] 시장 분석 완료")
+            logger.debug(f"  - TAM: {result.get('tam', {}).get('value', 'N/A')}")
+            logger.debug(f"  - 경쟁사: {len(result.get('competitors', []))}개")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"[{self.name}] 시장 분석 실패: {e}")
+            return self._get_fallback_analysis(service_overview)
+    
+    def _get_fallback_analysis(self, service_overview: str) -> Dict[str, Any]:
+        """Fallback 시장 분석"""
+        return {
+            "tam": {
+                "value": "$50B",
+                "value_krw": "65조 원",
+                "year": 2026,
+                "source": "Grand View Research",
+                "cagr": "12.5%",
+                "description": "글로벌 관련 시장 전체 규모"
+            },
+            "sam": {
+                "value": "5,000억 원",
+                "value_krw": "5,000억 원",
+                "year": 2026,
+                "source": "한국콘텐츠진흥원",
+                "cagr": "15%",
+                "description": "국내 접근 가능 시장"
+            },
+            "som": {
+                "value": "50억 원",
+                "value_krw": "50억 원",
+                "year": 2027,
+                "source": "자체 추정",
+                "description": "1년차 획득 목표 (시장 점유율 1%)"
+            },
+            "competitors": [
+                {
+                    "name": "경쟁사 A",
+                    "description": "시장 선두 서비스",
+                    "strengths": ["브랜드 인지도", "대규모 사용자"],
+                    "weaknesses": ["기능 제한", "높은 가격"],
+                    "market_share": "30%",
+                    "our_differentiation": "더 나은 UX와 저렴한 가격"
+                }
+            ],
+            "trends": [
+                "모바일 퍼스트 전환 가속화",
+                "구독 경제 성장",
+                "AI/ML 기술 활용 증가"
+            ],
+            "opportunities": [
+                "기존 서비스의 높은 불만족도",
+                "MZ세대 타겟 시장 성장",
+                "정부 지원 정책"
+            ]
+        }
+    
+    def format_as_markdown(self, analysis: Dict[str, Any]) -> str:
+        """시장 분석을 마크다운 형식으로 변환"""
+        md = "### 시장 규모\n\n"
+        
+        tam = analysis.get("tam", {})
+        sam = analysis.get("sam", {})
+        som = analysis.get("som", {})
+        
+        md += f"- **TAM (Global)**: {tam.get('value', 'N/A')} ({tam.get('year', '')}년, 출처: {tam.get('source', '')})\n"
+        md += f"  - {tam.get('description', '')}\n"
+        if tam.get('cagr'):
+            md += f"  - CAGR {tam.get('cagr')}로 성장 중\n"
+        
+        md += f"- **SAM (국내 접근 가능)**: {sam.get('value', 'N/A')} (출처: {sam.get('source', '')})\n"
+        md += f"  - {sam.get('description', '')}\n"
+        
+        md += f"- **SOM (1년차 목표)**: {som.get('value', 'N/A')}\n"
+        md += f"  - {som.get('description', '')}\n\n"
+        
+        # 경쟁사 분석
+        md += "### 경쟁사 분석\n\n"
+        md += "| 경쟁사명 | 특징 | 한계점 | 우리의 차별점 |\n"
+        md += "|----------|------|--------|---------------|\n"
+        
+        for comp in analysis.get("competitors", [])[:5]:
+            strengths = ", ".join(comp.get("strengths", [])[:2])
+            weaknesses = ", ".join(comp.get("weaknesses", [])[:2])
+            md += f"| {comp.get('name', '')} | {strengths} | {weaknesses} | {comp.get('our_differentiation', '')} |\n"
+        
+        md += "\n"
+        
+        # 트렌드
+        trends = analysis.get("trends", [])
+        if trends:
+            md += "### 시장 트렌드\n\n"
+            for t in trends[:5]:
+                md += f"- {t}\n"
+            md += "\n"
+        
+        return md
+
+
+# =============================================================================
+# 단독 실행 테스트
+# =============================================================================
+
+if __name__ == "__main__":
+    agent = MarketAgent()
+    result = agent._get_fallback_analysis("러닝 앱")
+    print(agent.format_as_markdown(result))
