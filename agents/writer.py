@@ -136,6 +136,85 @@ Action Items (실행 지침):
         logger.error(f"[Writer] 웹 검색 중 오류 발생: {str(e)}")
     # =========================================================================
 
+    # =========================================================================
+    # [NEW] 전문 에이전트 분석 (Multi-Agent Supervisor)
+    # =========================================================================
+    # 
+    # 4개의 전문 에이전트가 병렬로 분석을 수행합니다:
+    # - MarketAgent: TAM/SAM/SOM 3단계, 경쟁사 실명 분석
+    # - BMAgent: 수익 모델 다각화, 가격 전략
+    # - FinancialAgent: 재무 시뮬레이션, BEP 계산
+    # - RiskAgent: 8가지 리스크 카테고리
+    #
+    specialist_context = ""
+    use_specialist_agents = state.get("use_specialist_agents", True)  # 기본 활성화
+    
+    if use_specialist_agents and refine_count == 0:  # 첫 작성 시에만 실행 (Refine 시 스킵)
+        try:
+            from agents.supervisor import PlanSupervisor
+            
+            logger.info("[Writer] 🤖 전문 에이전트 분석 시작 (Supervisor)...")
+            
+            # 분석 데이터 추출
+            analysis_dict = state.get("analysis", {})
+            if hasattr(analysis_dict, "model_dump"):
+                analysis_dict = analysis_dict.model_dump()
+            elif not isinstance(analysis_dict, dict):
+                analysis_dict = {}
+            
+            target_market = analysis_dict.get("target_market", "일반 시장")
+            target_users = analysis_dict.get("target_user", "일반 사용자")
+            tech_stack = analysis_dict.get("tech_stack", "React Native + Node.js + PostgreSQL")
+            
+            # 웹 검색 결과를 리스트 형태로 변환
+            web_search_list = []
+            if web_context:
+                # 간단한 파싱 (실제 검색 결과 형태에 맞게 조정)
+                for line in web_context.split("\n"):
+                    if line.strip():
+                        web_search_list.append({"title": "", "content": line[:500]})
+            
+            # Supervisor 실행 (병렬 모드)
+            supervisor = PlanSupervisor(parallel=True)
+            specialist_results = supervisor.run(
+                service_overview=user_input,
+                target_market=target_market,
+                target_users=target_users,
+                tech_stack=tech_stack,
+                development_scope="MVP 3개월",
+                web_search_results=web_search_list
+            )
+            
+            # 통합된 마크다운 컨텍스트 추출
+            specialist_context = specialist_results.get("integrated_context", "")
+            
+            if specialist_context:
+                logger.info("[Writer] ✓ 전문 에이전트 분석 완료!")
+                logger.info(f"  - 시장 분석: {bool(specialist_results.get('market_analysis'))}")
+                logger.info(f"  - BM 분석: {bool(specialist_results.get('business_model'))}")
+                logger.info(f"  - 재무 계획: {bool(specialist_results.get('financial_plan'))}")
+                logger.info(f"  - 리스크 분석: {bool(specialist_results.get('risk_analysis'))}")
+            
+            # 상태에 저장 (Refine 시 재사용)
+            state = update_state(state, specialist_analysis=specialist_results)
+            
+        except ImportError as e:
+            logger.warning(f"[Writer] Supervisor 모듈 로드 실패 (건너뜀): {e}")
+        except Exception as e:
+            logger.error(f"[Writer] 전문 에이전트 분석 중 오류 (건너뜀): {e}")
+    
+    elif refine_count > 0:
+        # Refine 모드에서는 이전 분석 결과 재사용
+        previous_specialist = state.get("specialist_analysis")
+        if previous_specialist:
+            from agents.supervisor import PlanSupervisor
+            supervisor = PlanSupervisor()
+            specialist_context = supervisor._integrate_results(previous_specialist)
+            logger.info("[Writer] 이전 전문 에이전트 분석 결과 재사용")
+    # =========================================================================
+
+
+
 
     # 2. 프롬프트 구성 (시간 컨텍스트 주입)
     structure_str = str(structure)
@@ -156,6 +235,29 @@ Action Items (실행 지침):
     except KeyError as e:
         logger.error(f"[ERROR] Prompt Formatting Failed: {e}")
         return update_state(state, error=f"프롬프트 포맷 오류: {str(e)}")
+
+    # =========================================================================
+    # [NEW] 전문 에이전트 분석 결과 주입
+    # =========================================================================
+    if specialist_context:
+        specialist_prompt = f"""
+
+=====================================================================
+🤖 전문 에이전트 분석 결과 (자동 생성됨 - 반드시 활용할 것!)
+=====================================================================
+⚠️ 아래 내용은 4개의 전문 AI 에이전트가 분석한 결과입니다.
+⚠️ 시장 규모, 경쟁사, 재무 계획, 리스크는 이 내용을 기반으로 작성하세요!
+⚠️ TAM/SAM/SOM, BEP, 리스크 테이블은 아래 데이터를 그대로 활용하세요!
+=====================================================================
+
+{specialist_context}
+
+=====================================================================
+"""
+        formatted_prompt = specialist_prompt + formatted_prompt
+        logger.info("[Writer] 전문 에이전트 분석 결과가 프롬프트에 주입되었습니다.")
+    # =========================================================================
+
 
     # [NEW] Refinement Strategy (Writer에게 전달된 전략적 수정 지침)
     refinement_guideline = state.get("refinement_guideline")

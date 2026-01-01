@@ -116,6 +116,136 @@ def render_progress_steps(current_step: str = None):
         )
 
 
+def render_specialist_agents_status(specialist_analysis: dict = None, is_running: bool = False):
+    """
+    전문 에이전트 분석 상태 표시
+    
+    Multi-Agent Supervisor의 4개 전문 에이전트 진행/완료 상태를 시각화합니다.
+    
+    Args:
+        specialist_analysis: 전문 에이전트 분석 결과 (dict)
+        is_running: 현재 분석 중인지 여부
+    """
+    agents = [
+        {"key": "market_analysis", "name": "시장 분석", "icon": "📊", "desc": "TAM/SAM/SOM, 경쟁사"},
+        {"key": "business_model", "name": "비즈니스 모델", "icon": "💰", "desc": "수익 모델, 가격 전략"},
+        {"key": "financial_plan", "name": "재무 계획", "icon": "📈", "desc": "투자비, BEP, 손익"},
+        {"key": "risk_analysis", "name": "리스크", "icon": "⚠️", "desc": "8가지 리스크 분석"},
+    ]
+    
+    if is_running:
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+        ">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.5rem;">🤖</span>
+                <div>
+                    <strong>전문 에이전트 분석 중...</strong>
+                    <p style="margin: 4px 0 0 0; font-size: 0.85rem; opacity: 0.9;">
+                        4개의 전문 AI 에이전트가 병렬로 분석을 수행하고 있습니다
+                    </p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 진행 중 애니메이션
+        cols = st.columns(4)
+        for i, agent in enumerate(agents):
+            with cols[i]:
+                st.markdown(f"""
+                <div style="
+                    text-align: center;
+                    padding: 12px 8px;
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                    border: 2px dashed #667eea;
+                ">
+                    <div style="font-size: 1.5rem;">{agent['icon']}</div>
+                    <div style="font-size: 0.8rem; font-weight: bold; margin: 4px 0;">{agent['name']}</div>
+                    <div style="font-size: 0.7rem; color: #666;">⏳ 분석 중...</div>
+                </div>
+                """, unsafe_allow_html=True)
+        return
+    
+    if not specialist_analysis:
+        return
+    
+    # 분석 완료 상태 표시
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+        padding: 16px;
+        border-radius: 12px;
+        margin-bottom: 16px;
+    ">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.5rem;">✅</span>
+            <div>
+                <strong>전문 에이전트 분석 완료!</strong>
+                <p style="margin: 4px 0 0 0; font-size: 0.85rem; opacity: 0.9;">
+                    아래 분석 결과가 기획서 작성에 자동 반영됩니다
+                </p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 완료된 에이전트 결과 표시
+    cols = st.columns(4)
+    for i, agent in enumerate(agents):
+        result = specialist_analysis.get(agent["key"])
+        is_done = result is not None
+        
+        with cols[i]:
+            if is_done:
+                st.markdown(f"""
+                <div style="
+                    text-align: center;
+                    padding: 12px 8px;
+                    background: #e8f5e9;
+                    border-radius: 8px;
+                    border: 2px solid #4caf50;
+                ">
+                    <div style="font-size: 1.5rem;">{agent['icon']}</div>
+                    <div style="font-size: 0.8rem; font-weight: bold; margin: 4px 0; color: #2e7d32;">{agent['name']}</div>
+                    <div style="font-size: 0.7rem; color: #4caf50;">✓ 완료</div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div style="
+                    text-align: center;
+                    padding: 12px 8px;
+                    background: #ffebee;
+                    border-radius: 8px;
+                    border: 2px solid #ef5350;
+                ">
+                    <div style="font-size: 1.5rem;">{agent['icon']}</div>
+                    <div style="font-size: 0.8rem; font-weight: bold; margin: 4px 0; color: #c62828;">{agent['name']}</div>
+                    <div style="font-size: 0.7rem; color: #ef5350;">✗ 미완료</div>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    # 상세 결과 Expander
+    with st.expander("🔍 전문 에이전트 분석 상세 결과", expanded=False):
+        tabs = st.tabs([f"{a['icon']} {a['name']}" for a in agents])
+        
+        for i, (tab, agent) in enumerate(zip(tabs, agents)):
+            with tab:
+                result = specialist_analysis.get(agent["key"])
+                if result:
+                    st.json(result)
+                else:
+                    st.info("분석 결과 없음")
+
+
 def render_timeline(step_history: list):
     """LangGraph 실행 이력 타임라인 렌더링"""
     if not step_history:

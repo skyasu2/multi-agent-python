@@ -188,6 +188,11 @@ class PlanCraftState(TypedDict, total=False):
     last_resume_value: Optional[dict]  # 마지막 resume 응답값 (선택/입력 내용)
     last_human_event: Optional[dict]  # 마지막 HITL 이벤트 전체 정보
 
+    # [NEW] Multi-Agent 분석 결과 (전문 에이전트 출력)
+    specialist_analysis: Optional[dict]  # {market_analysis, business_model, financial_plan, risk_analysis}
+    use_specialist_agents: bool  # 전문 에이전트 사용 여부 (기본 True)
+
+
 
 # =============================================================================
 # Helper Functions (Replacing Pydantic methods)
