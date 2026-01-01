@@ -833,6 +833,31 @@ def option_pause_node(state: PlanCraftState) -> Command[Literal["analyze"]]:
     Return Type: Command[Literal["analyze"]]
     - 사용자 응답 후 항상 analyze 노드로 이동
 
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    [LangGraph HITL Best Practice - 팀/후임자 필독]
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    1️⃣ interrupt 호출 순서/갯수 절대 고정
+       - 이 노드의 interrupt() 호출 순서와 갯수는 절대 변경 금지
+       - Resume 시 value는 호출 순서(0-base index)로 매칭됨
+       - 동적으로 interrupt 갯수/순서 변경 시 Resume Mismatch 발생!
+
+    2️⃣ Side-Effect는 interrupt() 이후에만
+       - interrupt() 이전: 순수 로직만 (payload 생성, 조건 검사)
+       - interrupt() 이후: Side-Effect 허용 (DB 저장, API 호출, 상태 변경)
+       - 이유: Resume 시 interrupt() 이전 코드가 재실행됨
+
+    3️⃣ Multi-Interrupt 사용 시 주의
+       - 단일 노드 내 여러 interrupt() 호출 가능 (예: 유효성 검사 루프)
+       - Resume values는 List[Any]로 전달되며, 호출 순서대로 인덱싱
+       - 예: [interrupt_1_response, interrupt_2_response, ...]
+
+    4️⃣ Subgraph 내 interrupt 시
+       - 부모 노드/Subgraph 전체가 Resume 시 재실행될 수 있음
+       - docs/HITL_GUIDE.md 참조
+
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
     ⚠️ CRITICAL: Resume 시 이 노드는 처음부터 다시 실행됩니다!
     - interrupt() 호출 이전의 모든 코드가 Resume 시 재실행됨
     - Side-Effect(DB 저장, API 호출, 알림 발송)는 반드시 interrupt() 이후에 배치
