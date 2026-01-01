@@ -44,3 +44,6 @@ tests/test_mock_agents_manual.py
 
 # 기획서 원본 (배포 금지)
 기획서/
+
+# 프로젝트 발표 자료 (GitHub 미공개)
+PROJECT_PRESENTATION.md
