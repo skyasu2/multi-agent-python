@@ -1,290 +1,337 @@
 """
-PlanCraft - Plan Supervisor (오케스트레이터)
+PlanCraft - LangGraph 네이티브 Supervisor (개선된 버전)
 
-Multi-Agent 아키텍처의 핵심 컴포넌트입니다.
-전문 에이전트들의 실행을 조율하고 결과를 통합합니다.
+베스트 프랙티스 적용:
+1. Tool 기반 Handoff 패턴
+2. 동적 라우팅 (LLM이 필요한 에이전트 결정)
+3. create_react_agent 활용
+4. 명시적 상태 관리
 
-워크플로우:
-    1. 사용자 요청 분석
-    2. 필요한 전문 에이전트 결정
-    3. 전문 에이전트 병렬/순차 실행
-    4. 결과 통합 및 Writer에게 전달
+아키텍처:
+    User Input
+        ↓
+    Supervisor (Router)
+        ↓ (동적 결정)
+    ┌───┴───┬───────┬───────┐
+    ↓       ↓       ↓       ↓
+  Market   BM   Financial  Risk
+    ↓       ↓       ↓       ↓
+    └───────┴───┬───┴───────┘
+                ↓
+    Result Integration
+        ↓
+    Writer Context
 """
 
-from typing import Dict, Any, List, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, Any, List, Optional, Literal
 from pydantic import BaseModel, Field
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from utils.llm import get_llm
 from utils.file_logger import FileLogger
-
-# 전문 에이전트 임포트
-from agents.specialists.market_agent import MarketAgent
-from agents.specialists.bm_agent import BMAgent
-from agents.specialists.financial_agent import FinancialAgent
-from agents.specialists.risk_agent import RiskAgent
+from agents.specialist_tools import (
+    get_specialist_tools,
+    get_tool_descriptions_for_llm,
+    analyze_market,
+    analyze_business_model,
+    analyze_financials,
+    analyze_risks,
+)
 
 logger = FileLogger()
 
 
 # =============================================================================
-# Supervisor State
+# Router Decision Schema
 # =============================================================================
 
-class SupervisorState(BaseModel):
-    """Supervisor 상태"""
-    service_overview: str = Field(description="서비스 개요")
-    target_market: str = Field(default="", description="타겟 시장")
-    target_users: str = Field(default="", description="타겟 사용자")
-    tech_stack: str = Field(default="", description="기술 스택")
-    development_scope: str = Field(default="MVP 3개월", description="개발 범위")
-    web_search_results: List[Dict[str, Any]] = Field(default_factory=list)
-    
-    # 에이전트 출력
-    market_analysis: Optional[Dict[str, Any]] = None
-    business_model: Optional[Dict[str, Any]] = None
-    financial_plan: Optional[Dict[str, Any]] = None
-    risk_analysis: Optional[Dict[str, Any]] = None
-    
-    # 통합 결과
-    integrated_context: Optional[str] = None
+class RoutingDecision(BaseModel):
+    """Supervisor 라우팅 결정"""
+    required_analyses: List[Literal["market", "bm", "financial", "risk"]] = Field(
+        description="필요한 분석 유형 목록"
+    )
+    reasoning: str = Field(
+        description="라우팅 결정 이유"
+    )
+    priority_order: List[str] = Field(
+        default_factory=list,
+        description="실행 우선순위 (의존성 고려)"
+    )
 
 
 # =============================================================================
-# Plan Supervisor
+# LangGraph Native Supervisor
 # =============================================================================
 
-class PlanSupervisor:
+class NativeSupervisor:
     """
-    기획서 생성 오케스트레이터
+    LangGraph 네이티브 Supervisor
     
-    전문 에이전트들을 조율하여 고품질 기획서 컨텍스트를 생성합니다.
+    Tool 기반 Handoff + 동적 라우팅 구현
     """
     
-    def __init__(self, llm=None, parallel: bool = True):
+    ROUTER_SYSTEM_PROMPT = """당신은 기획서 분석 작업을 조율하는 Supervisor입니다.
+
+사용자의 서비스 아이디어를 분석하여, 어떤 전문 분석이 필요한지 결정하세요.
+
+## 사용 가능한 분석 유형
+
+1. **market**: 시장 규모 분석 (TAM/SAM/SOM, 경쟁사)
+   - 필요 시점: 시장 규모 언급, 경쟁사 분석 요청, 트렌드 분석 필요
+
+2. **bm**: 비즈니스 모델 분석 (수익 모델, 가격 전략)
+   - 필요 시점: 수익화 방법, 가격 정책, B2B/B2C 구분 필요
+
+3. **financial**: 재무 계획 (투자비, BEP, 손익)
+   - 필요 시점: 비용 추정, 매출 예측, 손익분기점 계산 필요
+
+4. **risk**: 리스크 분석 (8가지 카테고리)
+   - 필요 시점: 위험 요소 식별, 대응 전략 수립 필요
+
+## 의존성 규칙
+
+- `bm`은 `market` 결과를 참조할 수 있음 (경쟁사 정보)
+- `financial`은 `bm` 결과를 참조함 (수익 모델)
+- `risk`는 `bm` 결과를 참조함 (비즈니스 리스크)
+
+## 판단 기준
+
+1. **최소 분석 원칙**: 필요한 것만 선택 (불필요한 분석 배제)
+2. **의존성 고려**: 선행 분석이 필요하면 함께 선택
+3. **완전성**: 기획서에 필수인 항목은 반드시 포함
+
+## 기본 규칙
+
+- 기획서 작성이 목적이면: 보통 4개 모두 필요
+- 간단한 아이디어 검증이면: market + bm만 필요
+- 투자 유치용이면: 4개 모두 + financial 강조
+"""
+
+    def __init__(self, llm=None):
+        self.llm = llm or get_llm(temperature=0.3)
+        self.router_llm = self.llm.with_structured_output(RoutingDecision)
+        
+        # 전문 에이전트 (기존 방식 유지 - Tool 래핑)
+        from agents.specialists.market_agent import MarketAgent
+        from agents.specialists.bm_agent import BMAgent
+        from agents.specialists.financial_agent import FinancialAgent
+        from agents.specialists.risk_agent import RiskAgent
+        
+        self.agents = {
+            "market": MarketAgent(llm=self.llm),
+            "bm": BMAgent(llm=self.llm),
+            "financial": FinancialAgent(llm=self.llm),
+            "risk": RiskAgent(llm=self.llm),
+        }
+        
+        logger.info("[NativeSupervisor] 초기화 완료")
+    
+    def decide_required_agents(
+        self,
+        service_overview: str,
+        purpose: str = "기획서 작성"
+    ) -> RoutingDecision:
         """
+        동적 라우팅: 필요한 에이전트 결정
+        
         Args:
-            llm: LLM 인스턴스 (선택)
-            parallel: 에이전트 병렬 실행 여부 (기본 True)
+            service_overview: 서비스 개요
+            purpose: 분석 목적
+            
+        Returns:
+            RoutingDecision: 필요한 분석 목록
         """
-        self.llm = llm or get_llm()
-        self.parallel = parallel
+        logger.info("[NativeSupervisor] 🧭 라우팅 결정 시작...")
         
-        # 전문 에이전트 초기화
-        self.market_agent = MarketAgent(llm=self.llm)
-        self.bm_agent = BMAgent(llm=self.llm)
-        self.financial_agent = FinancialAgent(llm=self.llm)
-        self.risk_agent = RiskAgent(llm=self.llm)
+        messages = [
+            SystemMessage(content=self.ROUTER_SYSTEM_PROMPT),
+            HumanMessage(content=f"""## 서비스 개요
+{service_overview}
+
+## 분석 목적
+{purpose}
+
+위 내용을 바탕으로 어떤 분석이 필요한지 결정하세요.
+""")
+        ]
         
-        logger.info("[Supervisor] 초기화 완료")
+        try:
+            decision = self.router_llm.invoke(messages)
+            logger.info(f"[NativeSupervisor] 라우팅 결정: {decision.required_analyses}")
+            logger.info(f"[NativeSupervisor] 결정 이유: {decision.reasoning}")
+            return decision
+        except Exception as e:
+            logger.error(f"[NativeSupervisor] 라우팅 실패, 전체 분석 수행: {e}")
+            return RoutingDecision(
+                required_analyses=["market", "bm", "financial", "risk"],
+                reasoning="라우팅 실패로 전체 분석 수행",
+                priority_order=["market", "bm", "financial", "risk"]
+            )
     
     def run(
         self,
         service_overview: str,
         target_market: str = "",
         target_users: str = "",
-        tech_stack: str = "React Native + Node.js + PostgreSQL",
+        tech_stack: str = "React Native + Node.js",
         development_scope: str = "MVP 3개월",
-        web_search_results: List[Dict[str, Any]] = None
+        web_search_results: List[Dict[str, Any]] = None,
+        purpose: str = "기획서 작성",
+        force_all: bool = False
     ) -> Dict[str, Any]:
         """
-        전문 에이전트들을 실행하고 결과를 통합합니다.
+        전문 에이전트 실행 (동적 라우팅)
         
         Args:
-            service_overview: 서비스 개요
-            target_market: 타겟 시장
-            target_users: 타겟 사용자
-            tech_stack: 기술 스택
-            development_scope: 개발 범위
-            web_search_results: 웹 검색 결과
-            
-        Returns:
-            통합된 전문 분석 결과
+            force_all: True면 모든 에이전트 강제 실행
         """
         logger.info("=" * 60)
-        logger.info("[Supervisor] 전문 에이전트 오케스트레이션 시작")
+        logger.info("[NativeSupervisor] 전문 에이전트 오케스트레이션 시작")
         logger.info(f"  서비스: {service_overview[:50]}...")
-        logger.info(f"  병렬 실행: {self.parallel}")
         logger.info("=" * 60)
         
         results = {}
         
-        if self.parallel:
-            results = self._run_parallel(
-                service_overview, target_market, target_users,
-                tech_stack, development_scope, web_search_results
-            )
+        # 1. 동적 라우팅 (필요한 에이전트 결정)
+        if force_all:
+            required = ["market", "bm", "financial", "risk"]
+            reasoning = "강제 전체 분석"
         else:
-            results = self._run_sequential(
-                service_overview, target_market, target_users,
-                tech_stack, development_scope, web_search_results
-            )
+            decision = self.decide_required_agents(service_overview, purpose)
+            required = decision.required_analyses
+            reasoning = decision.reasoning
         
-        # 결과 통합
-        integrated = self._integrate_results(results)
-        results["integrated_context"] = integrated
+        results["_routing"] = {
+            "required_analyses": required,
+            "reasoning": reasoning
+        }
         
-        logger.info("[Supervisor] 오케스트레이션 완료")
+        # 2. 의존성 기반 실행 순서 결정
+        execution_order = self._resolve_dependencies(required)
+        logger.info(f"[NativeSupervisor] 실행 순서: {execution_order}")
+        
+        # 3. 순차 실행 (의존성 있는 경우)
+        for agent_type in execution_order:
+            if agent_type == "market":
+                logger.info("[NativeSupervisor] 📊 Market Agent 실행...")
+                results["market_analysis"] = self.agents["market"].run(
+                    service_overview=service_overview,
+                    target_market=target_market,
+                    web_search_results=web_search_results
+                )
+                logger.info("[NativeSupervisor] ✓ Market Agent 완료")
+                
+            elif agent_type == "bm":
+                logger.info("[NativeSupervisor] 💰 BM Agent 실행...")
+                competitors = results.get("market_analysis", {}).get("competitors", [])
+                results["business_model"] = self.agents["bm"].run(
+                    service_overview=service_overview,
+                    target_users=target_users,
+                    competitors=competitors
+                )
+                logger.info("[NativeSupervisor] ✓ BM Agent 완료")
+                
+            elif agent_type == "financial":
+                logger.info("[NativeSupervisor] 📈 Financial Agent 실행...")
+                bm = results.get("business_model", {})
+                market = results.get("market_analysis", {})
+                results["financial_plan"] = self.agents["financial"].run(
+                    service_overview=service_overview,
+                    business_model=bm,
+                    market_analysis=market,
+                    development_scope=development_scope
+                )
+                logger.info("[NativeSupervisor] ✓ Financial Agent 완료")
+                
+            elif agent_type == "risk":
+                logger.info("[NativeSupervisor] ⚠️ Risk Agent 실행...")
+                bm = results.get("business_model", {})
+                results["risk_analysis"] = self.agents["risk"].run(
+                    service_overview=service_overview,
+                    business_model=bm,
+                    tech_stack=tech_stack
+                )
+                logger.info("[NativeSupervisor] ✓ Risk Agent 완료")
+        
+        # 4. 결과 통합
+        results["integrated_context"] = self._integrate_results(results)
+        
+        logger.info("[NativeSupervisor] 오케스트레이션 완료")
         return results
     
-    def _run_parallel(
-        self,
-        service_overview: str,
-        target_market: str,
-        target_users: str,
-        tech_stack: str,
-        development_scope: str,
-        web_search_results: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """에이전트 병렬 실행"""
-        results = {}
+    def _resolve_dependencies(self, required: List[str]) -> List[str]:
+        """의존성 기반 실행 순서 결정"""
+        # 의존성 그래프
+        dependencies = {
+            "market": [],
+            "bm": [],  # market 권장이지만 필수 아님
+            "financial": ["bm"],  # bm 결과 필요
+            "risk": ["bm"],  # bm 결과 필요
+        }
         
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {}
-            
-            # 1단계: Market + BM 먼저 (Financial, Risk에 필요)
-            futures["market"] = executor.submit(
-                self.market_agent.run,
-                service_overview,
-                target_market,
-                web_search_results
-            )
-            
-            # Market 결과 대기 후 나머지 실행
-            market_result = futures["market"].result()
-            results["market_analysis"] = market_result
-            logger.info("[Supervisor] ✓ Market Agent 완료")
-            
-            # 2단계: BM, Financial, Risk 병렬
-            competitors = market_result.get("competitors", [])
-            
-            futures["bm"] = executor.submit(
-                self.bm_agent.run,
-                service_overview,
-                target_users,
-                competitors
-            )
-            
-            # BM 결과 대기
-            bm_result = futures["bm"].result()
-            results["business_model"] = bm_result
-            logger.info("[Supervisor] ✓ BM Agent 완료")
-            
-            # Financial과 Risk는 BM 결과 필요
-            futures["financial"] = executor.submit(
-                self.financial_agent.run,
-                service_overview,
-                bm_result,
-                market_result,
-                development_scope
-            )
-            
-            futures["risk"] = executor.submit(
-                self.risk_agent.run,
-                service_overview,
-                bm_result,
-                tech_stack
-            )
-            
-            # 결과 수집
-            results["financial_plan"] = futures["financial"].result()
-            logger.info("[Supervisor] ✓ Financial Agent 완료")
-            
-            results["risk_analysis"] = futures["risk"].result()
-            logger.info("[Supervisor] ✓ Risk Agent 완료")
+        # 위상 정렬 (간단 버전)
+        order = []
+        remaining = set(required)
         
-        return results
-    
-    def _run_sequential(
-        self,
-        service_overview: str,
-        target_market: str,
-        target_users: str,
-        tech_stack: str,
-        development_scope: str,
-        web_search_results: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """에이전트 순차 실행 (디버깅용)"""
-        results = {}
+        while remaining:
+            # 의존성이 충족된 것 먼저
+            ready = [
+                agent for agent in remaining
+                if all(dep not in remaining or dep in order for dep in dependencies.get(agent, []))
+            ]
+            
+            if not ready:
+                # 순환 의존성 방지
+                ready = list(remaining)[:1]
+            
+            # 우선순위: market > bm > financial > risk
+            priority = ["market", "bm", "financial", "risk"]
+            ready.sort(key=lambda x: priority.index(x) if x in priority else 99)
+            
+            order.append(ready[0])
+            remaining.discard(ready[0])
         
-        # 1. Market Agent
-        logger.info("[Supervisor] Market Agent 실행...")
-        results["market_analysis"] = self.market_agent.run(
-            service_overview, target_market, web_search_results
-        )
-        logger.info("[Supervisor] ✓ Market Agent 완료")
-        
-        # 2. BM Agent
-        logger.info("[Supervisor] BM Agent 실행...")
-        competitors = results["market_analysis"].get("competitors", [])
-        results["business_model"] = self.bm_agent.run(
-            service_overview, target_users, competitors
-        )
-        logger.info("[Supervisor] ✓ BM Agent 완료")
-        
-        # 3. Financial Agent
-        logger.info("[Supervisor] Financial Agent 실행...")
-        results["financial_plan"] = self.financial_agent.run(
-            service_overview,
-            results["business_model"],
-            results["market_analysis"],
-            development_scope
-        )
-        logger.info("[Supervisor] ✓ Financial Agent 완료")
-        
-        # 4. Risk Agent
-        logger.info("[Supervisor] Risk Agent 실행...")
-        results["risk_analysis"] = self.risk_agent.run(
-            service_overview,
-            results["business_model"],
-            tech_stack
-        )
-        logger.info("[Supervisor] ✓ Risk Agent 완료")
-        
-        return results
+        return order
     
     def _integrate_results(self, results: Dict[str, Any]) -> str:
-        """
-        전문 에이전트 결과를 통합하여 Writer용 컨텍스트 생성
-        """
+        """전문 에이전트 결과를 마크다운으로 통합"""
         integrated = "## 전문 에이전트 분석 결과\n\n"
         
-        # Market Analysis
+        routing = results.get("_routing", {})
+        if routing:
+            integrated += f"**분석 범위**: {', '.join(routing.get('required_analyses', []))}\n"
+            integrated += f"**결정 근거**: {routing.get('reasoning', '')}\n\n"
+        
         if results.get("market_analysis"):
             integrated += "### 📊 시장 분석 (Market Agent)\n\n"
-            integrated += self.market_agent.format_as_markdown(results["market_analysis"])
+            integrated += self.agents["market"].format_as_markdown(results["market_analysis"])
             integrated += "\n"
         
-        # Business Model
         if results.get("business_model"):
             integrated += "### 💰 비즈니스 모델 (BM Agent)\n\n"
-            integrated += self.bm_agent.format_as_markdown(results["business_model"])
+            integrated += self.agents["bm"].format_as_markdown(results["business_model"])
             integrated += "\n"
         
-        # Financial Plan
         if results.get("financial_plan"):
             integrated += "### 📈 재무 계획 (Financial Agent)\n\n"
-            integrated += self.financial_agent.format_as_markdown(results["financial_plan"])
+            integrated += self.agents["financial"].format_as_markdown(results["financial_plan"])
             integrated += "\n"
         
-        # Risk Analysis
         if results.get("risk_analysis"):
             integrated += "### ⚠️ 리스크 분석 (Risk Agent)\n\n"
-            integrated += self.risk_agent.format_as_markdown(results["risk_analysis"])
+            integrated += self.agents["risk"].format_as_markdown(results["risk_analysis"])
             integrated += "\n"
         
         return integrated
-    
-    def get_agent_markdown(self, agent_name: str, results: Dict[str, Any]) -> str:
-        """특정 에이전트 결과를 마크다운으로 반환"""
-        if agent_name == "market" and results.get("market_analysis"):
-            return self.market_agent.format_as_markdown(results["market_analysis"])
-        elif agent_name == "bm" and results.get("business_model"):
-            return self.bm_agent.format_as_markdown(results["business_model"])
-        elif agent_name == "financial" and results.get("financial_plan"):
-            return self.financial_agent.format_as_markdown(results["financial_plan"])
-        elif agent_name == "risk" and results.get("risk_analysis"):
-            return self.risk_agent.format_as_markdown(results["risk_analysis"])
-        return ""
+
+
+# =============================================================================
+# 기존 PlanSupervisor 대체
+# =============================================================================
+
+# 하위 호환성을 위해 alias 제공
+PlanSupervisor = NativeSupervisor
 
 
 # =============================================================================
@@ -292,17 +339,12 @@ class PlanSupervisor:
 # =============================================================================
 
 if __name__ == "__main__":
-    supervisor = PlanSupervisor(parallel=False)
+    supervisor = NativeSupervisor()
     
-    results = supervisor.run(
-        service_overview="위치 기반 소셜 러닝 앱. 가까운 러닝 크루를 검색하고 함께 달릴 수 있는 서비스.",
-        target_market="피트니스 앱 시장",
-        target_users="20-40대 도시 거주 러닝 애호가",
-        tech_stack="React Native + Node.js + PostgreSQL + AWS",
-        development_scope="MVP 3개월"
+    # 동적 라우팅 테스트
+    decision = supervisor.decide_required_agents(
+        service_overview="위치 기반 소셜 러닝 앱",
+        purpose="투자 유치용 기획서"
     )
-    
-    print("\n" + "=" * 60)
-    print("통합 결과:")
-    print("=" * 60)
-    print(results.get("integrated_context", ""))
+    print(f"필요한 분석: {decision.required_analyses}")
+    print(f"이유: {decision.reasoning}")
