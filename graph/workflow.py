@@ -801,6 +801,11 @@ def option_pause_node(state: PlanCraftState) -> Command:
     """
     휴먼 인터럽트 처리 노드 (LangGraph 공식 Best Practice 적용)
 
+    ⚠️ CRITICAL: Resume 시 이 노드는 처음부터 다시 실행됩니다!
+    - interrupt() 호출 이전의 모든 코드가 Resume 시 재실행됨
+    - Side-Effect(DB 저장, API 호출, 알림 발송)는 반드시 interrupt() 이후에 배치
+    - LLM 호출, 외부 API 호출은 interrupt() 전에 절대 금지
+
     LangGraph Human Interrupt 필수 요소:
     1. interrupt() 함수로 Pause
     2. Command(resume=...) 로 Resume
@@ -820,10 +825,6 @@ def option_pause_node(state: PlanCraftState) -> Command:
         "data": {"user_input": "..."}
     }
     ```
-
-    주의사항:
-    - interrupt 전에 외부 API 호출, DB 쓰기 금지 (Resume 시 중복 실행됨)
-    - interrupt 이후에 side effect 배치
     """
     from graph.interrupt_utils import create_option_interrupt, handle_user_response
     from graph.state import update_state

@@ -498,7 +498,15 @@ Action Items (실행 지침):
             current_try += 1
             last_error = str(e)
             
-    # 최종 결과 처리
+    # =========================================================================
+    # 최종 결과 처리 (Fallback 전략)
+    # =========================================================================
+    #
+    # 설계 원칙: "Workflow Deadlock 방지"
+    # - MAX_RETRIES 초과 시에도 부분 결과가 있으면 워크플로우를 진행
+    # - 무한 재시도 방지 및 사용자 경험 보장 (과제 환경에서 무한 대기 방지)
+    # - Reviewer/Refiner 단계에서 추가 개선 기회 제공
+    #
     if final_draft_dict:
         return update_state(
             state,
@@ -506,7 +514,7 @@ Action Items (실행 지침):
             current_step="write"
         )
     elif last_draft_dict:
-        # 재시도 실패했지만 부분 결과가 있으면 일단 사용 (Fallback)
+        # [Fallback] 재시도 실패 시 부분 결과로 진행 (Workflow Continuity 보장)
         logger.warning(f"[Writer] ⚠️ 최소 섹션 미달이지만 부분 결과 사용 ({len(last_draft_dict.get('sections', []))}개 섹션)")
         return update_state(
             state,
@@ -514,7 +522,7 @@ Action Items (실행 지침):
             current_step="write"
         )
     else:
-        # 완전 실패
+        # 완전 실패: 복구 불가능한 경우에만 에러 반환
         error_msg = f"Writer 작성 실패 (최대 재시도 초과): {last_error}"
         return update_state(state, error=error_msg)
 

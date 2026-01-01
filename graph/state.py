@@ -175,15 +175,22 @@ class PlanCraftState(TypedDict, total=False):
     # 실제 카운터는 workflow.py의 should_refine_again()에서 refine_count로 관리
     remaining_steps: int
 
-    # Interrupt & Routing (Human-in-the-loop)
+    # ========== Interrupt & Routing (Human-in-the-loop) ==========
+    #
+    # interrupt_id / event_id 메타 필드의 설계 의도:
+    # 1. Resume Mismatch 방지: 동일한 interrupt에 대한 응답인지 검증
+    # 2. Audit Trail: 사용자 상호작용 이력 추적 (디버깅/운영 분석)
+    # 3. Idempotency: 동일 이벤트 중복 처리 방지
+    # 4. Replay Support: 특정 시점부터 워크플로우 재실행 가능
+    #
     confirmed: Optional[bool]
     uploaded_content: Optional[str]
     routing_decision: Optional[str]
-    
-    # [NEW] Debugging & Replay Support (리뷰어 피드백 반영)
+
+    # [HITL] Interrupt 상태 추적 (Resume 시점 복원용)
     last_interrupt: Optional[dict]  # 마지막 인터럽트 정보 백업 (Resume 시점 기록)
 
-    # [NEW] HITL 이벤트 로그 메타필드 (운영/디버깅/감사용)
+    # [HITL] 이벤트 로그 메타필드 (운영/디버깅/감사용)
     last_pause_type: Optional[str]  # 마지막 pause 타입 (option, form, confirm, approval)
     last_resume_value: Optional[dict]  # 마지막 resume 응답값 (선택/입력 내용)
     last_human_event: Optional[dict]  # 마지막 HITL 이벤트 전체 정보

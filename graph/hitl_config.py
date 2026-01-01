@@ -221,21 +221,22 @@ def create_option_payload(
         **kwargs
     )
     
-    # [NEW] Pydantic 검증 (Safety Guard)
+    # [Pydantic 검증] Payload 구조 안전성 확보
+    #
+    # 설계 의도:
+    # - 검증 실패 시 ValueError를 발생시켜 잘못된 payload가 UI로 전달되는 것을 방지
+    # - 운영 환경에서 예외가 발생하면 상위 노드에서 catch하여 적절한 에러 처리
+    # - graceful degradation보다 fail-fast 원칙을 우선하여 데이터 무결성 보장
     try:
         from graph.interrupt_types import OptionInterruptPayload
-        # Pydantic 모델로 검증 수행
-        # 주의: Pydantic 모델의 필드명과 payload 키가 일치해야 함
         validated = OptionInterruptPayload(**payload)
         return validated.model_dump()
     except ImportError:
-        pass  # 모듈이 없을 경우 건너뜀 (안전장치)
+        # interrupt_types 모듈 미설치 환경 (테스트 등)에서는 원본 반환
+        return payload
     except Exception as e:
-        print(f"[WARNING] Payload Validation Error: {e}")
-        # 검증 실패 시에도 흐름을 막지 않으려면 원본 반환 (개발 단계에선 raise 권장)
-        # raise e  
-    
-    return payload
+        # 검증 실패: 명시적 예외 발생으로 잘못된 데이터 전파 방지
+        raise ValueError(f"[Payload Validation Failed] {e}. payload={payload}")
 
 
 def create_form_payload(
