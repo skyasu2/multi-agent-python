@@ -504,6 +504,7 @@ def render_main():
                     MAX_POLL_DURATION = 600  # 최대 10분
                     MAX_CONSECUTIVE_ERRORS = 10
                     POLL_INTERVAL = 1.0
+                    INITIAL_WAIT_TIME = 5.0  # 초기 404 허용 시간 (워크플로우 시작 대기)
 
                     # 단계별 진행률 매핑
                     STEP_PROGRESS = {
@@ -552,6 +553,11 @@ def render_main():
 
                             # HTTP 상태 코드별 처리
                             if status_res.status_code == 404:
+                                # 초기 시작 단계에서는 404 허용 (워크플로우가 아직 저장 안됨)
+                                if elapsed < INITIAL_WAIT_TIME:
+                                    status.write(f"⏳ 워크플로우 초기화 중... ({elapsed}초)")
+                                    time.sleep(POLL_INTERVAL)
+                                    continue
                                 raise ValueError("워크플로우를 찾을 수 없습니다")
                             elif status_res.status_code >= 500:
                                 consecutive_errors += 1
