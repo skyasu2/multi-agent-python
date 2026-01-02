@@ -1445,6 +1445,11 @@ def run_plancraft(
                 usage = cb.get_usage_summary()
                 if usage.get("total_tokens", 0) > 0:
                     result["token_usage"] = usage
+                    # Checkpointer에도 저장 (polling 시 조회 가능하도록)
+                    try:
+                        app.update_state(config, {"token_usage": usage})
+                    except Exception:
+                        pass  # 저장 실패해도 result에는 포함됨
                 break
 
     return result
