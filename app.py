@@ -10,13 +10,18 @@ import os
 import sys
 import random
 import uuid
+import json
 from datetime import datetime
+
+import httpx
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from utils.config import Config
-from graph.workflow import run_plancraft
+
+# API Base URL
+API_BASE_URL = "http://127.0.0.1:8000"
 
 # UI 컴포넌트 Import (분리된 모듈에서)
 from ui import (
@@ -94,9 +99,15 @@ def init_resources():
     st.cache_resource를 사용하여 프로세스당 1회만 실행되도록 합니다.
     """
     try:
+        # 0. FastAPI 백엔드 서버 시작 (Thread)
+        from api.main import start_api_server
+        print("[INIT] Starting FastAPI Backend Server...")
+        start_api_server(port=8000)
+        print("[INIT] FastAPI Backend Server Started on http://127.0.0.1:8000")
+
         # 1. Config 검증
         Config.validate()
-        
+
         # 2. RAG 벡터스토어 로드 (없으면 생성)
         # 배포 환경에서 첫 실행 시 인덱스를 생성합니다.
         # 네트워크 문제(403) 발생 시에도 앱이 멈추지 않도록 예외 처리합니다.
@@ -107,7 +118,7 @@ def init_resources():
              print("[INIT] RAG Vectorstore Loaded Successfully")
         else:
              print("[WARN] RAG Vectorstore Load Failed (None)")
-             
+
     except Exception as e:
         print(f"[WARN] Resource Initialization Warning: {e}")
         # 치명적이지 않은 오류는 로그만 남기고 진행
@@ -433,8 +444,7 @@ def render_main():
         
         # 1. Resume Command 파싱
         resume_cmd = None
-        import json
-        
+
         if pending_text.startswith("FORM_DATA:"):
             try:
                 form_data = json.loads(pending_text.replace("FORM_DATA:", ""))
@@ -454,28 +464,48 @@ def render_main():
         elif st.session_state.current_state and st.session_state.current_state.get("need_more_info"):
             resume_cmd = {"resume": {"text_input": pending_text}}
             
-        # 2. 워크플로우 실행
-        from utils.streamlit_callback import StreamlitStatusCallback
-        
+        # 2. 워크플로우 실행 (FastAPI 백엔드 호출)
         # [UX] 상태 표시기를 미리 확보한 위치(Placeholder)에 배치
         with status_placeholder.container():
             with st.status("🚀 작업을 수행하고 있습니다...", expanded=True) as status:
                 try:
-                    streamlit_callback = StreamlitStatusCallback(status)
                     file_content = st.session_state.get("uploaded_content", None)
                     current_refine_count = st.session_state.get("next_refine_count", 0)
                     previous_plan = st.session_state.generated_plan
-                    
-                    final_result = run_plancraft(
-                        user_input=pending_text,
-                        file_content=file_content,
-                        refine_count=current_refine_count,
-                        previous_plan=previous_plan,
-                        callbacks=[streamlit_callback],
-                        thread_id=st.session_state.thread_id,
-                        resume_command=resume_cmd,
-                        generation_preset=st.session_state.get("generation_preset", "balanced")
-                    )
+
+                    # API 호출로 워크플로우 실행
+                    status.write("🔄 AI 에이전트 실행 중...")
+                    if resume_cmd:
+                        # Resume 요청 (HITL 재개)
+                        response = httpx.post(
+                            f"{API_BASE_URL}/api/workflow/resume",
+                            json={
+                                "thread_id": st.session_state.thread_id,
+                                "resume_data": resume_cmd["resume"]
+                            },
+                            timeout=180.0
+                        )
+                    else:
+                        # 신규 실행
+                        response = httpx.post(
+                            f"{API_BASE_URL}/api/workflow/run",
+                            json={
+                                "user_input": pending_text,
+                                "file_content": file_content,
+                                "thread_id": st.session_state.thread_id,
+                                "generation_preset": st.session_state.get("generation_preset", "balanced"),
+                                "refine_count": current_refine_count,
+                                "previous_plan": previous_plan
+                            },
+                            timeout=180.0
+                        )
+
+                    response.raise_for_status()
+                    final_result = response.json()
+
+                    # API 응답 필드 매핑 (interrupt -> __interrupt__)
+                    if final_result.get("interrupt"):
+                        final_result["__interrupt__"] = final_result["interrupt"]
                     
                     status.update(label="✅ 처리 완료!", state="complete", expanded=False)
 
@@ -547,22 +577,16 @@ def render_main():
                     elif generated_plan:
                         # C. 기획서 완성
                         st.session_state.generated_plan = generated_plan
-                        
-                        # [NEW] 토큰 사용량 정보 수집
-                        usage_info = ""
-                        if hasattr(streamlit_callback, 'get_usage_summary'):
-                            usage = streamlit_callback.get_usage_summary()
-                            if usage.get("total_tokens", 0) > 0:
-                                # 프리셋 정보 가져오기
-                                from utils.settings import get_preset
-                                preset_key = st.session_state.get("generation_preset", "balanced")
-                                preset = get_preset(preset_key)
-                                
-                                usage_info = f"\n\n---\n🤖 **사용 모델**: {preset.model_type} ({preset.name})\n📊 **토큰 사용량**: {usage['total_tokens']:,}개 (입력: {usage['input_tokens']:,}, 출력: {usage['output_tokens']:,})\n💰 **예상 비용**: ${usage['estimated_cost_usd']:.4f} (약 {int(usage['estimated_cost_krw'])}원)"
-                        
+
+                        # 프리셋 정보 표시
+                        from utils.settings import get_preset
+                        preset_key = st.session_state.get("generation_preset", "balanced")
+                        preset = get_preset(preset_key)
+                        usage_info = f"\n\n---\n🤖 **사용 모델**: {preset.model_type} ({preset.name})"
+
                         st.session_state.chat_history.append({
-                            "role": "assistant", 
-                            "content": f"✅ 기획서가 완성되었습니다!{usage_info}", 
+                            "role": "assistant",
+                            "content": f"✅ 기획서가 완성되었습니다!{usage_info}",
                             "type": "plan"
                         })
                         

@@ -45,10 +45,11 @@ AI Bootcamp의 6대 핵심 모듈을 실제 프로젝트 코드에 어떻게 적
     *   Writer Agent가 초안 작성 시 RAG를 통해 **참조 문서를 검색**함으로써, 일반적인 내용이 아닌 도메인 특화된 고품질 기획서를 생성합니다.
 
 ### 2.5 서비스 개발 및 패키징
-*   **학습 내용**: Streamlit UI 구축, 서비스 운영
+*   **학습 내용**: Streamlit UI 구축, FastAPI 백엔드 분리, 서비스 운영
 *   **프로젝트 적용**:
     *   **Streamlit**을 활용하여 채팅 인터페이스뿐만 아니라, **Mermaid 다이어그램 시각화**, **실시간 상태 타임라인(Timeline)** 등을 포함한 rich UI를 개발했습니다.
     *   설정(`settings.py`)과 UI 컴포넌트(`ui/`)를 모듈화하여 유지보수성을 높였습니다.
+    *   **FastAPI 백엔드 분리**: UI와 AI 로직을 분리하여 Agent를 독립적인 서비스로 구성했습니다.
 
 ### 2.6 MCP / A2A (Agent-to-Agent)
 *   **학습 내용**: Agent 간 연결, MCP 개념
@@ -72,6 +73,11 @@ AI Bootcamp의 6대 핵심 모듈을 실제 프로젝트 코드에 어떻게 적
 *   **혁신점**: 사용자의 니즈에 따라 AI 리소스를 최적화했습니다.
     *   ⚡ **Fast Mode**: `gpt-4o-mini` (속도/비용 효율)
     *   💎 **Quality Mode**: `gpt-4o` + 심층 분석 + 다이어그램 생성 (품질 중심)
+
+### 3.4 FastAPI Backend Separation (UI-Agent 분리)
+*   **혁신점**: UI와 AI Agent 실행 로직을 분리하여 **Agent를 호출 가능한 서비스**로 구성했습니다.
+*   **구현**: `api/` 모듈에서 워크플로우 실행(`/api/workflow/run`)과 HITL 재개(`/api/workflow/resume`) 엔드포인트를 제공합니다.
+*   **의의**: 동일한 Agent를 다른 클라이언트에서도 호출할 수 있는 확장성을 확보했습니다.
 
 ---
 
