@@ -1,6 +1,7 @@
 """Workflow Service - Business logic layer wrapping run_plancraft"""
 import uuid
 import asyncio
+import logging
 from typing import Optional, Dict, Any
 
 from api.schemas.workflow import (
@@ -10,11 +11,13 @@ from api.schemas.workflow import (
     TokenUsage,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class WorkflowService:
     """Workflow business logic service"""
 
-    async def run_background(
+    def run_background_sync(
         self,
         user_input: str,
         thread_id: str,
@@ -22,47 +25,61 @@ class WorkflowService:
         generation_preset: str = "balanced",
         refine_count: int = 0,
         previous_plan: Optional[str] = None,
-    ):
-        """Execute workflow in background (Fire-and-Forget)"""
+    ) -> None:
+        """
+        Execute workflow in background (Synchronous - for FastAPI BackgroundTasks)
+
+        Note: BackgroundTasks expects sync callables, not coroutines.
+        """
         from graph.workflow import run_plancraft
         from utils.streamlit_callback import TokenTrackingCallback
 
-        # [NEW] Token tracking callback for API context
         token_callback = TokenTrackingCallback()
 
-        # run_plancraft saves state to checkpointer automatically
-        await asyncio.to_thread(
-            run_plancraft,
-            user_input=user_input,
-            file_content=file_content,
-            generation_preset=generation_preset,
-            thread_id=thread_id,
-            refine_count=refine_count,
-            previous_plan=previous_plan,
-            callbacks=[token_callback],
-        )
+        try:
+            logger.info(f"[Workflow] Starting background execution: {thread_id}")
+            run_plancraft(
+                user_input=user_input,
+                file_content=file_content,
+                generation_preset=generation_preset,
+                thread_id=thread_id,
+                refine_count=refine_count,
+                previous_plan=previous_plan,
+                callbacks=[token_callback],
+            )
+            logger.info(f"[Workflow] Background execution completed: {thread_id}")
+            logger.debug(f"[Workflow] Token usage: {token_callback.get_usage_summary()}")
+        except Exception as e:
+            logger.error(f"[Workflow] Background execution failed: {thread_id} - {e}", exc_info=True)
+            raise
 
-    async def resume_background(
+    def resume_background_sync(
         self,
         thread_id: str,
         resume_data: Dict[str, Any],
-        generation_preset: str = "balanced",  # [FIX] 프리셋 파라미터 추가
-    ):
-        """Resume workflow in background"""
+        generation_preset: str = "balanced",
+    ) -> None:
+        """
+        Resume workflow in background (Synchronous - for FastAPI BackgroundTasks)
+        """
         from graph.workflow import run_plancraft
         from utils.streamlit_callback import TokenTrackingCallback
 
-        # [NEW] Token tracking callback for API context
         token_callback = TokenTrackingCallback()
 
-        await asyncio.to_thread(
-            run_plancraft,
-            user_input="",
-            thread_id=thread_id,
-            resume_command={"resume": resume_data},
-            generation_preset=generation_preset,  # [FIX] 프리셋 전달
-            callbacks=[token_callback],
-        )
+        try:
+            logger.info(f"[Workflow] Resuming background execution: {thread_id}")
+            run_plancraft(
+                user_input="",
+                thread_id=thread_id,
+                resume_command={"resume": resume_data},
+                generation_preset=generation_preset,
+                callbacks=[token_callback],
+            )
+            logger.info(f"[Workflow] Background resume completed: {thread_id}")
+        except Exception as e:
+            logger.error(f"[Workflow] Background resume failed: {thread_id} - {e}", exc_info=True)
+            raise
 
     async def run(
         self,
@@ -80,10 +97,8 @@ class WorkflowService:
         if not thread_id:
             thread_id = str(uuid.uuid4())
 
-        # [NEW] Token tracking callback for API context
         token_callback = TokenTrackingCallback()
 
-        # run_plancraft is synchronous, use asyncio.to_thread
         result = await asyncio.to_thread(
             run_plancraft,
             user_input=user_input,
@@ -95,79 +110,81 @@ class WorkflowService:
             callbacks=[token_callback],
         )
 
+        # Integrate token usage into result
+        if result and isinstance(result, dict):
+            result["token_usage"] = token_callback.get_usage_summary()
+
         return self._convert_to_response(thread_id, result)
 
     async def resume(
         self,
         thread_id: str,
         resume_data: Dict[str, Any],
-        generation_preset: str = "balanced",  # [FIX] 프리셋 파라미터 추가
+        generation_preset: str = "balanced",
     ) -> WorkflowRunResponse:
         """Resume HITL interrupt (Wait for result)"""
         from graph.workflow import run_plancraft
         from utils.streamlit_callback import TokenTrackingCallback
 
-        # [NEW] Token tracking callback for API context
         token_callback = TokenTrackingCallback()
 
         result = await asyncio.to_thread(
             run_plancraft,
-            user_input="",  # Not needed for resume
+            user_input="",
             thread_id=thread_id,
             resume_command={"resume": resume_data},
-            generation_preset=generation_preset,  # [FIX] 프리셋 전달
+            generation_preset=generation_preset,
             callbacks=[token_callback],
         )
+
+        # Integrate token usage into result
+        if result and isinstance(result, dict):
+            result["token_usage"] = token_callback.get_usage_summary()
 
         return self._convert_to_response(thread_id, result)
 
     async def get_status(self, thread_id: str) -> Optional[WorkflowStatusResponse]:
-        """Get workflow status"""
+        """Get workflow status with improved error handling"""
         from graph.workflow import app
 
         config = {"configurable": {"thread_id": thread_id}}
 
         try:
             snapshot = app.get_state(config)
-        except Exception:
+        except KeyError:
+            # Thread not found - expected case
+            logger.debug(f"[Workflow] Thread not found: {thread_id}")
             return None
+        except Exception as e:
+            # Unexpected error - log and re-raise
+            logger.error(f"[Workflow] Error getting status for {thread_id}: {e}", exc_info=True)
+            raise
 
         if not snapshot or not snapshot.values:
             return None
 
         state = snapshot.values
-        
+
         # Check for interrupts
         interrupt_value = None
         if snapshot.next and snapshot.tasks:
             if hasattr(snapshot.tasks[0], "interrupts") and snapshot.tasks[0].interrupts:
-                 interrupt_value = snapshot.tasks[0].interrupts[0].value
+                interrupt_value = snapshot.tasks[0].interrupts[0].value
 
         has_interrupt = bool(interrupt_value)
         status = self._determine_status(state, has_interrupt)
-        
+
         # Prepare result dict if finished or interrupted
         result_data = None
         if status in [WorkflowStatus.COMPLETED, WorkflowStatus.INTERRUPTED, WorkflowStatus.FAILED]:
             result_data = dict(state)
             if interrupt_value:
                 result_data["__interrupt__"] = interrupt_value
-            # Add error info if failed
             if status == WorkflowStatus.FAILED and not result_data.get("error"):
-                 result_data["error"] = "Unknown error occurred"
+                result_data["error"] = "Unknown error occurred"
 
-        # [NEW] Extract token usage if available
-        token_usage = None
-        if state.get("token_usage"):
-            usage_data = state["token_usage"]
-            token_usage = TokenUsage(
-                input_tokens=usage_data.get("input_tokens", 0),
-                output_tokens=usage_data.get("output_tokens", 0),
-                total_tokens=usage_data.get("total_tokens", 0),
-                llm_calls=usage_data.get("llm_calls", 0),
-                estimated_cost_usd=usage_data.get("estimated_cost_usd", 0.0),
-                estimated_cost_krw=usage_data.get("estimated_cost_krw", 0.0),
-            )
+        # Extract token usage if available
+        token_usage = self._extract_token_usage(state.get("token_usage"))
 
         return WorkflowStatusResponse(
             thread_id=thread_id,
@@ -179,8 +196,29 @@ class WorkflowService:
             token_usage=token_usage,
         )
 
+    def _extract_token_usage(self, usage_data: Optional[Dict]) -> Optional[TokenUsage]:
+        """Extract and validate token usage data"""
+        if not usage_data:
+            return None
+
+        try:
+            return TokenUsage(
+                input_tokens=usage_data.get("input_tokens", 0),
+                output_tokens=usage_data.get("output_tokens", 0),
+                total_tokens=usage_data.get("total_tokens", 0),
+                llm_calls=usage_data.get("llm_calls", 0),
+                estimated_cost_usd=usage_data.get("estimated_cost_usd", 0.0),
+                estimated_cost_krw=usage_data.get("estimated_cost_krw", 0.0),
+            )
+        except Exception as e:
+            logger.warning(f"[Workflow] Failed to extract token usage: {e}")
+            return None
+
     def _convert_to_response(self, thread_id: str, result: dict) -> WorkflowRunResponse:
         """Convert result dict to WorkflowRunResponse"""
+        if not result:
+            result = {}
+
         interrupt = result.get("__interrupt__")
 
         if interrupt:
@@ -192,18 +230,7 @@ class WorkflowService:
         else:
             status = WorkflowStatus.RUNNING
 
-        # [NEW] Extract token usage if available
-        token_usage = None
-        if result.get("token_usage"):
-            usage_data = result["token_usage"]
-            token_usage = TokenUsage(
-                input_tokens=usage_data.get("input_tokens", 0),
-                output_tokens=usage_data.get("output_tokens", 0),
-                total_tokens=usage_data.get("total_tokens", 0),
-                llm_calls=usage_data.get("llm_calls", 0),
-                estimated_cost_usd=usage_data.get("estimated_cost_usd", 0.0),
-                estimated_cost_krw=usage_data.get("estimated_cost_krw", 0.0),
-            )
+        token_usage = self._extract_token_usage(result.get("token_usage"))
 
         return WorkflowRunResponse(
             thread_id=thread_id,

@@ -1,4 +1,7 @@
 """Workflow API Router"""
+import uuid
+import asyncio
+import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 from api.schemas.workflow import (
@@ -6,10 +9,11 @@ from api.schemas.workflow import (
     WorkflowResumeRequest,
     WorkflowRunResponse,
     WorkflowStatusResponse,
-    WorkflowStatus,  # [FIX] Missing import
+    WorkflowStatus,
 )
 from api.services.workflow_service import WorkflowService
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/workflow", tags=["workflow"])
 
 
@@ -22,23 +26,33 @@ async def run_workflow(request: WorkflowRunRequest, background_tasks: Background
     - Returns immediately with status 'running'
     - Client should poll /status/{thread_id} for updates
     """
+    # Generate thread_id if not provided
+    thread_id = request.thread_id or str(uuid.uuid4())
+
+    # Validate thread_id format
+    if len(thread_id) > 36:
+        raise HTTPException(
+            status_code=400,
+            detail="thread_id must be 36 characters or less"
+        )
+
     service = WorkflowService()
-    # Start workflow in background
+
+    # Add sync background task
     background_tasks.add_task(
-        service.run_background,
+        service.run_background_sync,
         user_input=request.user_input,
+        thread_id=thread_id,
         file_content=request.file_content,
         generation_preset=request.generation_preset,
-        thread_id=request.thread_id,
         refine_count=request.refine_count,
         previous_plan=request.previous_plan,
     )
-    
-    # Return immediate response
+
+    logger.info(f"[API] Workflow started: {thread_id}")
+
     return WorkflowRunResponse(
-        thread_id=request.thread_id or "pending", # service.run_background handles internal logic, but here we need ID. 
-        # Note: service.run_background logic might need adjustment to handle ID generation BEFORE task.
-        # Let's adjust service first or handle UUID here if none.
+        thread_id=thread_id,
         status=WorkflowStatus.RUNNING,
         step_history=[],
         final_output=None
@@ -53,17 +67,47 @@ async def resume_workflow(request: WorkflowResumeRequest, background_tasks: Back
     - Continue workflow with user response in background
     - Returns immediately with status 'running'
     """
+    if not request.resume_data:
+        raise HTTPException(
+            status_code=400,
+            detail="resume_data cannot be empty"
+        )
+
     service = WorkflowService()
+
+    # Verify thread exists and is in proper state
+    try:
+        current_status = await service.get_status(request.thread_id)
+        if not current_status:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Thread not found: {request.thread_id}"
+            )
+        if current_status.status != WorkflowStatus.INTERRUPTED:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot resume: thread is {current_status.status.value}, not interrupted"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error verifying thread: {e}")
+        raise HTTPException(status_code=500, detail="Error verifying thread state")
+
+    # Add sync background task
     background_tasks.add_task(
-        service.resume_background,
+        service.resume_background_sync,
         thread_id=request.thread_id,
         resume_data=request.resume_data,
-        generation_preset=request.generation_preset,  # [FIX] 프리셋 전달
+        generation_preset=request.generation_preset,
     )
-    
+
+    logger.info(f"[API] Workflow resumed: {request.thread_id}")
+
     return WorkflowRunResponse(
         thread_id=request.thread_id,
-        status=WorkflowStatus.RUNNING
+        status=WorkflowStatus.RUNNING,
+        step_history=current_status.step_history or []
     )
 
 
@@ -72,10 +116,43 @@ async def get_workflow_status(thread_id: str):
     """
     Get workflow status
 
-    - Current step, history, interrupt pending status
+    - Returns current step, history, interrupt pending status
+    - 404: Thread not found
+    - 400: Invalid thread_id format
     """
-    service = WorkflowService()
-    result = await service.get_status(thread_id)
-    if not result:
-        raise HTTPException(status_code=404, detail="Thread not found")
-    return result
+    # Validate thread_id format
+    if not thread_id or len(thread_id) > 36:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid thread_id: must be non-empty and 36 chars or less"
+        )
+
+    try:
+        service = WorkflowService()
+        result = await asyncio.wait_for(
+            service.get_status(thread_id),
+            timeout=10.0
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No workflow found for thread_id: {thread_id}"
+            )
+
+        return result
+
+    except asyncio.TimeoutError:
+        logger.error(f"[API] Status check timeout: {thread_id}")
+        raise HTTPException(
+            status_code=504,
+            detail="Status check timed out"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error getting status: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve workflow status"
+        )

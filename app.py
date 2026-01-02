@@ -500,6 +500,11 @@ def render_main():
                     # 초기 응답은 RUNNING 상태임
 
                     # --- Polling Loop with Progress Bar ---
+                    # 설정값
+                    MAX_POLL_DURATION = 600  # 최대 10분
+                    MAX_CONSECUTIVE_ERRORS = 10
+                    POLL_INTERVAL = 1.0
+
                     # 단계별 진행률 매핑
                     STEP_PROGRESS = {
                         "retrieve": 10, "context": 10,
@@ -524,32 +529,63 @@ def render_main():
                     last_step_count = 0
                     final_result = None
                     start_time = time.time()
-                    execution_log = []  # 실행 로그 수집
+                    execution_log = []
+                    consecutive_errors = 0
 
                     # 진행률 바 생성
                     progress_bar = status.progress(0)
                     current_progress = 0
 
                     while True:
+                        elapsed = int(time.time() - start_time)
+
+                        # 타임아웃 체크
+                        if elapsed > MAX_POLL_DURATION:
+                            raise TimeoutError(f"작업 시간이 초과되었습니다 ({MAX_POLL_DURATION}초)")
+
                         # 1. 상태 조회
-                        status_res = httpx.get(f"{API_BASE_URL}/api/workflow/status/{st.session_state.thread_id}", timeout=10.0)
-                        if status_res.status_code != 200:
-                            time.sleep(2)
+                        try:
+                            status_res = httpx.get(
+                                f"{API_BASE_URL}/api/workflow/status/{st.session_state.thread_id}",
+                                timeout=10.0
+                            )
+
+                            # HTTP 상태 코드별 처리
+                            if status_res.status_code == 404:
+                                raise ValueError("워크플로우를 찾을 수 없습니다")
+                            elif status_res.status_code >= 500:
+                                consecutive_errors += 1
+                                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                                    raise RuntimeError(f"서버 오류가 계속 발생합니다 ({consecutive_errors}회)")
+                                status.write(f"⚠️ 서버 응답 대기 중... ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS})")
+                                time.sleep(POLL_INTERVAL * 2)
+                                continue
+                            elif status_res.status_code != 200:
+                                consecutive_errors += 1
+                                time.sleep(POLL_INTERVAL)
+                                continue
+
+                            # 성공 시 에러 카운트 리셋
+                            consecutive_errors = 0
+
+                        except httpx.RequestError as e:
+                            consecutive_errors += 1
+                            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                                raise ConnectionError(f"네트워크 연결 오류: {e}")
+                            time.sleep(POLL_INTERVAL)
                             continue
 
                         status_data = status_res.json()
                         current_status = status_data.get("status", "running")
                         step_history = status_data.get("step_history", [])
                         current_step = status_data.get("current_step", "")
-                        elapsed = int(time.time() - start_time)
 
                         # 2. 진행률 업데이트
                         for step_key, progress in STEP_PROGRESS.items():
                             if current_step and step_key in current_step.lower():
                                 if progress > current_progress:
                                     current_progress = progress
-                                    progress_bar.progress(current_progress / 100)
-                                    # 라벨 업데이트
+                                    progress_bar.progress(min(current_progress / 100, 0.95))
                                     icon, label = STEP_LABELS.get(step_key, ("▶️", current_step))
                                     status.update(label=f"{icon} {label} ({elapsed}초 경과)", state="running")
                                 break
@@ -562,7 +598,6 @@ def render_main():
                                 summary = step.get("summary", "")
                                 exec_time = step.get("execution_time", "")
 
-                                # 이모지 매핑
                                 icon = "👣"
                                 for key, (ic, _) in STEP_LABELS.items():
                                     if key in step_name.lower():
@@ -570,8 +605,6 @@ def render_main():
                                         break
 
                                 status.write(f"{icon} **[{step_name.upper()}]** {summary}")
-
-                                # 실행 로그 수집
                                 execution_log.append({
                                     "step": step_name,
                                     "icon": icon,
@@ -584,10 +617,19 @@ def render_main():
                         if current_status in ["completed", "interrupted", "failed"]:
                             final_result = status_data.get("result")
                             if not final_result:
+                                # 재시도
+                                time.sleep(0.5)
+                                retry_res = httpx.get(
+                                    f"{API_BASE_URL}/api/workflow/status/{st.session_state.thread_id}",
+                                    timeout=5.0
+                                )
+                                if retry_res.status_code == 200:
+                                    final_result = retry_res.json().get("result")
+                            if not final_result:
                                 raise Exception("작업이 완료되었으나 결과 데이터를 받아올 수 없습니다.")
                             break
 
-                        time.sleep(1)
+                        time.sleep(POLL_INTERVAL)
 
                     # --- Loop End ---
 
