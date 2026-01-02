@@ -4,13 +4,18 @@ PlanCraft - Multi-Agent 설정 모듈
 에이전트 스펙, 의존성 그래프, 실행 정책을 코드에서 분리하여
 유지보수성과 확장성을 향상시킵니다.
 
+[NEW] YAML 외부 설정 지원:
+    config/agents.yaml 파일에서 에이전트 설정을 로드합니다.
+    코드 수정 없이 에이전트 추가/수정 가능 (OCP 원칙)
+
 사용법:
     from agents.agent_config import AGENT_REGISTRY, get_dependency_graph
-    
+
     for agent in AGENT_REGISTRY.values():
         print(f"{agent.name}: {agent.description}")
 """
 
+import os
 from typing import Dict, List, Any, Optional, Callable, Type, TYPE_CHECKING
 from dataclasses import dataclass, field
 from enum import Enum
@@ -137,21 +142,139 @@ class AgentSpec:
 
 
 # =============================================================================
-# 에이전트 레지스트리 (핵심 설정)
+# YAML 설정 로딩 (외부 config 지원)
 # =============================================================================
 
-AGENT_REGISTRY: Dict[str, AgentSpec] = {
-    "market": AgentSpec(
-        id="market",
-        name="시장 분석",
-        icon="📊",
-        description="TAM/SAM/SOM 3단계 시장 규모 분석, 경쟁사 실명 분석, 트렌드 파악",
-        result_key="market_analysis",  # [NEW]
-        class_path="agents.specialists.market_agent.MarketAgent",  # [NEW]
-        execution_mode=ExecutionMode.CONDITIONAL,
-        approval_mode=ApprovalMode.AUTO,
-        depends_on=[],
-        provides=["tam", "sam", "som", "competitors", "trends"],
+def _get_config_path() -> str:
+    """config/agents.yaml 경로 반환"""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_dir, "config", "agents.yaml")
+
+
+def _load_agents_from_yaml() -> Dict[str, AgentSpec]:
+    """
+    YAML 파일에서 에이전트 설정 로드
+
+    Returns:
+        Dict[str, AgentSpec]: 에이전트 ID -> AgentSpec 매핑
+
+    Note:
+        YAML 파일이 없거나 로드 실패 시 빈 딕셔너리 반환 (Fallback으로 하드코딩 사용)
+    """
+    config_path = _get_config_path()
+
+    if not os.path.exists(config_path):
+        return {}
+
+    try:
+        import yaml
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+        if not config or "agents" not in config:
+            return {}
+
+        registry = {}
+        for agent_id, agent_data in config["agents"].items():
+            spec = AgentSpec(
+                id=agent_id,
+                name=agent_data.get("name", agent_id),
+                icon=agent_data.get("icon", "🤖"),
+                description=agent_data.get("description", ""),
+                result_key=agent_data.get("result_key", f"{agent_id}_result"),
+                class_path=agent_data.get("class_path", ""),
+                execution_mode=ExecutionMode(agent_data.get("execution_mode", "conditional")),
+                approval_mode=ApprovalMode(agent_data.get("approval_mode", "auto")),
+                depends_on=agent_data.get("depends_on", []),
+                provides=agent_data.get("provides", []),
+                routing_keywords=agent_data.get("routing_keywords", []),
+                timeout_seconds=agent_data.get("timeout_seconds", 60),
+                retry_count=agent_data.get("retry_count", 2),
+            )
+            registry[agent_id] = spec
+
+        return registry
+
+    except ImportError:
+        # PyYAML 미설치 시 빈 딕셔너리 반환
+        return {}
+    except Exception as e:
+        print(f"[AgentConfig] YAML 로드 실패: {e}")
+        return {}
+
+
+def _load_dependency_reasons_from_yaml() -> Dict[tuple, str]:
+    """YAML에서 의존성 이유 매핑 로드"""
+    config_path = _get_config_path()
+
+    if not os.path.exists(config_path):
+        return {}
+
+    try:
+        import yaml
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+        if not config or "dependency_reasons" not in config:
+            return {}
+
+        reasons = {}
+        for key, value in config["dependency_reasons"].items():
+            # "market_to_bm" -> ("market", "bm")
+            parts = key.split("_to_")
+            if len(parts) == 2:
+                reasons[(parts[0], parts[1])] = value
+
+        return reasons
+
+    except Exception:
+        return {}
+
+
+def _load_purpose_presets_from_yaml() -> Dict[str, List[str]]:
+    """YAML에서 목적별 에이전트 프리셋 로드"""
+    config_path = _get_config_path()
+
+    if not os.path.exists(config_path):
+        return {}
+
+    try:
+        import yaml
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+        return config.get("purpose_presets", {})
+
+    except Exception:
+        return {}
+
+
+# =============================================================================
+# 에이전트 레지스트리 (YAML 우선, Fallback으로 하드코딩)
+# =============================================================================
+
+# 먼저 YAML에서 로드 시도
+_YAML_REGISTRY = _load_agents_from_yaml()
+_YAML_DEPENDENCY_REASONS = _load_dependency_reasons_from_yaml()
+_YAML_PURPOSE_PRESETS = _load_purpose_presets_from_yaml()
+
+# YAML 로드 성공 시 사용, 실패 시 하드코딩 Fallback
+if _YAML_REGISTRY:
+    AGENT_REGISTRY: Dict[str, AgentSpec] = _YAML_REGISTRY
+else:
+    # Fallback: 하드코딩된 레지스트리 (YAML 미사용 환경 호환)
+    AGENT_REGISTRY: Dict[str, AgentSpec] = {
+        "market": AgentSpec(
+            id="market",
+            name="시장 분석",
+            icon="📊",
+            description="TAM/SAM/SOM 3단계 시장 규모 분석, 경쟁사 실명 분석, 트렌드 파악",
+            result_key="market_analysis",
+            class_path="agents.specialists.market_agent.MarketAgent",
+            execution_mode=ExecutionMode.CONDITIONAL,
+            approval_mode=ApprovalMode.AUTO,
+            depends_on=[],
+            provides=["tam", "sam", "som", "competitors", "trends"],
         routing_keywords=["시장", "규모", "경쟁사", "트렌드", "TAM", "SAM", "SOM", "분석"],
         timeout_seconds=90,
     ),
@@ -284,7 +407,13 @@ def _get_dependency_reason(from_agent: str, to_agent: str) -> str:
         >>> _get_dependency_reason("market", "bm")
         "시장 데이터 기반"
     """
-    # 의존 이유 매핑 (from -> to)
+    # YAML에서 로드한 값 우선 사용
+    if _YAML_DEPENDENCY_REASONS:
+        result = _YAML_DEPENDENCY_REASONS.get((from_agent, to_agent))
+        if result:
+            return result
+
+    # Fallback: 하드코딩된 매핑
     dependency_reasons = {
         ("market", "bm"): "시장 데이터 기반",
         ("market", "content"): "타겟 정보 참조",
@@ -646,12 +775,19 @@ def export_dag_to_mermaid(required_agents: List[str] = None) -> str:
 def get_agents_for_purpose(purpose: str) -> List[str]:
     """
     목적에 따른 권장 에이전트 목록 반환
-    
+
     Args:
         purpose: 분석 목적 (기획서/투자유치/아이디어검증 등)
     """
+    # YAML에서 로드한 프리셋 우선 사용
+    if _YAML_PURPOSE_PRESETS:
+        for preset_key, agents in _YAML_PURPOSE_PRESETS.items():
+            if preset_key in purpose:
+                return agents
+
+    # Fallback: 하드코딩된 매핑
     purpose_lower = purpose.lower()
-    
+
     if "투자" in purpose_lower:
         return ["market", "bm", "financial", "risk"]
     elif "아이디어" in purpose_lower or "검증" in purpose_lower:
