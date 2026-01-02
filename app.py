@@ -578,6 +578,16 @@ def render_main():
                         if chat_summary:
                              st.session_state.chat_history.append({"role": "assistant", "content": chat_summary, "type": "summary"})
 
+                        # [NEW] Mermaid 다이어그램 자동 생성 및 표시 (Supervisor 실행 결과 시각화)
+                        # Supervisor의 실행 계획(_plan) 정보를 기반으로 Mermaid 그래프 생성
+                        if final_result.get("_plan"):
+                            from agents.agent_config import export_plan_to_mermaid
+                            mermaid_code = export_plan_to_mermaid(final_result["_plan"])
+                            if mermaid_code:
+                                with st.expander("🔗 실행 계획 다이어그램 (Mermaid)", expanded=True):
+                                     st.markdown(f"```mermaid\n{mermaid_code}\n```", unsafe_allow_html=True)
+                                     st.caption("Supervisor가 수립하고 실행한 에이전트 협업 구조도입니다.")
+
                     else:
                         st.session_state.chat_history.append({"role": "assistant", "content": "작업이 완료되었습니다.", "type": "text"})
 
