@@ -54,17 +54,44 @@ def render_scalable_mermaid(mermaid_code: str, height: int = 300):
     components.html(html_code, height=height+20, scrolling=False)
 
 
-def render_mermaid(code: str, height: int = 800, scale: float = 1.8):
+def render_mermaid(code: str, height: int = 600, scale: float = 1.0, auto_fit: bool = False):
     """
-    Mermaid 다이어그램 렌더링 (사이드바 최적화)
+    Mermaid 다이어그램 렌더링 (통합 버전)
 
     Args:
         code: Mermaid 다이어그램 코드
-        height: 렌더링 높이 (기본 800px)
-        scale: 확대 배율 (기본 1.8배, 좁은 사이드바 대응)
+        height: 렌더링 높이 (기본 600px)
+        scale: 확대 배율 (auto_fit=False일 때 적용)
+        auto_fit: True일 경우 컨테이너 너비에 맞춤 (반응형)
     """
-    components.html(
-        f"""
+    if auto_fit:
+        # 반응형 (Fit to Container) 스타일
+        css_style = f"""
+        <style>
+            .mermaid-container {{
+                display: flex;
+                justify_content: center;
+                align-items: center;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+            }}
+            .mermaid {{
+                width: 100%;
+                text-align: center;
+            }}
+            /* SVG 크기 자동 조절 */
+            svg {{
+                max-width: 100% !important;
+                height: auto !important;
+                max-height: {height}px !important;
+            }}
+        </style>
+        """
+        scrolling = False
+    else:
+        # 고정 스케일 (스크롤 가능) 스타일
+        css_style = f"""
         <style>
             .mermaid-container {{
                 overflow: auto;
@@ -78,6 +105,12 @@ def render_mermaid(code: str, height: int = 800, scale: float = 1.8):
                 max-width: none !important;
             }}
         </style>
+        """
+        scrolling = True
+
+    components.html(
+        f"""
+        {css_style}
         <div class="mermaid-container">
             <div class="mermaid">
                 {code}
@@ -89,26 +122,26 @@ def render_mermaid(code: str, height: int = 800, scale: float = 1.8):
                 startOnLoad: true,
                 theme: 'neutral',
                 themeVariables: {{
-                    fontSize: '18px',
+                    fontSize: '16px',
                     fontFamily: 'Pretendard, -apple-system, sans-serif'
                 }},
                 flowchart: {{
-                    nodeSpacing: 80,
-                    rankSpacing: 100,
-                    padding: 20,
+                    nodeSpacing: 50,
+                    rankSpacing: 50,
+                    padding: 15,
                     htmlLabels: true,
                     curve: 'basis'
                 }},
                 gantt: {{
-                    fontSize: 16,
-                    barHeight: 30,
-                    barGap: 8
+                    fontSize: 14,
+                    barHeight: 25,
+                    barGap: 6
                 }}
             }});
         </script>
         """,
         height=height,
-        scrolling=True
+        scrolling=scrolling
     )
 
 
@@ -148,10 +181,11 @@ def render_markdown_with_mermaid(content: str):
             # 일반 마크다운 텍스트
             st.markdown(part)
         else:
-            # Mermaid 코드 블록 - 시각적 렌더링 (사이드바 최적화)
+            # Mermaid 코드 블록 - 시각적 렌더링 (반응형 fit)
             st.markdown("---")
-            st.caption("📊 Mermaid 다이어그램 (스크롤하여 전체 확인)")
-            render_mermaid(part.strip(), height=600, scale=1.5)
+            st.caption("📊 Mermaid 다이어그램")
+            # auto_fit=True로 설정하여 화면에 맞게 렌더링
+            render_mermaid(part.strip(), height=500, auto_fit=True)
             st.markdown("---")
 
 
