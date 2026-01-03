@@ -29,6 +29,7 @@ class GenerationPreset(BaseModel):
     discussion_enabled: bool = Field(default=True, description="에이전트 토론 활성화")
     # [NEW] 방안 D: 핵심 검증 보장
     min_sections: int = Field(default=9, description="최소 생성 섹션 수")
+    min_key_features: int = Field(default=5, description="최소 핵심 기능 수")  # [NEW] 핵심 기능 개수 제어
     structurer_max_retries: int = Field(default=2, description="Structurer 검증 재시도 (고정)")
     # [NEW] 시각적 요소 설정 (다이어그램, 그래프)
     include_diagrams: int = Field(default=0, description="포함할 Mermaid 다이어그램 개수")
@@ -71,6 +72,7 @@ GENERATION_PRESETS = {
         writer_max_retries=2,
         discussion_enabled=True,
         min_sections=9,  # 균형: 9개 섹션
+        min_key_features=5,  # 균형: 5개 기능
         structurer_max_retries=2,  # 구조 검증은 고정
         include_diagrams=1,  # 균형 모드: 다이어그램 1개
         include_charts=1,    # 그래프 1개
@@ -90,6 +92,7 @@ GENERATION_PRESETS = {
         writer_max_retries=1,
         discussion_enabled=False,
         min_sections=7,  # 속도 우선: 7개 섹션
+        min_key_features=3,  # 빠른: 3개 기능
         structurer_max_retries=2,  # 구조 검증은 고정
         include_diagrams=0,  # 빠른 모드: 시각 자료 없음
         include_charts=0,
@@ -105,6 +108,7 @@ GENERATION_PRESETS = {
         writer_max_retries=3,
         discussion_enabled=True,
         min_sections=13,  # [TUNE] 고품질: 13개 섹션 (양적 풍성함)
+        min_key_features=7,  # [NEW] 고품질: 7개 기능 (풍성함)
         structurer_max_retries=2,  # 구조 검증은 고정
         include_diagrams=2,  # 고품질 모드: 다이어그램 2개 (증가)
         include_charts=2,    # 그래프 2개

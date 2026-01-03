@@ -91,7 +91,8 @@ def run(state: PlanCraftState) -> PlanCraftState:
     user_msg_content = STRUCTURER_USER_PROMPT.format(
             analysis=analysis_str,
             context=context if context else "없음",
-            min_sections=preset.min_sections
+            min_sections=preset.min_sections,
+            min_key_features=preset.min_key_features  # [NEW] 핵심 기능 수 전달
     )
     
     if feedback_msg:
