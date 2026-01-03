@@ -65,7 +65,7 @@ def render_mermaid(code: str, height: int = 600, scale: float = 1.0, auto_fit: b
         auto_fit: True일 경우 컨테이너 너비에 맞춤 (반응형)
     """
     if auto_fit:
-        # 반응형 (Fit to Container) 스타일
+        # 반응형 (Fit to Container) 스타일 - 오버랩 방지 및 가독성 개선
         css_style = f"""
         <style>
             .mermaid-container {{
@@ -73,14 +73,14 @@ def render_mermaid(code: str, height: int = 600, scale: float = 1.0, auto_fit: b
                 justify_content: center;
                 align-items: center;
                 width: 100%;
-                height: 100%;
-                overflow: hidden;
+                /* min-height를 주어 너무 납작해지는 것 방지 */
+                min-height: {height // 2}px; 
             }}
             .mermaid {{
                 width: 100%;
                 text-align: center;
             }}
-            /* SVG 크기 자동 조절 */
+            /* SVG 크기 조절: 너비 100% 맞춤, 높이는 비율 유지하되 max-height 제한 */
             svg {{
                 max-width: 100% !important;
                 height: auto !important;
@@ -120,10 +120,17 @@ def render_mermaid(code: str, height: int = 600, scale: float = 1.0, auto_fit: b
             import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
             mermaid.initialize({{
                 startOnLoad: true,
-                theme: 'neutral',
+                securityLevel: 'loose',
+                theme: 'base',
                 themeVariables: {{
-                    fontSize: '16px',
-                    fontFamily: 'Pretendard, -apple-system, sans-serif'
+                    fontSize: '14px',
+                    fontFamily: 'Pretendard, -apple-system, sans-serif',
+                    primaryColor: '#e3f2fd',
+                    primaryTextColor: '#1565c0',
+                    primaryBorderColor: '#64b5f6',
+                    lineColor: '#90caf9',
+                    secondaryColor: '#f3e5f5',
+                    tertiaryColor: '#fff'
                 }},
                 flowchart: {{
                     nodeSpacing: 50,
@@ -133,9 +140,14 @@ def render_mermaid(code: str, height: int = 600, scale: float = 1.0, auto_fit: b
                     curve: 'basis'
                 }},
                 gantt: {{
-                    fontSize: 14,
+                    fontSize: 12,
                     barHeight: 25,
-                    barGap: 6
+                    barGap: 6,
+                    topPadding: 60,
+                    bottomPadding: 60,
+                    sectionFontSize: '12px',
+                    numberSectionStyles: 3,
+                    axisFormat: '%Y-%m'
                 }}
             }});
         </script>
