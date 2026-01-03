@@ -591,13 +591,18 @@ class NativeSupervisor:
             total_agents=len(plan.get_all_agents())
         )
 
+        # 설정 로드
+        from utils.settings import settings
+        max_workers = settings.MAX_PARALLEL_AGENTS
+        timeout = settings.AGENT_TIMEOUT_SEC
+
         for step in plan.steps:
             logger.info(f"--- 단계 {step.step_id}: {step.description} ---")
 
             # 병렬 실행을 위한 Future 목록
             futures = {}
 
-            with ThreadPoolExecutor() as executor:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 for agent_id in step.agent_ids:
                     if agent_id in self.agents:
                         # [NEW] 에이전트 통계 시작
@@ -610,7 +615,7 @@ class NativeSupervisor:
                         # 비동기 제출
                         future = executor.submit(self.agents[agent_id].run, **agent_context)
                         futures[future] = agent_id
-                        logger.info(f"  🚀 [Running] {agent_id}...")
+                        logger.info(f"  🚀 [Running] {agent_id} (Timeout: {timeout}s)...")
 
                 # 완료 대기 및 결과 수집
                 for future in as_completed(futures):
@@ -618,7 +623,9 @@ class NativeSupervisor:
                     agent_stats = stats.get_agent_stats(agent_id)
 
                     try:
-                        result = future.result()
+                        # [IMPROVE] 타임아웃 적용
+                        result = future.result(timeout=timeout)
+                        
                         # 결과 키 매핑 (Registry 기반)
                         result_key = self._get_result_key(agent_id)
                         results[result_key] = result
@@ -631,6 +638,11 @@ class NativeSupervisor:
                         # [REFACTOR] 에러 카테고리화 적용
                         error_category = categorize_error(e)
                         error_msg = str(e)
+                        
+                        # 타임아웃 구체화
+                        if isinstance(e, TimeoutError):
+                            error_category = "TIMEOUT_ERROR"
+                            error_msg = f"실행 시간 초과 ({timeout}초)"
 
                         # [NEW] 에러 통계 기록
                         agent_stats.record_error(error_msg, error_category)
@@ -638,7 +650,7 @@ class NativeSupervisor:
                         # 카테고리별 로깅
                         logger.error(f"  ❌ [{error_category}] {agent_id}: {error_msg}")
 
-                        # [NEW] 동적 Replan: 복구 가능한 에러는 재시도
+                        # [NEW] 동적 Replan: 복구 가능한 에러는 재시도 (TIMEOUT은 재시도하지 않음)
                         if error_category in ["LLM_ERROR", "NETWORK_ERROR"]:
                             retry_result = self._retry_agent(agent_id, context, results, stats)
                             if retry_result:
@@ -662,7 +674,6 @@ class NativeSupervisor:
                             "retry_count": agent_stats.retry_count,
                             **fallback
                         }
-                        logger.warning(f"  ⚠️ [Fallback] {agent_id} Fallback 데이터 사용 (재시도 {agent_stats.retry_count}회 실패)")
 
         # [NEW] 동적 Replan: 실패한 에이전트가 있으면 의존 에이전트 체크
         if failed_agents:
@@ -922,6 +933,17 @@ class NativeSupervisor:
                  integrated += str(v) + "\n\n"
 
         return integrated
+
+    async def arun(self, *args, **kwargs) -> Dict[str, Any]:
+        """
+        [NEW] 비동기 실행 래퍼 (LangGraph 호환성)
+        
+        NativeSupervisor.run()은 내부적으로 ThreadPoolExecutor를 사용하므로
+        CPU 바운드보다는 I/O 바운드 작업입니다. 
+        asyncio.to_thread를 사용하여 메인 이벤트 루프를 차단하지 않고 실행합니다.
+        """
+        import asyncio
+        return await asyncio.to_thread(self.run, *args, **kwargs)
 
 
 # 하위 호환성을 위해 alias 제공

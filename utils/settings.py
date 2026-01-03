@@ -230,6 +230,10 @@ class ProjectSettings(BaseModel):
     # === UI Settings ===
     DEFAULT_THREAD_ID: str = Field(default="default_thread", description="기본 세션 ID")
 
+    # === Supervisor Settings ===
+    MAX_PARALLEL_AGENTS: int = Field(default=5, description="Supervisor 최대 병렬 실행 에이전트 수")
+    AGENT_TIMEOUT_SEC: int = Field(default=60, description="전문 에이전트 실행 타임아웃 (초)")
+
     def get_effective_settings(self) -> dict:
         """
         현재 프리셋이 적용된 효과적인 설정값 반환
@@ -287,10 +291,16 @@ class ProjectSettings(BaseModel):
             except ValueError:
                 pass
 
-        # 토론 최대 라운드
-        if disc_rounds := os.getenv("PLANCRAFT_DISCUSSION_ROUNDS"):
+        # Supervisor 설정 오버라이드
+        if max_parallel := os.getenv("PLANCRAFT_MAX_PARALLEL"):
             try:
-                overrides["DISCUSSION_MAX_ROUNDS"] = int(disc_rounds)
+                overrides["MAX_PARALLEL_AGENTS"] = int(max_parallel)
+            except ValueError:
+                pass
+        
+        if agent_timeout := os.getenv("PLANCRAFT_AGENT_TIMEOUT"):
+            try:
+                overrides["AGENT_TIMEOUT_SEC"] = int(agent_timeout)
             except ValueError:
                 pass
 
