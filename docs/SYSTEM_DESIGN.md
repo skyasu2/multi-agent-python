@@ -170,6 +170,17 @@ Temperature는 LLM 응답의 창의성/안정성을 조절하는 핵심 파라�
 | ⚖️ 균형 | 0.7 | 창의성과 안정성 균형 |
 | 💎 고품질 | 0.8 | 다양한 표현으로 풍부한 내용 |
 
+#### 1.2.5 Backend Framework (FastAPI)
+
+확장 가능한 아키텍처를 위해 **FastAPI**를 도입하여 백엔드 서버를 구축했습니다.
+
+| 장점 | 설명 | PlanCraft 활용 |
+|------|------|----------------|
+| **고성능 비동기 처리** | Async I/O 지원으로 LLM 스트리밍 및 동시 요청 처리에 최적화 | `async def` 라우터 구현 |
+| **자동 문서화** | OpenAPI(Swagger) 문서 자동 생성 | 클라이언트 연동 용이성 확보 |
+| **데이터 검증** | Pydantic 모델과 Type Hint를 통한 강력한 요청/응답 검증 | Agent 입출력 스키마와 1:1 매핑 |
+| **유연한 확장** | Frontend(Streamlit)와 Backend(Logic) 분리로 아키텍처 유연성 확보 | 향후 React/Mobile 확장 대비 |
+
 ---
 
 ## 2. 시스템 아키텍처 (Architecture)
@@ -181,16 +192,23 @@ C4Context
     title PlanCraft System Architecture
     
     Person(user, "User", "비즈니스 기획 아이디어를 가진 사용자")
-    System(app, "PlanCraft Agent", "LangGraph 기반 멀티 에이전트 시스템")
+    
+    System_Boundary(plancraft, "PlanCraft System") {
+        Container(ui, "Frontend", "Streamlit", "사용자 인터페이스 및 시각화")
+        Container(api, "Backend API", "FastAPI", "워크플로우 실행 및 비즈니스 로직")
+        Container(worker, "Agent Workflow", "LangGraph", "멀티 에이전트 오케스트레이션")
+    }
     
     System_Ext(aoai, "Azure OpenAI", "GPT-4o, GPT-4o-mini")
     System_Ext(tavily, "Tavily Search", "External Web Search API")
     System_Ext(rag_db, "FAISS DB", "Internal Knowledge Base")
 
-    Rel(user, app, "Uses", "Streamlit UI")
-    Rel(app, aoai, "LLM Inference", "REST API")
-    Rel(app, tavily, "Fetch Market Data", "API")
-    Rel(app, rag_db, "Retrieve Guides", "Vector Search")
+    Rel(user, ui, "Uses", "HTTPS")
+    Rel(ui, api, "API Calls", "REST/SSE")
+    Rel(api, worker, "Executes", "In-Process/Queue")
+    Rel(worker, aoai, "LLM Inference", "REST API")
+    Rel(worker, tavily, "Fetch Market Data", "API")
+    Rel(worker, rag_db, "Retrieve Guides", "Vector Search")
 ```
 
 ### 2.2 Core Workflow (Sequence Diagram)
@@ -870,6 +888,27 @@ class AgentCommunicationProtocol:
 
 ---
 
-## 8. 결론 (Conclusion)
+## 8. API Interface Specification
+
+FastAPI를 통해 제공되는 주요 엔드포인트 명세입니다.
+
+### 8.1 Workflow Execution
+- **POST** `/api/v1/workflow/run`
+  - 기획서 생성 워크플로우를 시작합니다.
+  - **Input**: `WorkflowRequest` (user_input, preset, etc.)
+  - **Output**: `thread_id` (비동기 상태 추적용)
+
+### 8.2 Streaming Response
+- **GET** `/api/v1/workflow/stream/{thread_id}`
+  - 워크플로우 실행 상태 및 토큰 생성 과정을 SSE(Server-Sent Events)로 스트리밍합니다.
+
+### 8.3 HITL Interaction
+- **POST** `/api/v1/workflow/resume/{thread_id}`
+  - 사용자 개입(Interrupt)에 대한 응답을 전달하여 워크플로우를 재개합니다.
+  - **Input**: `ResumeRequest` (selected_option, feedback)
+
+---
+
+## 9. 결론 (Conclusion)
 
 PlanCraft는 단순한 텍스트 생성기가 아니라, **인간 기획자의 사고 과정(Thinking Process)**을 모방하고 **전문가의 지식(Specialty)**을 통합하는 고도화된 시스템입니다. Plan-and-Execute 아키텍처 도입으로 복잡한 비즈니스 문제 해결 능력을 획기적으로 향상시켰습니다.
