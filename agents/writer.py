@@ -244,25 +244,92 @@ def _build_visual_instruction(preset, logger) -> str:
     if preset.include_diagrams == 0 and preset.include_charts == 0:
         return ""
 
-    visual_instruction = "\n\n📊 **시각적 요소 필수 요구사항**:\n"
+    visual_instruction = """
+
+=====================================================================
+📊 **[필수] 시각적 요소 요구사항** - 반드시 포함할 것!
+=====================================================================
+"""
 
     if preset.include_diagrams > 0:
-        visual_instruction += f"""- **Mermaid 다이어그램**: {preset.include_diagrams}개 이상
-  ```mermaid
-  graph TB
-      A[단계1] --> B[단계2]
-  ```
+        visual_instruction += f"""
+### Mermaid 다이어그램 ({preset.include_diagrams}개 이상 필수)
+**권장 삽입 위치**: "시스템 아키텍처", "사용자 플로우", 또는 "서비스 구조" 섹션
+
+아래 형식을 **정확히** 사용하세요 (백틱 3개 + mermaid):
+```mermaid
+graph TB
+    A[사용자 접속] --> B[로그인/회원가입]
+    B --> C{{서비스 선택}}
+    C -->|기능A| D[기능A 처리]
+    C -->|기능B| E[기능B 처리]
+    D --> F[결과 표시]
+    E --> F
+```
 """
+
     if preset.include_charts > 0:
-        visual_instruction += f"""- **ASCII 막대 그래프**: {preset.include_charts}개 이상
-  | 월 | MAU | 그래프 |
-  |---|---:|---|
-  | 1개월 | 1,000 | ▓░░░░░░░░░ 10% |
+        visual_instruction += f"""
+### ASCII 막대 그래프 ({preset.include_charts}개 이상 필수)
+**권장 삽입 위치**: "수익 모델", "성장 전략", 또는 "마일스톤" 섹션
+
+아래 형식을 사용하세요 (▓와 ░ 문자 사용):
+| 구분 | 수치 | 그래프 |
+|------|-----:|--------|
+| 1분기 | 1,000명 | ▓▓░░░░░░░░ 20% |
+| 2분기 | 2,500명 | ▓▓▓▓▓░░░░░ 50% |
+| 3분기 | 4,000명 | ▓▓▓▓▓▓▓▓░░ 80% |
+| 4분기 | 5,000명 | ▓▓▓▓▓▓▓▓▓▓ 100% |
 """
-    visual_instruction += "\n🚨 위 시각적 요소가 없으면 검증 실패!\n"
+
+    visual_instruction += """
+🚨 **경고**: 위 시각적 요소가 포함되지 않으면 검증 실패로 재작성 요청됩니다!
+=====================================================================
+"""
     logger.info(f"[Writer] 시각적 요소 요청: 다이어그램 {preset.include_diagrams}개, 차트 {preset.include_charts}개")
 
     return visual_instruction
+
+
+def _build_visual_feedback(validation_issues: list, preset) -> str:
+    """
+    시각적 요소 누락 시 구체적인 생성 예시가 포함된 피드백 생성
+
+    Args:
+        validation_issues: 검증 실패 항목 목록
+        preset: 프리셋 설정
+
+    Returns:
+        str: 구체적인 시각적 요소 생성 지침
+    """
+    feedback_parts = []
+
+    if "Mermaid 다이어그램 누락" in validation_issues:
+        feedback_parts.append("""
+⚠️ **Mermaid 다이어그램 필수**: 아래 형식으로 섹션에 포함하세요!
+```mermaid
+graph TB
+    A[사용자 요청] --> B[서비스 처리]
+    B --> C{결과 확인}
+    C -->|성공| D[응답 반환]
+    C -->|실패| E[에러 처리]
+```
+다이어그램을 '시스템 아키텍처' 또는 '사용자 플로우' 섹션에 추가하세요.
+""")
+
+    if "ASCII 차트 누락" in validation_issues:
+        feedback_parts.append("""
+⚠️ **ASCII 차트 필수**: 아래 형식으로 섹션에 포함하세요!
+| 구분 | 수치 | 그래프 |
+|------|-----:|--------|
+| 1분기 | 1,000 | ▓▓░░░░░░░░ 20% |
+| 2분기 | 2,500 | ▓▓▓▓▓░░░░░ 50% |
+| 3분기 | 4,000 | ▓▓▓▓▓▓▓▓░░ 80% |
+| 4분기 | 5,000 | ▓▓▓▓▓▓▓▓▓▓ 100% |
+차트를 '수익 모델' 또는 '성장 전략' 섹션에 추가하세요.
+""")
+
+    return "\n".join(feedback_parts) if feedback_parts else ""
 
 
 def _validate_draft(draft_dict: dict, preset, specialist_context: str,
@@ -464,7 +531,12 @@ def run(state: PlanCraftState) -> PlanCraftState:
 
             if validation_issues:
                 logger.warning(f"[Writer] 검증 실패: {', '.join(validation_issues)}")
-                feedback = f"[검증 실패] {', '.join(validation_issues)}. 모든 섹션을 완전히 작성하세요."
+
+                # 시각적 요소 누락 시 구체적인 예시 피드백 추가
+                visual_feedback = _build_visual_feedback(validation_issues, preset)
+                base_feedback = f"[검증 실패] {', '.join(validation_issues)}. 모든 섹션을 완전히 작성하세요."
+                feedback = base_feedback + visual_feedback if visual_feedback else base_feedback
+
                 messages.append({"role": "user", "content": feedback})
                 last_error = f"검증 실패: {', '.join(validation_issues)}"
                 continue

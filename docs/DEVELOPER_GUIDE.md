@@ -1,310 +1,215 @@
-# CLAUDE.md
+# PlanCraft 개발자 가이드 (Developer Guide)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+본 문서는 PlanCraft Agent 프로젝트의 개발 및 확장을 위한 가이드입니다.
 
-## Project Overview
+---
 
-PlanCraft Agent는 LangGraph, Azure OpenAI, Streamlit 기반의 AI 멀티 에이전트 기획서 자동 생성 시스템입니다.
+## 1. 프로젝트 구조
 
-### 서비스 핵심 흐름
 ```
-사용자 입력
-    ↓
-[간단한 질문?] ─YES→ AI 직접 답변 (기획서 생성 X)
-    │NO
-    ↓
-[입력이 부실?] ─YES→ 프롬프트 증폭기 (AI가 컨셉 확장 제안)
-    │NO
-    ↓
-기획서 생성 (6개 Agent 협업)
-    ↓
-1차 기획안 완성 → 사용자 수정 요청 (최대 3회)
+plancraft-agent/
+├── app.py                  # Streamlit UI 엔트리포인트
+├── api/                    # FastAPI 백엔드 (선택적)
+├── agents/                 # AI 에이전트
+│   ├── analyzer.py         # 입력 분석
+│   ├── structurer.py       # 구조화
+│   ├── writer.py           # 초안 작성
+│   ├── reviewer.py         # 품질 검토
+│   ├── refiner.py          # 개선
+│   ├── formatter.py        # 최종 포맷팅
+│   ├── supervisor.py       # 전문 에이전트 오케스트레이터
+│   └── specialists/        # 전문 에이전트 (Market, BM, Risk 등)
+├── graph/                  # LangGraph 워크플로우
+│   ├── workflow.py         # StateGraph 정의
+│   ├── state.py            # PlanCraftState (TypedDict)
+│   ├── interrupt_types.py  # HITL 인터럽트 타입
+│   └── interrupt_utils.py  # HITL 유틸리티
+├── prompts/                # 프롬프트 템플릿
+├── rag/                    # RAG 엔진 (FAISS)
+│   ├── documents/          # 불변 가이드 문서
+│   └── faiss_manager.py    # 벡터 저장소 관리
+├── tools/                  # 외부 도구 (웹 검색 등)
+├── ui/                     # UI 컴포넌트
+│   ├── components.py       # Streamlit 컴포넌트
+│   ├── styles.py           # CSS Design Tokens
+│   └── workflow_runner.py  # 워크플로우 실행 로직
+├── utils/                  # 유틸리티
+│   ├── llm.py              # Azure OpenAI 클라이언트
+│   ├── settings.py         # 중앙 설정 (프리셋 포함)
+│   ├── schemas.py          # Pydantic 스키마
+│   ├── retry.py            # Exponential Backoff
+│   └── time_context.py     # 시간 컨텍스트 (연도/분기)
+├── tests/                  # 테스트 스위트
+└── docs/                   # 문서
 ```
 
-### 핵심 원칙
-- **간단한 질문**: `is_general_query=True` → 기획서 없이 AI 직접 답변
-- **프롬프트 증폭기**: 20자 미만 입력 시 AI가 유사 컨셉 옵션 제시 (HITL)
-- **사용자 수정 3회**: 1차 완성 **후** 추가 피드백으로 고도화 가능
-- **브레인스토밍**: 아이디어 없을 때 사용하는 **보조 기능**
+---
 
-### 품질 루프 vs 사용자 수정 (별개!)
-| 구분 | 내부 품질 루프 | 사용자 수정 |
-|------|--------------|------------|
-| 시점 | 기획서 완성 **전** | 기획서 완성 **후** |
-| 주체 | Reviewer (자동) | 사용자 (수동) |
-| 횟수 | 최대 3회 (내부) | 최대 3회 (별도) |
-| 트리거 | 점수 < 9점 | 사용자 피드백 입력 |
+## 2. 개발 환경 설정
 
-> Formatter에서 `refine_count=0` 리셋하여 두 카운터 분리
+### 2.1 필수 요구사항
+- Python 3.11+
+- Azure OpenAI API 액세스
 
-## Commands
-
-### 실행
+### 2.2 설치
 ```bash
-# 개발 모드
-streamlit run app.py
+git clone https://github.com/skyasu2/skax.git
+cd skax
 
-# Docker
-docker-compose up -d
-```
+# 가상환경 생성
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-### 테스트
-```bash
-# 전체 테스트
-pytest tests/ -v
-
-# CI 환경 (PYTHONPATH 설정 필요)
-PYTHONPATH=$(pwd) pytest tests/ -v
-```
-
-### 의존성
-```bash
+# 의존성 설치
 pip install -r requirements.txt
 ```
 
-## Architecture
-
-### Agent Pipeline
-```
-User Input → [RAG + Web Search (병렬)] → Analyzer → Structurer → Writer → Reviewer → Refiner → Formatter → Output
-```
-
-### 핵심 컴포넌트
-
-| 컴포넌트 | 위치 | 역할 |
-|---------|------|------|
-| State 관리 | `graph/state.py` | TypedDict 상태 + ensure_dict 유틸리티 |
-| 워크플로우 | `graph/workflow.py` | StateGraph + RunnableBranch 라우팅 |
-| 에이전트 | `agents/*.py` | 6개 전문 에이전트 |
-| LLM 설정 | `utils/llm.py` | Azure OpenAI 클라이언트 팩토리 |
-| 설정 | `utils/settings.py` | 중앙집중식 프로젝트 설정 |
-| RAG | `rag/*.py` | FAISS + MMR 검색 (불변 가이드 문서) |
-| 브레인스토밍 | `utils/idea_generator.py` | 8개 카테고리 아이디어 생성 |
-| UI 스타일 | `ui/styles.py` | CSS Design Tokens |
-
-### Reviewer 라우팅 (스마트 분기)
-```python
-# should_discuss_or_complete 함수
-# 성능 최적화를 위한 점수 기반 스마트 라우팅
-
-# 분기 로직 (settings.py 설정값 기반)
-< 5점 (FAIL)     → Analyzer 복귀 (최대 2회)
-5-6점 (REVISE)   → Discussion (1라운드) → Refiner
-7-8점 (REVISE)   → Discussion 스킵 → Refiner (최대 2회)
-≥ 9점 (PASS)     → Formatter 완료
-
-# 설정값 (utils/settings.py)
-DISCUSSION_SKIP_THRESHOLD = 7   # 이상이면 Discussion 스킵
-DISCUSSION_MAX_ROUNDS = 1       # Discussion 최대 라운드
-MAX_REFINE_LOOPS = 2            # Refine 최대 횟수
-```
-
-### Discussion SubGraph (에이전트 간 대화)
-```
-┌─────────────────────────────────────┐
-│     Discussion SubGraph             │
-│     (5-6점에서만 실행)               │
-│                                     │
-│  reviewer_speak ──► writer_respond  │
-│        ▲                 │          │
-│        └──── NO ◄── check_consensus │
-│                          │ YES      │
-│                          ▼          │
-│                       → Refiner     │
-└─────────────────────────────────────┘
-
-# 최적화: 1라운드만 실행 (2 LLM 호출)
-# State 필드
-discussion_messages: List[dict]  # 대화 이력
-discussion_round: int            # 라운드 수
-consensus_reached: bool          # 합의 도달
-agreed_action_items: List[str]   # 합의된 개선 사항
-```
-
-### RAG vs 웹검색 역할 분리
-| 소스 | 역할 | 데이터 특성 |
-|------|------|------------|
-| RAG (FAISS) | 작성 방법론, 체크리스트, 예시 | 불변 |
-| 웹 검색 (Tavily) | 시장 규모, 트렌드, 경쟁사 | 실시간 |
-
-### Human Interrupt 타입 시스템 (모듈화)
-```python
-# graph/interrupt_types.py - 타입 안전한 Payload 클래스
-
-from graph.interrupt_types import InterruptFactory, InterruptType
-
-# 옵션 선택 인터럽트
-payload = InterruptFactory.create(
-    InterruptType.OPTION,
-    question="방향을 선택하세요",
-    options=[InterruptOption(title="A", description="설명")]
-)
-
-# 승인 인터럽트 (역할 기반)
-payload = InterruptFactory.create(
-    InterruptType.APPROVAL,
-    question="승인하시겠습니까?",
-    role="팀장"
-)
-
-# 지원 타입: OPTION, FORM, CONFIRM, APPROVAL
-```
-
-| 타입 | 용도 | 응답 검증 |
-|------|------|----------|
-| OPTION | 옵션 선택/직접 입력 | selected_option 또는 text_input |
-| FORM | 동적 폼 입력 | required_fields 검증 |
-| CONFIRM | 예/아니오 확인 | confirmed 플래그 |
-| APPROVAL | 역할 기반 승인 | approve/reject 값 |
-
-### HITL 메타필드 (운영/디버깅/감사용)
-```python
-# State 필드 (graph/state.py)
-last_pause_type: str      # 마지막 인터럽트 타입 (option, form, confirm, approval)
-last_resume_value: dict   # 사용자 응답값 (민감정보 제거)
-last_human_event: dict    # 전체 HITL 이벤트 정보
-
-# 페이로드 추적 필드 (interrupt_types.py)
-node_ref: str             # 인터럽트 발생 노드 이름
-event_id: str             # 이벤트 UUID (evt_abc123)
-timestamp: str            # ISO 8601 형식 시각
-```
-
-step_history 로그 예시:
-```json
-{
-  "step": "human_resume",
-  "status": "USER_INPUT",
-  "event_type": "HUMAN_RESPONSE",
-  "pause_type": "option",
-  "summary": "옵션 선택: AI 헬스케어 앱",
-  "response_data": {"selected_option": {...}}
-}
-```
-
-## Key Patterns
-
-### ensure_dict (Pydantic/Dict 일관성)
-```python
-from graph.state import ensure_dict
-
-# LLM 결과를 항상 dict로 변환
-result_dict = ensure_dict(llm_result)
-```
-
-### State 업데이트 (불변성 유지)
-```python
-from graph.state import update_state, safe_get
-
-new_state = update_state(state, current_step="analyze", analysis=result)
-topic = safe_get(analysis, "topic", "Unknown")
-```
-
-### 에이전트 구현 패턴
-```python
-from graph.state import PlanCraftState, update_state, ensure_dict
-
-def run(state: PlanCraftState) -> PlanCraftState:
-    result = llm.invoke(messages)
-    result_dict = ensure_dict(result)  # Pydantic → Dict
-    return update_state(state, analysis=result_dict)
-```
-
-### 에러 핸들링 데코레이터
-```python
-from utils.error_handler import handle_node_error
-
-@handle_node_error
-def node_function(state: PlanCraftState) -> PlanCraftState:
-    pass
-```
-
-### Self-reflection 패턴 (Writer 예시)
-```python
-# LLM 결과를 자체 검증 후 재시도
-max_retries = 3
-while current_try < max_retries:
-    result = llm.invoke(messages)
-    sections = result.get("sections", [])
-
-    # Self-Check: 최소 요구사항 검증
-    if len(sections) < MIN_SECTIONS:
-        messages.append({"role": "user", "content": "섹션이 부족합니다. 재작성하세요."})
-        current_try += 1
-        continue
-
-    break  # 검증 통과
-```
-
-### HITL Resume 로깅 (step_history)
-```python
-# 사용자 Resume 입력이 step_history에 자동 기록됨
-# graph/interrupt_utils.py의 handle_user_response() 참조
-{
-    "step": "human_resume",
-    "status": "USER_INPUT",
-    "summary": "옵션 선택: AI 헬스케어 앱",
-    "response_data": {...}  # 민감정보 마스킹됨
-}
-```
-
-## Configuration
-
-### 필수 환경변수 (.env)
+### 2.3 환경변수 (.env)
 ```env
+# 필수
 AOAI_ENDPOINT=https://your-endpoint.openai.azure.com/
 AOAI_API_KEY=your_api_key
 AOAI_DEPLOY_GPT4O=gpt-4o
 AOAI_DEPLOY_GPT4O_MINI=gpt-4o-mini
 AOAI_DEPLOY_EMBED_3_LARGE=text-embedding-3-large
+
+# 선택
+TAVILY_API_KEY=...              # 웹 검색
+LANGCHAIN_TRACING_V2=true       # LangSmith 추적
+LANGCHAIN_PROJECT=PlanCraft     # LangSmith 프로젝트명
+CHECKPOINTER_TYPE=memory        # memory|postgres|redis
 ```
 
-### 선택 환경변수
-```env
-TAVILY_API_KEY=...           # 웹 검색
-LANGCHAIN_TRACING_V2=true    # LangSmith 추적
-LANGCHAIN_PROJECT=PlanCraft  # LangSmith 프로젝트명
-CHECKPOINTER_TYPE=memory     # memory|postgres|redis
+---
+
+## 3. 실행 및 테스트
+
+### 3.1 개발 모드 실행
+```bash
+streamlit run app.py
 ```
 
-## File Modification Guide
+### 3.2 테스트 실행
+```bash
+# 전체 테스트
+PYTHONPATH=. pytest tests/ -v
 
-| 작업 | 수정 파일 |
-|-----|----------|
-| 에이전트 로직 | `agents/{agent_name}.py` |
-| 프롬프트 | `prompts/{agent_name}_prompt.py` |
-| State 필드 | `graph/state.py` |
-| 라우팅 조건 | `graph/workflow.py` (_is_quality_* 함수) |
-| 인터럽트 타입 | `graph/interrupt_types.py` (Payload 클래스) |
-| 인터럽트 유틸 | `graph/interrupt_utils.py` (팩토리, 핸들러) |
-| UI 스타일 | `ui/styles.py` (CSS 변수) |
-| 브레인스토밍 카테고리 | `utils/prompt_examples.py` |
-| RAG 문서 | `rag/documents/*.md` |
-
-## Notes
-
-- **TypedDict**: Pydantic 대신 가벼운 TypedDict로 LangGraph 상태 관리
-- **ensure_dict**: 모든 에이전트에서 LLM 결과를 dict로 변환
-- **불변성**: 항상 `update_state()`로 새 state dict 생성
-- **로깅**: `get_file_logger()` → `/logs/` 디렉토리
-- **에러 처리**: 모든 노드에 `@handle_node_error` 적용
-- **Writer 검증**: 최소 9개 섹션, 마크다운 테이블, 최대 3회 재시도
-- **시간 인식**: `time_context.py`로 연도/분기 정보 제공
-
-### SubGraph Interrupt 주의사항
-```
-⚠️ SubGraph 내부에서 interrupt() 호출 시:
-- Resume 시 부모 노드(run_*_subgraph) 전체가 재실행됨
-- interrupt() 이전 코드 모두 다시 실행됨
-- Side-Effect는 반드시 interrupt() 이후에 배치
-
-자세한 내용: docs/SUBGRAPH_INTERRUPT_GUIDE.md
+# 특정 테스트
+PYTHONPATH=. pytest tests/test_workflow_routing.py -v
 ```
 
-## 참고 문서
+---
+
+## 4. 핵심 패턴
+
+### 4.1 State 관리 (TypedDict)
+```python
+from graph.state import PlanCraftState, update_state, ensure_dict
+
+def run(state: PlanCraftState) -> PlanCraftState:
+    # LLM 호출
+    result = llm.invoke(messages)
+
+    # Pydantic → Dict 변환
+    result_dict = ensure_dict(result)
+
+    # 불변성 유지하며 상태 업데이트
+    return update_state(state, analysis=result_dict)
+```
+
+### 4.2 에러 핸들링
+```python
+from utils.error_handler import handle_node_error
+
+@handle_node_error
+def node_function(state: PlanCraftState) -> PlanCraftState:
+    # 에러 발생 시 자동으로 state.error에 기록
+    pass
+```
+
+### 4.3 Self-Reflection 패턴
+```python
+max_retries = preset.writer_max_retries
+for current_try in range(max_retries):
+    result = llm.invoke(messages)
+
+    # 자체 검증
+    if len(result.sections) < MIN_SECTIONS:
+        messages.append({"role": "user", "content": "섹션 부족. 재작성하세요."})
+        continue
+
+    break  # 검증 통과
+```
+
+### 4.4 HITL (Human-in-the-Loop)
+```python
+from graph.interrupt_types import InterruptFactory, InterruptType, InterruptOption
+
+# 옵션 선택 인터럽트
+payload = InterruptFactory.create(
+    InterruptType.OPTION,
+    question="방향을 선택하세요",
+    options=[
+        InterruptOption(title="옵션 A", description="설명"),
+        InterruptOption(title="옵션 B", description="설명"),
+    ]
+)
+```
+
+---
+
+## 5. 에이전트 추가/수정
+
+### 5.1 새 에이전트 추가
+1. `agents/your_agent.py` 생성
+2. `prompts/your_agent_prompt.py` 생성
+3. `graph/workflow.py`에 노드 등록
+4. 필요시 `utils/schemas.py`에 출력 스키마 추가
+
+### 5.2 프롬프트 수정
+- 위치: `prompts/{agent_name}_prompt.py`
+- 시스템 프롬프트와 사용자 프롬프트 분리
+
+---
+
+## 6. 품질 프리셋 (Quality Presets)
+
+`utils/settings.py`에서 관리:
+
+| 프리셋 | 모델 | 섹션 수 | 다이어그램 | 재시도 |
+|--------|------|---------|-----------|--------|
+| fast | gpt-4o-mini | 7개 | 0 | 1회 |
+| balanced | gpt-4o-mini | 9개 | 1 | 2회 |
+| quality | gpt-4o | 10개 | 1 | 3회 |
+
+---
+
+## 7. 문서 참조
 
 | 문서 | 설명 |
 |------|------|
-| `docs/SUBGRAPH_INTERRUPT_GUIDE.md` | SubGraph interrupt 동작 원리 |
-| `docs/PYDANTIC_MIGRATION_GUIDE.md` | Pydantic v2 마이그레이션 가이드 |
-| `docs/AGENT_IO_EXAMPLES.md` | 에이전트별 JSON 입출력 예시 |
+| [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) | 상세 시스템 설계서 |
+| [WORKFLOW_GUIDE.md](WORKFLOW_GUIDE.md) | 워크플로우 상세 |
+| [HITL_GUIDE.md](HITL_GUIDE.md) | Human-in-the-Loop 가이드 |
+| [PRODUCTION_CHECKLIST.md](guidelines/PRODUCTION_CHECKLIST.md) | 배포 체크리스트 |
+
+---
+
+## 8. 트러블슈팅
+
+### 8.1 테스트 실패
+```bash
+# PYTHONPATH 설정 필요
+PYTHONPATH=. pytest tests/ -v
+```
+
+### 8.2 LLM 타임아웃
+```python
+# Exponential Backoff 사용
+from utils.llm import get_llm_with_retry
+llm = get_llm_with_retry(max_retries=3)
+```
+
+### 8.3 다이어그램 누락
+- `utils/settings.py`에서 `include_diagrams` 값 확인
+- Writer 에이전트의 Self-Reflection 로그 확인

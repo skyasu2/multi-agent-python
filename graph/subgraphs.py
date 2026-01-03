@@ -25,7 +25,7 @@ SubGraph 내부에서 interrupt()가 호출되면, Resume 시:
 따라서:
 - interrupt() 전에는 Side-Effect(DB 저장, API 호출, 알림 발송) 금지
 - 초기화 코드(discussion_messages=[] 등)는 Resume 시 다시 실행됨을 인지
-- 자세한 내용: docs/SUBGRAPH_INTERRUPT_GUIDE.md 참조
+- 자세한 내용: docs/HITL_GUIDE.md 참조
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
@@ -482,7 +482,7 @@ def run_discussion_subgraph(state: PlanCraftState) -> PlanCraftState:
     만약 향후 interrupt를 추가한다면, Resume 시 이 함수 전체가
     재실행되므로 아래 초기화 코드가 다시 실행됩니다.
     (discussion_messages=[], discussion_round=0 등)
-    → docs/SUBGRAPH_INTERRUPT_GUIDE.md 참조
+    → docs/HITL_GUIDE.md 참조
     """
     from graph.state import update_state
     import time
