@@ -92,10 +92,12 @@ class InterruptOption(BaseModel):
 
     파이프라인 추적을 위해 각 옵션에 고유 id를 부여합니다.
     id는 HITL 이벤트 로깅, step_history 기록, 디버깅에 활용됩니다.
+    value는 프로그래밍적 식별자로, 승인 워크플로우 등에서 사용됩니다.
     """
     id: str = Field(default="", description="고유 식별자 (파이프라인 추적용)")
     title: str = Field(description="옵션 제목")
     description: str = Field(default="", description="옵션 설명")
+    value: str = Field(default="", description="프로그래밍적 식별자 (예: approve, reject)")
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -104,6 +106,9 @@ class InterruptOption(BaseModel):
             import re
             # title을 snake_case로 변환하여 id 생성
             self.id = re.sub(r'[^a-zA-Z0-9가-힣]', '_', self.title).lower().strip('_')
+        # value가 없으면 id와 동일하게 설정
+        if not self.value:
+            self.value = self.id
 
     @classmethod
     def from_any(cls, obj: Any) -> "InterruptOption":
