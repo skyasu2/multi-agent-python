@@ -33,6 +33,8 @@ class GenerationPreset(BaseModel):
     # [NEW] 시각적 요소 설정 (다이어그램, 그래프)
     include_diagrams: int = Field(default=0, description="포함할 Mermaid 다이어그램 개수")
     include_charts: int = Field(default=0, description="포함할 Markdown 그래프/차트 개수")
+    # [NEW] RAG Reranking 설정
+    use_reranker: bool = Field(default=False, description="Cross-Encoder Reranking 사용 여부")
 
 
 # 프리셋 정의
@@ -84,6 +86,7 @@ GENERATION_PRESETS = {
         structurer_max_retries=2,  # 구조 검증은 고정
         include_diagrams=1,  # 고품질 모드: 다이어그램 1개
         include_charts=2,    # 그래프 2개 (추가 1개)
+        use_reranker=True,   # [NEW] 고품질 모드: Cross-Encoder Reranking 활성화
     ),
 }
 

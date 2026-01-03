@@ -344,13 +344,23 @@ def retrieve_context(state: PlanCraftState) -> PlanCraftState:
     """
     RAG 검색 노드
 
+    프리셋에 따라 Cross-Encoder Reranking을 활성화합니다.
+    - quality 모드: Reranking 사용 (정확도 향상)
+    - balanced/fast 모드: MMR만 사용 (속도 우선)
+
     LangSmith: run_name="📚 컨텍스트 수집", tags=["rag", "retrieval"]
     """
     from rag.retriever import Retriever
     from graph.state import update_state
+    from utils.settings import get_preset
+
+    # 프리셋에서 Reranker 설정 로드
+    preset_key = state.get("generation_preset", "balanced")
+    preset = get_preset(preset_key)
+    use_reranker = preset.use_reranker
 
     # Retriever 초기화 (상위 3개 문서 검색)
-    retriever = Retriever(k=3)
+    retriever = Retriever(k=3, use_reranker=use_reranker)
 
     # 사용자 입력으로 관련 문서 검색
     user_input = state["user_input"]
@@ -361,8 +371,10 @@ def retrieve_context(state: PlanCraftState) -> PlanCraftState:
     # [LOG] 실행 결과 로깅 및 히스토리 업데이트
     status = "SUCCESS"
     rag_context = new_state.get("rag_context")
-    summary = f"검색된 문서: {len(rag_context.split('---')) if rag_context else 0}건"
-    
+    doc_count = len(rag_context.split('---')) if rag_context else 0
+    rerank_label = " (Reranked)" if use_reranker else ""
+    summary = f"검색된 문서: {doc_count}건{rerank_label}"
+
     return _update_step_history(new_state, "retrieve", status, summary)
 
 
