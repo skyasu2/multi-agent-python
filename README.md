@@ -154,8 +154,8 @@ graph TB
 
 ```bash
 # 저장소 클론
-git clone https://github.com/skyasu2/skax.git
-cd skax
+git clone <repository-url>
+cd plancraft-agent
 
 # 가상환경 생성 및 활성화
 python -m venv .venv

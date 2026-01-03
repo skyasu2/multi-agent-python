@@ -99,4 +99,3 @@ AI Bootcamp의 6대 핵심 모듈을 실제 프로젝트 코드에 어떻게 적
 단순한 자동화를 넘어, **인간의 의도를 이해하고(HITL), 도구를 자유자재로 다루며(A2A), 스스로 계획을 수립하는(Plan-and-Execute)** 진정한 의미의 Agent System을 입증했습니다.
 
 ---
-*Github: [https://github.com/skyasu2/skax](https://github.com/skyasu2/skax)*

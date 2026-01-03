@@ -53,8 +53,8 @@ plancraft-agent/
 
 ### 2.2 설치
 ```bash
-git clone https://github.com/skyasu2/skax.git
-cd skax
+git clone <repository-url>
+cd plancraft-agent
 
 # 가상환경 생성
 python -m venv .venv
@@ -188,10 +188,9 @@ payload = InterruptFactory.create(
 
 | 문서 | 설명 |
 |------|------|
-| [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) | 상세 시스템 설계서 |
-| [WORKFLOW_GUIDE.md](WORKFLOW_GUIDE.md) | 워크플로우 상세 |
-| [HITL_GUIDE.md](HITL_GUIDE.md) | Human-in-the-Loop 가이드 |
-| [PRODUCTION_CHECKLIST.md](guidelines/PRODUCTION_CHECKLIST.md) | 배포 체크리스트 |
+| [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) | 시스템 설계서 |
+| [MULTI_AGENT_DIAGRAM.md](MULTI_AGENT_DIAGRAM.md) | 아키텍처 다이어그램 |
+| [HITL_GUIDE.md](HITL_GUIDE.md) | HITL 가이드 |
 
 ---
 
