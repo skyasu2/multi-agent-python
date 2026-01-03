@@ -107,8 +107,16 @@ def run(state: PlanCraftState) -> PlanCraftState:
         context_parts.append(f"[기획서 작성 가이드]\n{rag_context}")
     context = "\n\n".join(context_parts) if context_parts else "없음"
     
-    # 3. 프롬프트 구성 (시간 컨텍스트 주입)
-    system_msg_content = get_time_context() + ANALYZER_SYSTEM_PROMPT
+    # [Logic] 프리셋 로딩 (프롬프트 구성 및 LLM 설정용)
+    from utils.settings import get_preset, settings
+    active_preset = state.get("generation_preset", settings.active_preset)
+    preset_config = get_preset(active_preset)
+
+    # 3. 프롬프트 구성 (시간 컨텍스트 주입 + 동적 설정 적용)
+    # [FIX] min_key_features를 프롬프트에 주입하여 Quality 모드에서 더 많은 기능 제안 유도
+    system_msg_content = get_time_context() + ANALYZER_SYSTEM_PROMPT.format(
+        min_key_features=preset_config.min_key_features
+    )
 
     # [FIX] 프롬프트 템플릿의 {review_data}, {current_analysis} 인자 전달
     user_msg_content = ANALYZER_USER_PROMPT.format(
@@ -127,17 +135,10 @@ def run(state: PlanCraftState) -> PlanCraftState:
     
     # 4. LLM 호출
     try:
-        # [NEW] 프리셋 기반 Temperature 적용
-        # Analyer는 창의성이 필요하므로 Creative 모드 사용 (프리셋 오버라이드 가능)
-        from utils.settings import get_preset, settings
-        
-        # 현재 활성 프리셋 가져오기
-        active_preset = state.get("generation_preset", settings.active_preset)
-        preset_config = get_preset(active_preset)
-        
-        # Analyzer는 기본적으로 창의적 작업이므로 temperature 적용
-        # (단, 프리셋이 매우 엄격(0.0)하다면 그에 따름)
+        # LLM 생성 및 실행
+        # Analyzer는 창의적인 작업이므로 preset temperature 사용 (default: creative)
         temperature = preset_config.temperature
+        analyzer = _get_analyzer_llm(temperature=temperature)
         
         # LLM 생성 및 실행
         analyzer = _get_analyzer_llm(temperature=temperature)

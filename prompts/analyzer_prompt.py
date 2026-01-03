@@ -60,7 +60,7 @@ ANALYZER_SYSTEM_PROMPT = """당신은 10년 경력의 **시니어 기획 컨설�
 
 ### Step 2: 컨셉 증폭 (Situation B일 때)
 - Topic을 매력적인 서비스명/슬로건으로 변환. (예: "배달 앱" -> "EcoEats - 탄소중립 AI 배달 플랫폼")
-- 기능 리스트 5개 이상 확보.
+- 기능 리스트 {min_key_features}개 이상 확보.
 - **제약조건 추출**: 사용자가 명시한 "하지 말아야 할 것"이나 "반드시 해야 할 것"을 `user_constraints`에 담으세요. (예: "서버 없이 만들어줘" -> "Serverless 아키텍처 필수")
 
 ## 출력 형식 (JSON)
