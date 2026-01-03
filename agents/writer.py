@@ -146,7 +146,7 @@ def run(state: PlanCraftState) -> PlanCraftState:
     last_error = None
 
     # [NEW] Quality 모드일 경우: 분할 작성 (Chunk Writing)
-    if preset.name == "quality" and structure:
+    if active_preset == "quality" and structure:
         logger.info("[Writer] 👑 Quality Mode: Chunk Writing 시작 (섹션별 상세 작성)")
         try:
             final_draft_dict = _write_in_chunks(
