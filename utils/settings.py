@@ -51,6 +51,8 @@ class GenerationPreset(BaseModel):
     use_multi_query: bool = Field(default=False, description="Multi-Query Retrieval 사용 여부")
     use_query_expansion: bool = Field(default=False, description="Query Expansion 사용 여부")
     use_context_reorder: bool = Field(default=False, description="Long Context Reorder 사용 여부")
+    # [NEW] 심층 분석 모드 (High Quality 전용)
+    deep_analysis_mode: bool = Field(default=False, description="심층 분석(시나리오 플래닝 등) 수행 여부")
 
 
 # 프리셋 정의
@@ -102,15 +104,16 @@ GENERATION_PRESETS = {
         max_restart_count=2,
         writer_max_retries=3,
         discussion_enabled=True,
-        min_sections=10,  # 고품질: 10개 섹션
+        min_sections=13,  # [TUNE] 고품질: 13개 섹션 (양적 풍성함)
         structurer_max_retries=2,  # 구조 검증은 고정
-        include_diagrams=1,  # 고품질 모드: 다이어그램 1개
-        include_charts=2,    # 그래프 2개 (추가 1개)
+        include_diagrams=2,  # 고품질 모드: 다이어그램 2개 (증가)
+        include_charts=2,    # 그래프 2개
         # Advanced RAG: 모든 기능 활성화
         use_reranker=True,
         use_multi_query=True,
         use_query_expansion=True,
         use_context_reorder=True,
+        deep_analysis_mode=True,  # [NEW] 심층 분석 활성화
     ),
 }
 

@@ -85,6 +85,19 @@ def run(state: PlanCraftState) -> PlanCraftState:
             visual_instruction=visual_instruction,
             user_constraints=user_constraints_str
         )
+        
+        # [NEW] Quality 모드 전용 추가 지침 (양적 풍성함 강화)
+        if preset.name == "quality":
+            quality_instruction = """
+\n=====================================================================
+👑 **[Quality Mode] 최고 품질 작성 지침**
+1. **핵심 기능(Key Features)**: 반드시 **6개 이상**의 핵심 기능을 상세히 기술하세요.
+2. **섹션 분량**: 각 섹션은 최소 500자 이상, 깊이 있는 내용을 담으세요.
+3. **참고 자료**: 인용된 모든 출처를 마지막에 '참고 자료' 섹션으로 정리하세요.
+=====================================================================\n
+"""
+            formatted_prompt += quality_instruction
+
     except KeyError as e:
         return update_state(state, error=f"프롬프트 포맷 오류: {str(e)}")
 
