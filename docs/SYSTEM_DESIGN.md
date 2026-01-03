@@ -1,8 +1,9 @@
 # 🏗️ PlanCraft System Design Document
 
-**Version**: 2.1  
-**Date**: 2026-01-01  
+**Version**: 2.2
+**Date**: 2026-01-03
 **Framework**: LangGraph, LangChain, Streamlit
+**Standards**: MCP (Model Context Protocol), A2A (Agent-to-Agent)
 
 ---
 
@@ -302,6 +303,321 @@ class PlanCraftState(TypedDict):
 
 ---
 
-## 6. 결론 (Conclusion)
+## 6. MCP (Model Context Protocol) 적용
+
+PlanCraft는 MCP(Model Context Protocol) 개념을 적용하여 LLM에 전달되는 Context를 체계적으로 관리합니다.
+
+### 6.1 MCP Context 계층 구조
+
+MCP는 LLM에 맥락(Context)을 전달하는 표준 프로토콜입니다. PlanCraft에서 각 Context 요소가 어떻게 매핑되는지 정리합니다.
+
+| MCP Context 요소 | PlanCraft 구현 | 설명 |
+|-----------------|----------------|------|
+| **System Prompt** | `prompts/*.py` | 각 Agent별 역할 정의 프롬프트 (Writer, Reviewer 등) |
+| **대화 히스토리** | `state.messages`, `state.chat_history` | 사용자-시스템 간 대화 기록 및 HITL 응답 |
+| **Tool 호출 결과** | `state.web_context`, `state.web_sources` | Tavily Search, MCP Server 호출 결과 |
+| **RAG 결과** | `state.rag_context` | FAISS Vector DB에서 검색한 가이드라인 문서 |
+| **Agent 이전 단계 결과** | `state.analysis`, `state.structure`, `state.draft` | 이전 Agent의 출력이 다음 Agent의 입력으로 전달 |
+
+```mermaid
+flowchart LR
+    subgraph "MCP Context Layer"
+        SP[System Prompt]
+        CH[Chat History]
+        TR[Tool Results]
+        RR[RAG Results]
+        AR[Agent Results]
+    end
+
+    SP --> LLM[LLM Call]
+    CH --> LLM
+    TR --> LLM
+    RR --> LLM
+    AR --> LLM
+
+    LLM --> OUT[Structured Output]
+
+    style SP fill:#e3f2fd
+    style CH fill:#e3f2fd
+    style TR fill:#fff3e0
+    style RR fill:#fff3e0
+    style AR fill:#c8e6c9
+```
+
+### 6.2 MCP 구성요소 매핑
+
+MCP의 Host/Client/Server 개념이 PlanCraft 시스템에서 어떻게 구현되는지 매핑합니다.
+
+| MCP 개념 | PlanCraft 구현체 | 역할 |
+|----------|-----------------|------|
+| **MCP Host** | `app.py` (Streamlit) | 사용자 인터페이스, 워크플로우 실행 요청 |
+| **MCP Client** | `MCPToolkit` (`tools/mcp_client.py`) | MCP 서버 연결 관리, 도구 호출 추상화 |
+| **MCP Server** | `mcp-server-fetch`, `tavily-mcp` | 외부 리소스 접근 (URL Fetch, Web Search) |
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        MCP Host (Streamlit)                      │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                    LangGraph Workflow                    │    │
+│  │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │    │
+│  │  │   Analyzer  │ -> │   Writer    │ -> │  Reviewer   │  │    │
+│  │  └─────────────┘    └─────────────┘    └─────────────┘  │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                   │
+│                              ▼                                   │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                  MCP Client (MCPToolkit)                 │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+                               │
+           ┌───────────────────┼───────────────────┐
+           ▼                   ▼                   ▼
+    ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+    │ MCP Server  │     │ MCP Server  │     │   Fallback  │
+    │   (Fetch)   │     │  (Tavily)   │     │ (Python SDK)│
+    └─────────────┘     └─────────────┘     └─────────────┘
+```
+
+### 6.3 Context 수집 파이프라인
+
+```python
+# Context 수집 순서 (graph/nodes.py)
+def collect_context(state: PlanCraftState) -> PlanCraftState:
+    # 1. RAG Context (내부 가이드라인)
+    rag_context = vectorstore.similarity_search(state["user_input"])
+
+    # 2. Web Context (외부 시장 데이터) - MCP Server 호출
+    web_context = mcp_toolkit.search(query)
+
+    # 3. Previous Agent Results (이전 단계 결과)
+    previous_results = {
+        "analysis": state.get("analysis"),
+        "structure": state.get("structure"),
+    }
+
+    # 4. 통합 Context 구성
+    return {
+        "rag_context": rag_context,
+        "web_context": web_context,
+        "agent_context": previous_results
+    }
+```
+
+---
+
+## 7. A2A (Agent-to-Agent) 설계
+
+PlanCraft는 A2A(Agent-to-Agent) 통신 표준을 적용하여 에이전트 간 협업을 설계했습니다.
+
+### 7.1 A2A 설계 3원칙
+
+| 원칙 | 설명 | PlanCraft 구현 |
+|------|------|----------------|
+| **독립성 (Independence)** | 각 Agent는 다른 Agent의 내부 구현을 알 필요 없이 표준 인터페이스만으로 협업 | `PlanCraftState` TypedDict를 통한 데이터 교환 |
+| **상호운용성 (Interoperability)** | 모든 Agent는 공통 State를 통해 데이터를 주고받으며, 직접 호출하지 않음 | LangGraph StateGraph가 라우팅 담당 |
+| **확장성 (Extensibility)** | 새로운 Agent는 `run()` 인터페이스만 구현하면 즉시 등록 가능 | Supervisor가 동적으로 Agent 목록 관리 |
+
+```mermaid
+graph TB
+    subgraph "A2A Communication Layer"
+        STATE[PlanCraftState<br/>공유 상태 객체]
+    end
+
+    subgraph "Independent Agents"
+        A1[Analyzer]
+        A2[Structurer]
+        A3[Writer]
+        A4[Reviewer]
+    end
+
+    A1 -->|write| STATE
+    STATE -->|read| A2
+    A2 -->|write| STATE
+    STATE -->|read| A3
+    A3 -->|write| STATE
+    STATE -->|read| A4
+
+    style STATE fill:#fff3e0,stroke:#ff9800
+```
+
+### 7.2 Agent Capability 명세 (Agent Card)
+
+각 에이전트의 역량(Capability)을 표준화된 Agent Card 형식으로 정의합니다.
+
+#### Control Agents
+
+```yaml
+# Agent Card: Analyzer
+name: Analyzer
+type: Control
+capability:
+  - 사용자 입력 분석 및 의도 파악
+  - 핵심 정보 추출 (topic, goal, target_audience)
+  - 모호한 입력 감지 및 HITL 인터럽트 트리거
+input:
+  - user_input: str
+  - rag_context: str (optional)
+  - web_context: str (optional)
+output:
+  - AnalysisResult: {topic, goal, target_audience, constraints, need_more_info}
+dependencies: []
+triggers: [HITL Interrupt if need_more_info=True]
+```
+
+```yaml
+# Agent Card: Supervisor
+name: Supervisor
+type: Control
+capability:
+  - 6개 Specialist Agent 병렬 실행 조율
+  - DAG 기반 의존성 스케줄링
+  - 결과 통합 및 Context Merging
+input:
+  - analysis: AnalysisResult
+  - rag_context: str
+  - web_context: str
+output:
+  - specialist_analysis: {market, business_model, financial, risk, tech, content}
+dependencies: [Analyzer]
+```
+
+#### Specialist Agents
+
+```yaml
+# Agent Card: Market Agent
+name: Market
+type: Specialist
+capability:
+  - TAM/SAM/SOM 시장 규모 분석
+  - 경쟁사 분석 및 차별화 포인트 도출
+  - 시장 트렌드 조사
+input:
+  - service_overview: str
+  - target_users: str
+  - web_context: str
+output:
+  - MarketAnalysis: {tam, sam, som, competitors, trends}
+dependencies: []
+tools: [Tavily Search]
+```
+
+```yaml
+# Agent Card: BM Agent
+name: BusinessModel
+type: Specialist
+capability:
+  - 수익 모델 설계 (광고, 구독, 거래수수료 등)
+  - 가격 정책 수립
+  - 가치 제안(Value Proposition) 정의
+input:
+  - service_overview: str
+  - market_analysis: MarketAnalysis (optional)
+  - user_constraints: List[str]
+output:
+  - BusinessModelAnalysis: {revenue_model, pricing, value_proposition}
+dependencies: [Market (optional)]
+```
+
+```yaml
+# Agent Card: Financial Agent
+name: Financial
+type: Specialist
+capability:
+  - 예상 매출 및 비용 구조 산출
+  - 손익분기점(BEP) 분석
+  - 투자 회수 기간 예측
+input:
+  - business_model: BusinessModelAnalysis
+  - market_analysis: MarketAnalysis
+output:
+  - FinancialPlan: {revenue_projection, cost_structure, bep_analysis}
+dependencies: [Market, BusinessModel]
+```
+
+```yaml
+# Agent Card: Risk Agent
+name: Risk
+type: Specialist
+capability:
+  - SWOT 분석 수행
+  - 리스크 식별 및 영향도 평가
+  - 완화 전략 수립
+input:
+  - business_model: BusinessModelAnalysis
+  - market_analysis: MarketAnalysis
+output:
+  - RiskAnalysis: {swot, risks, mitigation_strategies}
+dependencies: [Market, BusinessModel]
+```
+
+#### Worker Agents
+
+```yaml
+# Agent Card: Writer
+name: Writer
+type: Worker
+capability:
+  - 9-Block 기획서 본문 작성
+  - Mermaid 다이어그램 생성
+  - 자체 품질 검증 (Self-Reflection)
+input:
+  - structure: StructureResult
+  - rag_context: str
+  - specialist_analysis: dict
+  - refinement_guideline: dict (optional)
+output:
+  - DraftResult: {sections: List[SectionContent], total_word_count: int}
+dependencies: [Structurer, Supervisor]
+```
+
+#### Quality Agents
+
+```yaml
+# Agent Card: Reviewer
+name: Reviewer
+type: Quality
+capability:
+  - 기획서 품질 평가 (1-10점 스코어링)
+  - 팩트 체크 (Cross-Validation)
+  - 개선 피드백 생성
+input:
+  - draft: DraftResult
+  - analysis: AnalysisResult
+  - structure: StructureResult
+output:
+  - ReviewResult: {overall_score, verdict, feedback, action_items}
+dependencies: [Writer]
+routing:
+  - score >= 9: COMPLETE -> Formatter
+  - score < 5: RESTART -> Analyzer
+  - 5 <= score < 9: REFINE -> Refiner
+```
+
+### 7.3 Agent 간 통신 프로토콜
+
+```python
+# A2A 통신 규약 (State 기반)
+class AgentCommunicationProtocol:
+    """
+    모든 Agent는 이 프로토콜을 준수해야 합니다.
+
+    1. 입력: state dict에서 필요한 키만 읽음 (다른 Agent 직접 호출 금지)
+    2. 출력: 자신의 결과를 state에 기록 (표준 키 사용)
+    3. 에러: 표준 에러 형식으로 state.error에 기록
+    """
+
+    # 표준 입출력 키
+    STANDARD_KEYS = {
+        "analyzer": {"in": ["user_input"], "out": ["analysis"]},
+        "structurer": {"in": ["analysis"], "out": ["structure"]},
+        "writer": {"in": ["structure", "rag_context"], "out": ["draft"]},
+        "reviewer": {"in": ["draft"], "out": ["review"]},
+        "refiner": {"in": ["review", "draft"], "out": ["refinement_guideline"]},
+    }
+```
+
+---
+
+## 8. 결론 (Conclusion)
 
 PlanCraft는 단순한 텍스트 생성기가 아니라, **인간 기획자의 사고 과정(Thinking Process)**을 모방하고 **전문가의 지식(Specialty)**을 통합하는 고도화된 시스템입니다. Plan-and-Execute 아키텍처 도입으로 복잡한 비즈니스 문제 해결 능력을 획기적으로 향상시켰습니다.
