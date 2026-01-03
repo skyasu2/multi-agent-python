@@ -1,6 +1,6 @@
 # 🏗️ PlanCraft System Design Document
 
-**Version**: 2.2
+**Version**: 2.3
 **Date**: 2026-01-03
 **Framework**: LangGraph, LangChain, Streamlit
 **Standards**: MCP (Model Context Protocol), A2A (Agent-to-Agent)
@@ -16,6 +16,72 @@ LangGraph를 기반으로 구축되었으며, **Supervisor 패턴**과 **DAG(Dir
 - **전문성 (Expertise)**: 시장 분석, BM 설계, 재무 예측 등 각 분야별 전문 에이전트 협업.
 - **상호작용 (Interactivity)**: Human-in-the-Loop(HITL)를 통해 모호한 요구사항을 구체화.
 - **신뢰성 (Reliability)**: RAG(내부 데이터)와 Web Search(외부 데이터)를 교차 검증하여 환각(Hallucination) 최소화.
+
+### 1.2 기술 선정 이유 (Technology Selection Rationale)
+
+#### 1.2.1 Azure OpenAI 선택 이유
+
+PlanCraft는 Public OpenAI API 대신 **Azure OpenAI Service**를 채택했습니다. 그 이유는 다음과 같습니다:
+
+| 관점 | Public OpenAI | Azure OpenAI | PlanCraft 선택 |
+|------|---------------|--------------|----------------|
+| **데이터 보안** | 학습 데이터 활용 가능성 | 데이터 학습 Opt-out 보장 | ✅ Azure |
+| **네트워크 통제** | Public Endpoint Only | VNet + Private Endpoint 지원 | ✅ Azure |
+| **기업 감사** | 제한적 로깅 | Azure Monitor 통합 | ✅ Azure |
+| **SLA** | Best Effort | 99.9% SLA 제공 | ✅ Azure |
+
+```
+📌 핵심 메시지
+기업용 LLM 서비스는 "성능"보다 "통제 가능성"이 우선입니다.
+Azure OpenAI는 동일한 GPT-4o 모델을 기업 보안 요구사항을 충족하며 사용할 수 있게 합니다.
+```
+
+**구현 위치**: `utils/config.py`, `utils/llm.py`
+- 환경변수 기반 API Key 관리 (코드에 키 노출 없음)
+- `.env.example` 템플릿 제공으로 안전한 설정 공유
+
+#### 1.2.2 LangChain/LangGraph 사용 근거
+
+PlanCraft는 LLM API를 직접 호출하는 대신 **LangChain 프레임워크**를 사용합니다.
+
+**LangChain 선택 이유:**
+
+| 장점 | 설명 | PlanCraft 활용 |
+|------|------|----------------|
+| **Provider 추상화** | OpenAI ↔ Azure 전환이 설정만으로 가능 | `AzureChatOpenAI` 사용 |
+| **공통 인터페이스** | 모든 LLM을 동일한 `.invoke()` 방식으로 호출 | 에이전트별 일관된 호출 패턴 |
+| **생태계 통합** | VectorStore, Memory, Tools 표준 컴포넌트 | FAISS, Retriever, @tool 데코레이터 |
+| **Observability** | LangSmith 자동 트레이싱 | 디버깅 및 품질 모니터링 |
+
+**LangGraph 선택 이유:**
+
+기존 LangChain Agent의 한계를 극복하기 위해 LangGraph를 채택했습니다:
+
+| LangChain Agent (Legacy) | LangGraph |
+|--------------------------|-----------|
+| 순차 실행만 지원 | 병렬/분기 실행 지원 |
+| 상태 관리 어려움 | `StateGraph` 기반 명시적 상태 관리 |
+| 디버깅 어려움 | 노드별 추적 및 Time Travel 가능 |
+| HITL 구현 복잡 | `interrupt()` 네이티브 지원 |
+
+```python
+# LangGraph의 핵심 장점: 상태 기반 워크플로우
+class PlanCraftState(TypedDict):
+    user_input: str
+    analysis: AnalysisResult
+    draft: DraftResult
+    review: ReviewResult
+    # ... 모든 단계의 결과가 State로 관리됨
+
+# Checkpoint 기반 복원: 장애 시 중단 지점부터 재개 가능
+app = workflow.compile(checkpointer=PostgresSaver(pool))
+```
+
+```
+📌 핵심 원칙
+"프레임워크를 쓰기 전에, 반드시 LLM API 직접 사용을 이해해야 한다."
+PlanCraft 팀은 OpenAI API 직접 호출을 먼저 학습한 후 LangChain으로 전환했습니다.
+```
 
 ---
 
