@@ -495,7 +495,8 @@ class NativeSupervisor:
         purpose: str = "기획서 작성",
         force_all: bool = False,
         user_constraints: List[str] = None,
-        use_llm_routing: bool = False  # [NEW] 규칙 기반 라우팅이 기본
+        use_llm_routing: bool = False,  # [NEW] 규칙 기반 라우팅이 기본
+        deep_analysis_mode: bool = False # [NEW] 심층 분석 모드
     ) -> Dict[str, Any]:
         """
         전문 에이전트 실행 (Plan-and-Execute DAG)
@@ -554,7 +555,8 @@ class NativeSupervisor:
             "tech_stack": tech_stack,
             "development_scope": development_scope,
             "web_search_results": web_search_results,
-            "user_constraints": user_constraints or []
+            "user_constraints": user_constraints or [],
+            "deep_analysis_mode": deep_analysis_mode # [NEW]
         })
         
         results["integrated_context"] = self._integrate_results(results)
@@ -861,6 +863,10 @@ class NativeSupervisor:
             ctx["target_market"] = base_context.get("target_market", "")
             ctx["web_search_results"] = base_context.get("web_search_results")
             
+            # [NEW] 심층 분석 모드
+            if base_context.get("deep_analysis_mode", False):
+                ctx["analysis_requirements"] = "Provide deep comparative analysis with at least 3 competitors."
+            
         elif agent_id == "bm":
             ctx["target_users"] = base_context.get("target_users", "")
             # market 결과 참조
@@ -873,10 +879,23 @@ class NativeSupervisor:
             ctx["business_model"] = current_results.get("business_model", {})
             ctx["market_analysis"] = current_results.get("market_analysis", {})
             
+            # [NEW] 심층 분석 모드일 경우 추가 지침 전달 (Supervisor run에서 주입된 옵션 사용)
+            if base_context.get("deep_analysis_mode", False):
+                ctx["analysis_depth"] = "deep"
+                ctx["financial_requirements"] = "Provide Best/Normal/Worst case scenarios for financial projections."
+            else:
+                ctx["analysis_depth"] = "standard"
+            
         elif agent_id == "risk":
             ctx["tech_stack"] = base_context.get("tech_stack", "")
             # bm 결과 참조
             ctx["business_model"] = current_results.get("business_model", {})
+            
+            # [NEW] 심층 분석 모드: Pre-mortem 기법 적용
+            if base_context.get("deep_analysis_mode", False):
+                ctx["analysis_depth"] = "deep"
+                ctx["risk_framework"] = "Pre-mortem Analysis: Assume the project has failed and identify why."
+                ctx["additional_requirements"] = "Include a step-by-step contingency plan."
             
         elif agent_id == "tech":
             ctx["target_users"] = base_context.get("target_users", "")

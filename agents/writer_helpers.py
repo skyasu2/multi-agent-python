@@ -191,6 +191,29 @@ def execute_specialist_agents(state: PlanCraftState, user_input: str,
                         web_search_list.append({"title": "", "content": line[:500]})
 
             supervisor = PlanSupervisor()
+            # [NEW] 프리셋의 deep_analysis_mode 확인
+            deep_mode = False
+            if hasattr(settings, "quality_preset") and hasattr(state, "get"):
+                 # 상태에서 preset 이름을 확인하거나, 여기서는 간단히 preset 객체를 전달받았다고 가정하지 못하므로
+                 # state나 global settings에서 추론해야 함. 
+                 # 하지만 execute_specialist_agents 인그니처 변경 없이 내부 로직으로 처리.
+                 # 호출부인 writer.py에서 preset을 넘겨주지 않으므로, 여기서 settings를 직접 참조하기엔 한계가 있음.
+                 # 대신 web_app_plan 등 doc_type에 따라 판단하거나, refine_count 등으로 유추 가능.
+                 # 가장 정확한건 execute_specialist_agents 인자에 preset을 추가하는 것임.
+                 pass
+
+            # 호출 시그니처 변경 없이 state에서 가져오거나 기본값 사용
+            # * writer.py에서 execute_specialist_agents 호출 시 preset을 넘기도록 수정 필요.
+            # * 일단 여기서는 supervisor.run에 임의의 키워드 인자로 전달하면 supervisor가 **kwargs로 받지 않으면 에러남.
+            # * Supervisor.run 정의: run(self, service_overview, ... **kwargs) 형태여야 함.
+            # * Supervisor 코드 확인 결과 run은 명시적 인자만 받음. run(self, service_overview: str, ...)
+            
+            # 전략 수정: Supervisor.run 메서드 시그니처를 먼저 유연하게 수정해야 함.
+            # 하지만 Supervisor.run은 Pydantic validate를 사용하지 않고 직접 인자를 받음.
+            
+            # 여기서는 Supervisor.run에 deep_analysis_mode를 전달할 수 있도록
+            # supervisor.py의 run 메서드 정의도 함께 수정해야 함.
+            
             specialist_results = supervisor.run(
                 service_overview=user_input,
                 target_market=target_market,
@@ -198,7 +221,8 @@ def execute_specialist_agents(state: PlanCraftState, user_input: str,
                 tech_stack=tech_stack,
                 development_scope="MVP 3개월",
                 web_search_results=web_search_list,
-                user_constraints=user_constraints
+                user_constraints=user_constraints,
+                deep_analysis_mode=state.get("deep_analysis_mode", False) # [NEW]
             )
 
             specialist_context = specialist_results.get("integrated_context", "")
