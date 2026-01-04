@@ -367,28 +367,6 @@ def _render_input_area():
     st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
     status_placeholder = st.empty()
 
-    # 채팅 입력창과 모드 선택을 위한 컨테이너 (Streamlit 특성상 chat_input은 하단 고정되므로, 그 위에 옵션 배치)
-    col_mode, col_blank = st.columns([2, 8])
-    with col_mode:
-        preset_mode = st.selectbox(
-            "품질 모드",
-            ["balanced", "quality", "speed"],
-            format_func=lambda x: {
-                "balanced": "⚖️ 균형 (Balanced)",
-                "quality": "💎 고품질 (High Quality)",
-                "speed": "⚡ 속도 (Speed)"
-            }[x],
-            index=["balanced", "quality", "speed"].index(st.session_state.generation_preset),
-            key="preset_selector",
-            help="**모드 설명**\n\n"
-                 "⚖️ **균형**: 속도와 품질의 조화 (기본)\n"
-                 "💎 **고품질**: 더 깊이 있는 분석과 상세한 내용 (오래 걸림)\n"
-                 "⚡ **속도**: 빠른 응답과 핵심 요약 위주"
-        )
-        # 선택 변경 시 세션 업데이트
-        if preset_mode != st.session_state.generation_preset:
-            st.session_state.generation_preset = preset_mode
-
     # 채팅 입력창
     placeholder_text = "💬 자유롭게 대화를 입력하세요..."
     if st.session_state.current_state and st.session_state.current_state.get("need_more_info"):
