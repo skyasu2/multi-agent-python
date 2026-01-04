@@ -48,3 +48,4 @@ sentence-transformers>=2.2.0  # Cross-Encoder 기반 Reranking
 # Testing
 pytest>=8.2.0
 pytest-asyncio>=0.23.0    # [필수 추가] 비동기 테스트 지원
+pytest-html>=4.1.1        # [NEW] HTML 테스트 리포트 생성
