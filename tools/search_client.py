@@ -29,6 +29,9 @@ BLOCKED_DOMAINS = [
 BLOCKED_PATTERNS = [
     "gun", "firearm", "weapon", "ammo", "ammunition",
     "adult", "xxx", "porn",
+    # ML/AI 모델 파일 (기획서와 무관)
+    "huggingface.co", "vocab.txt", ".bin", ".safetensors",
+    "github.com/huggingface", "raw.githubusercontent",
 ]
 
 

@@ -85,7 +85,9 @@ class FinancialAgent:
         service_overview: str,
         business_model: Dict[str, Any],
         market_analysis: Dict[str, Any],
-        development_scope: str = "MVP 3개월"
+        development_scope: str = "MVP 3개월",
+        analysis_depth: str = "standard",  # [FIX] 추가된 인자
+        financial_requirements: str = ""   # [FIX] 심층 분석용 추가 요구사항
     ) -> Dict[str, Any]:
         """
         재무 계획을 생성합니다.
@@ -95,6 +97,8 @@ class FinancialAgent:
             business_model: BM Agent 출력 (수익 모델, 가격 전략)
             market_analysis: Market Agent 출력 (TAM/SAM/SOM)
             development_scope: 개발 범위 (MVP 3개월 등)
+            analysis_depth: 분석 깊이 ("standard" 또는 "deep")
+            financial_requirements: 심층 분석 시 추가 요구사항
             
         Returns:
             FinancialPlan dict
