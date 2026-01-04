@@ -118,6 +118,10 @@ PlanCraft는 최신 **MCP 표준(v1.0)**을 준수하는 **Client Mode** 구현�
     1. **Zero Infra**: 별도의 서버를 띄우거나 관리할 필요가 없습니다. 앱 실행 시 자동으로 켜지고 꺼집니다.
     2. **확장성**: 코드 수정 없이 다른 MCP 호환 서버(예: PostgreSQL, Filesystem)를 설정(`config.py`)만으로 연결할 수 있습니다.
 
+> ⚠️ **실행 환경 주의사항 (Fallback Mode)**
+> 현재 `venv` 등 Python 전용 환경에서 Node.js(`npx`)가 설치되어 있지 않은 경우, 시스템은 자동으로 **Fallback 모드**로 전환됩니다.
+> 이 경우 MCP 프로세스 실행 없이 **Python SDK/Library**를 직접 사용하여 동일한 기능을 수행하므로, 서비스 중단 없이 안정적으로 동작합니다.
+
 ---
 
 ## 5. 향후 로드맵 제안
