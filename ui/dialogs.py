@@ -378,24 +378,32 @@ def render_dev_tools():
                 
                 with col_btn:
                     st.write("") # Spacer
-                    if st.button("🌐 브라우저로 보기", type="primary"):
-                        try:
-                            import platform
-                            if platform.system() == "Windows":
-                                # Windows native open
-                                os.startfile(abs_path)
-                            else:
-                                # Cross-platform fallback
-                                import webbrowser
-                                from urllib.parse import quote
-                                # Handle spaces and special chars in path
-                                url_path = f"file://{quote(abs_path)}"
-                                webbrowser.open(url_path)
-                            
-                            st.toast("브라우저에서 리포트를 열었습니다!", icon="🎉")
-                            st.write(f"📂 열기 시도: `{abs_path}`")
-                        except Exception as e:
-                            st.error(f"브라우저 열기 실패: {e}")
+                    col_b1, col_b2 = st.columns([1,1])
+                    with col_b1:
+                        if st.button("🌐 브라우저", type="primary", use_container_width=True):
+                            try:
+                                import platform
+                                if platform.system() == "Windows":
+                                    os.startfile(abs_path)
+                                else:
+                                    import webbrowser
+                                    from urllib.parse import quote
+                                    url_path = f"file://{quote(abs_path)}"
+                                    webbrowser.open(url_path)
+                                st.toast("브라우저에서 리포트를 열었습니다!", icon="🎉")
+                            except Exception as e:
+                                st.error(f"오류: {e}")
+                    
+                    with col_b2:
+                        with open(report_path, "rb") as file:
+                            st.download_button(
+                                label="📥 다운로드",
+                                data=file,
+                                file_name=selected_report,
+                                mime="text/html",
+                                type="secondary",
+                                use_container_width=True
+                            )
 
                 # 간단한 미리보기 (선택 사항)
                 with st.expander("🔽 여기서 미리보기 (Embedded View)"):
