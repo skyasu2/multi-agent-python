@@ -504,6 +504,13 @@ def run_pending_workflow(pending_text: str, status_placeholder):
                 st.rerun()
 
             except Exception as e:
+                # [DEBUG] 상세 에러 로그 출력
+                import traceback
+                trace_str = traceback.format_exc()
+                print(f"[CRITICAL ERROR] {trace_str}") 
+                with st.expander("🚨 디버그용 상세 에러 로그 (Traceback)", expanded=True):
+                    st.code(trace_str)
+
                 from ui.validation import handle_exception_friendly, detect_error_type, ERROR_MESSAGES
 
                 handle_exception_friendly(e, context="기획서 생성 중")
