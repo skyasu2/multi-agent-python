@@ -5,6 +5,7 @@ utils/time_travel.py 모듈 및 LangGraph 상태 관리 테스트입니다.
 """
 
 import pytest
+import os
 from uuid import uuid4
 from unittest.mock import Mock, patch
 from dataclasses import dataclass
@@ -260,7 +261,10 @@ class TestTimeTravelIntegration:
     def config(self):
         return {"configurable": {"thread_id": str(uuid4())}}
 
-    @pytest.mark.skip(reason="실제 LLM API 호출이 필요한 통합 테스트")
+    @pytest.mark.skipif(
+        not os.getenv("AOAI_API_KEY"),
+        reason="AOAI_API_KEY 환경변수가 설정되지 않음 (실제 LLM API 호출 필요)"
+    )
     def test_real_workflow_time_travel(self, config):
         """실제 워크플로우 Time-Travel 테스트"""
         from graph.workflow import app
