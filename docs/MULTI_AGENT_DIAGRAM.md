@@ -317,34 +317,60 @@ flowchart LR
 > 외부 MCP 서버(Tavily, Fetch 등)와 통신합니다.
 
 ```mermaid
-%%{init: {'theme': 'base'}}%%
+graph TB
+    %% =========================
+    %% Local Machine
+    %% =========================
+    subgraph PC["💻 User's Computer (Localhost)"]
 
-graph LR
-    subgraph APP["🖥️ PlanCraft Application (Client)"]
-        CLIENT[MCP Client Module<br/>(mcp_client.py)]
-    end
-    
-    subgraph MCP_SERVERS["🔌 MCP Servers (Providers)"]
-        direction TB
-        
-        subgraph TAVILY["🔍 tavily-mcp"]
-            NPX[npx @tavily-ai/mcp-server]
+        %% =========================
+        %% Host Application
+        %% =========================
+        subgraph HOST["🧠 PlanCraft Application (Host Process)"]
+            LG["LangGraph Workflow"]
+            AGENTS["AI Agents"]
+            CLIENT["MCP Client<br/>(tools/mcp_client.py)"]
+
+            LG --> AGENTS
+            AGENTS --> CLIENT
         end
-        
-        subgraph FETCH["🌐 fetch-mcp"]
-            UVX[uvx mcp-server-fetch]
+
+        %% =========================
+        %% MCP Servers (Subprocess)
+        %% =========================
+        subgraph MCP_NODE["🧩 MCP Server (Node.js Subprocess)"]
+            TAVILY["Tavily MCP Server<br/>(npx @tavily-ai/mcp-server)"]
         end
+
+        subgraph MCP_PY["🧩 MCP Server (Python Subprocess)"]
+            FETCH["Fetch MCP Server<br/>(uvx mcp-server-fetch)"]
+        end
+
+        %% =========================
+        %% Stdio Communication
+        %% =========================
+        CLIENT <-->|"stdio (JSON-RPC 2.0)"| TAVILY
+        CLIENT <-->|"stdio (JSON-RPC 2.0)"| FETCH
     end
-    
-    CLIENT <==>|stdio / JSON-RPC| NPX
-    CLIENT <==>|stdio / JSON-RPC| UVX
-    
-    NPX -->|API Call| WEB[Tavily API]
-    UVX -->|HTTP GET| SITE[Target Website]
-    
-    style CLIENT fill:#0969da,color:#fff
-    style TAVILY fill:#d29922,color:#fff
-    style FETCH fill:#1f883d,color:#fff
+
+    %% =========================
+    %% External Services
+    %% =========================
+    subgraph EXT["🌐 External Services"]
+        WEB_API["Search APIs / Target Websites"]
+    end
+
+    TAVILY -.->|HTTPS| WEB_API
+    FETCH -.->|HTTPS| WEB_API
+
+    %% =========================
+    %% Styling
+    %% =========================
+    style PC fill:#f9f9f9,stroke:#333,stroke-width:2px
+    style HOST fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px
+    style MCP_NODE fill:#fff3e0,stroke:#fb8c00
+    style MCP_PY fill:#e8f5e9,stroke:#43a047
+    style CLIENT fill:#1565c0,color:#ffffff
 ```
 
 ---
