@@ -29,9 +29,18 @@ BLOCKED_DOMAINS = [
 BLOCKED_PATTERNS = [
     "gun", "firearm", "weapon", "ammo", "ammunition",
     "adult", "xxx", "porn",
-    # ML/AI 모델 파일 (기획서와 무관)
-    "huggingface.co", "vocab.txt", ".bin", ".safetensors",
-    "github.com/huggingface", "raw.githubusercontent",
+]
+
+# [NEW] 파일 확장자 기반 차단 (URL 끝 부분만 체크)
+BLOCKED_EXTENSIONS = [
+    ".bin", ".safetensors", ".onnx", ".pt", ".pth",  # ML 모델 파일
+    ".exe", ".msi", ".dmg", ".deb",  # 실행 파일
+]
+
+# [NEW] 정확한 도메인 차단 (ML/AI 관련)
+ML_BLOCKED_DOMAINS = [
+    "huggingface.co",
+    "hf.co",
 ]
 
 
@@ -48,16 +57,27 @@ def _is_blocked_domain(url: str) -> bool:
     try:
         parsed = urlparse(url)
         domain = parsed.netloc.lower().replace("www.", "")
-        full_path = f"{domain}{parsed.path}".lower()
+        path = parsed.path.lower()
+        full_path = f"{domain}{path}"
         
-        # 1. 정확한 도메인 매칭
+        # 1. 정확한 도메인 매칭 (성인물, 총기류)
         for blocked in BLOCKED_DOMAINS:
             if blocked in domain or blocked in full_path:
                 return True
         
-        # 2. 패턴 매칭 (도메인 또는 경로에 포함)
+        # 2. 패턴 매칭 (도메인에만 적용)
         for pattern in BLOCKED_PATTERNS:
             if pattern in domain:
+                return True
+        
+        # 3. [NEW] ML/AI 도메인 차단 (Hugging Face 등)
+        for ml_domain in ML_BLOCKED_DOMAINS:
+            if ml_domain in domain:
+                return True
+        
+        # 4. [NEW] 파일 확장자 차단 (URL 끝 부분)
+        for ext in BLOCKED_EXTENSIONS:
+            if path.endswith(ext):
                 return True
                 
         return False
