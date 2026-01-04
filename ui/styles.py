@@ -50,20 +50,41 @@ CUSTOM_CSS = """
        Layout
        ================================================================= */
     
-    /* Global Font Application (아이콘 폰트 제외) */
-    html, body, .stApp, .stMarkdown, p, h1, h2, h3, h4, h5, h6 {
+    /* Global Font Application (Streamlit 아이콘 보존) */
+    /* 
+     * Streamlit은 Material Symbols/Icons를 사용하며,
+     * 이 아이콘들은 특수 폰트로 렌더링됩니다.
+     * !important 사용을 최소화하고, 텍스트 요소만 타겟팅합니다.
+     */
+    
+    /* 1. 기본 텍스트 요소 */
+    html, body, .stApp {
+        font-family: var(--font-family);
+    }
+    
+    /* 2. 마크다운 및 헤딩 (명시적 타겟팅) */
+    .stMarkdown p, 
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, 
+    .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
+    .stMarkdown li, .stMarkdown td, .stMarkdown th {
         font-family: var(--font-family) !important;
     }
     
-    /* 폼 요소에도 적용 (아이콘 제외) */
-    button:not(.material-icons):not([class*="icon"]), 
-    input, textarea, select, label {
+    /* 3. 폼 요소 */
+    .stTextInput input, 
+    .stTextArea textarea, 
+    .stSelectbox, 
+    .stButton button {
         font-family: var(--font-family) !important;
     }
     
-    /* span, div는 아이콘일 수 있으므로 !important 제거 */
-    span:not(.material-icons):not([class*="icon"]):not([data-testid*="icon"]),
-    div:not([class*="icon"]) {
+    /* 4. 채팅 메시지 */
+    .stChatMessage {
+        font-family: var(--font-family) !important;
+    }
+    
+    /* 5. Expander 라벨 (아이콘 제외) */
+    .stExpander summary > span:first-child {
         font-family: var(--font-family);
     }
 
