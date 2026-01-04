@@ -61,8 +61,10 @@ def run(state: PlanCraftState) -> PlanCraftState:
     rag_context = state.get("rag_context", "")
     web_context = state.get("web_context", "")
 
-    # 웹 검색 실행
-    web_context = execute_web_search(user_input, rag_context, web_context, logger)
+    # 웹 검색 실행 (Writer 자체 검색 제거 - Workflow에서 이미 수행됨)
+    # web_context = execute_web_search(user_input, rag_context, web_context, logger)
+    if not web_context:
+        web_context = ""
 
     # 전문 에이전트 분석
     specialist_context, state = execute_specialist_agents(
