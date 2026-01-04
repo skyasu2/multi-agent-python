@@ -102,39 +102,61 @@ def execute_web_search(user_input: str, rag_context: str = "") -> dict:
                                             print(f"[INFO] 관련 없는 검색 결과 제외: {url}")
                                             continue
                                         
-                                        snippet = res.get("snippet", "")[:200]
-                                        formatted_result += f"- [{title}]({url})\n  {snippet}\n"
+                                        snippet = res.get("snippet", "")[:300]
+                                        full_content = f"- [{title}]({url})\n  {snippet}"
+                                        
                                         if url and url.startswith("http"):
-                                            web_urls.append(url)
-                                            # 제목+URL 함께 저장 (중복 제거)
+                                            # 제목+URL+내용 함께 저장 (중복 제거)
                                             if not any(s.get("url") == url for s in web_sources):
-                                                web_sources.append({"title": title, "url": url})
-                                
-                                if not formatted_result and "formatted" in search_result:
-                                    formatted_result = search_result["formatted"]
-                                    
-                                web_contents.append(f"[웹 검색 결과 {idx+1} - {q}]\n{formatted_result}")
+                                                web_sources.append({
+                                                    "title": title, 
+                                                    "url": url,
+                                                    "content": full_content
+                                                })
+                                        
+                                if not web_sources and "formatted" in search_result:
+                                    # 구조화된 결과가 없을 때 (fallback)
+                                    web_contents.append(f"[웹 검색 결과 {idx+1} - {q}]\n{search_result['formatted']}")
                             else:
                                 print(f"[WARN] 검색 실패 ({q}): {search_result.get('error')}")
                 else:
-                    # 쿼리가 없는 경우 (should_search=True라도)
                     pass
 
     except Exception as e:
         print(f"[WARN] 웹 조회 단계 오류: {e}")
         error = str(e)
 
-    # 3. 결과 조합
-    final_context_str = None
-    if web_contents:
-        final_context_str = "\n\n---\n\n".join(web_contents)
-
-    # [Optimization] 최대 출처 수 제한 (5개) - 사용자 피드백 반영
+    # 3. 결과 조합 및 제한 (최대 5개)
+    # [Optimization] 출처 수와 컨텍스트 내용을 모두 5개로 제한하여 일치시킴
     MAX_SOURCES = 5
-    if len(web_sources) > MAX_SOURCES:
-        web_sources = web_sources[:MAX_SOURCES]
-        web_urls = web_urls[:MAX_SOURCES]
-        # 컨텍스트 내용도 줄이면 좋겠지만, 내용을 함부로 자르기 어려우니 출처 목록만 제한하여 표기
+    
+    # URL 직접 입력의 경우 web_contents에 이미 있음
+    # 검색 결과인 경우 web_sources에서 재조합
+    
+    search_context_list = []
+    if web_sources:
+        # 중복 URL 제거 (이미 위에서 했지만 확실하게)
+        seen_urls = set()
+        unique_sources = []
+        for src in web_sources:
+            if src["url"] not in seen_urls:
+                unique_sources.append(src)
+                seen_urls.add(src["url"])
+        
+        # 5개로 자르기
+        if len(unique_sources) > MAX_SOURCES:
+            unique_sources = unique_sources[:MAX_SOURCES]
+            
+        web_sources = unique_sources
+        web_urls = [s["url"] for s in web_sources]
+        
+        # 컨텍스트 재조합
+        for i, src in enumerate(web_sources):
+            search_context_list.append(src.get("content", ""))
+
+    # 최종 컨텍스트: [URL 내용] + [검색 결과 내용(5개)]
+    final_parts = web_contents + search_context_list
+    final_context_str = "\n\n---\n\n".join(final_parts) if final_parts else None
 
     return {
         "context": final_context_str,
