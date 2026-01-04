@@ -139,6 +139,12 @@ from graph.interrupt_utils import create_option_interrupt, handle_user_response
 # [REFACTOR] Extracted Nodes
 from graph.nodes.analyzer_node import run_analyzer_node
 from graph.nodes.fetch_web import fetch_web_context
+from graph.nodes.structurer_node import run_structurer_node
+from graph.nodes.writer_node import run_writer_node
+from graph.nodes.reviewer_node import run_reviewer_node
+from graph.nodes.refiner_node import run_refiner_node
+from graph.nodes.formatter_node import run_formatter_node
+from graph.nodes.discussion_node import run_discussion_node
 
 # =============================================================================
 # LangSmith 트레이싱 활성화 (Observability)
@@ -603,7 +609,7 @@ def _deprecated_run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
 @trace_node("structure")
 @require_state_keys(["analysis"])
 @handle_node_error
-def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
+def _deprecated_run_structurer_node(state: PlanCraftState) -> PlanCraftState:
     """
     구조화 Agent 실행 노드
 
@@ -632,7 +638,7 @@ def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
 @trace_node("write", tags=["slow"])
 @require_state_keys(["structure"])
 @handle_node_error
-def run_writer_node(state: PlanCraftState) -> PlanCraftState:
+def _deprecated_run_writer_node(state: PlanCraftState) -> PlanCraftState:
     """
     작성 Agent 실행 노드
 
@@ -659,7 +665,7 @@ def run_writer_node(state: PlanCraftState) -> PlanCraftState:
 
 @trace_node("review", tags=["evaluation"])
 @handle_node_error
-def run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
+def _deprecated_run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
     """
     검토 Agent 실행 노드
 
@@ -689,7 +695,7 @@ def run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
 
 @trace_node("discuss", tags=["subgraph", "collaboration"])
 @handle_node_error
-def run_discussion_node(state: PlanCraftState) -> PlanCraftState:
+def _deprecated_run_discussion_node(state: PlanCraftState) -> PlanCraftState:
     """
     에이전트 간 대화 노드 (Reviewer ↔ Writer)
 
@@ -716,7 +722,7 @@ def run_discussion_node(state: PlanCraftState) -> PlanCraftState:
 
 @trace_node("refine")
 @handle_node_error
-def run_refiner_node(state: PlanCraftState) -> PlanCraftState:
+def _deprecated_run_refiner_node(state: PlanCraftState) -> PlanCraftState:
     """
     개선 Agent 실행 노드 (Strategy Planner)
 
@@ -740,7 +746,7 @@ def run_refiner_node(state: PlanCraftState) -> PlanCraftState:
 
 @trace_node("format", tags=["output", "final"])
 @handle_node_error
-def run_formatter_node(state: PlanCraftState) -> PlanCraftState:
+def _deprecated_run_formatter_node(state: PlanCraftState) -> PlanCraftState:
     """
     포맷팅 Agent 실행 노드
 
