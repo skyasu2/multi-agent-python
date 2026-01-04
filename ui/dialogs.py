@@ -102,7 +102,9 @@ def show_plan_dialog():
     with tab1:
         # [FIX] Mermaid 다이어그램 시각적 렌더링 지원
         from ui.components import render_markdown_with_mermaid
-        render_markdown_with_mermaid(selected_plan)
+        # 뱃지 표시를 위해 현재 상태 전달 (최신 버전인 경우만)
+        state_for_badge = st.session_state.current_state if is_latest else None
+        render_markdown_with_mermaid(selected_plan, state=state_for_badge)
     with tab2:
         st.code(selected_plan, language="markdown")
 
