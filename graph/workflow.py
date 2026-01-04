@@ -136,6 +136,10 @@ from utils.decorators import require_state_keys
 from utils.file_logger import get_file_logger
 from graph.interrupt_utils import create_option_interrupt, handle_user_response
 
+# [REFACTOR] Extracted Nodes
+from graph.nodes.analyzer_node import run_analyzer_node
+from graph.nodes.fetch_web import fetch_web_context
+
 # =============================================================================
 # LangSmith 트레이싱 활성화 (Observability)
 # =============================================================================
@@ -406,7 +410,7 @@ def retrieve_context(state: PlanCraftState) -> PlanCraftState:
 
 @trace_node("context", tags=["web", "search", "tavily"])
 @handle_node_error
-def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
+def _deprecated_fetch_web_context(state: PlanCraftState) -> PlanCraftState:
     """
     조건부 웹 정보 수집 노드
 
@@ -555,7 +559,7 @@ def general_response_node(state: PlanCraftState) -> PlanCraftState:
 
 @trace_node("analyze", tags=["critical"])
 @handle_node_error
-def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
+def _deprecated_run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
     """
     분석 Agent 실행 노드
 
@@ -754,6 +758,8 @@ def run_formatter_node(state: PlanCraftState) -> PlanCraftState:
     """
     from graph.state import update_state
     from agents.formatter import run as formatter_run
+    from graph.nodes.analyzer_node import run_analyzer_node
+    from graph.nodes.fetch_web import fetch_web_context
 
     # =========================================================================
     # 1단계: Draft -> Final Output 변환
