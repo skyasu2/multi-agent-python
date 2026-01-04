@@ -6,7 +6,8 @@ import uuid
 import os
 import sys
 from utils.config import Config
-from ui.dialogs import show_history_dialog, render_dev_tools
+# Top-level imports removed to prevent circular dependencies
+# from ui.dialogs import show_history_dialog, render_dev_tools 
 
 def init_session_state():
     """세션 상태 초기화"""
@@ -63,9 +64,12 @@ def init_resources():
 
 def render_header():
     """헤더 영역 렌더링 (타이틀, 프리셋, 메뉴)"""
+    # [Lazy Import] 순환 참조 방지
+    from ui.components import trigger_browser_notification
+    from ui.dialogs import show_history_dialog, render_dev_tools
+
     # 알림 트리거 확인
     if st.session_state.get("trigger_notification"):
-        from ui.components import trigger_browser_notification
         trigger_browser_notification("PlanCraft 알림", "기획서 작성이 완료되었습니다! 📄")
         st.session_state.trigger_notification = False
 
