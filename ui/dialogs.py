@@ -290,19 +290,34 @@ def render_dev_tools():
             if st.button("▶️ 전체 테스트 실행", type="primary", use_container_width=True):
                 with st.status("테스트 실행 중...", expanded=True) as status:
                     import subprocess
-                    import platform
+                    import sys
                     
                     st.write("🔍 환경 감지 중...")
-                    system_os = platform.system()
-                    script_cmd = ["bash", "run_tests.sh"] if system_os != "Windows" else ["run_tests.bat"] # Fallback for Windows local test
+                    st.write(f"📌 Python: `{sys.executable}`")
+                    st.write(f"📁 작업 디렉토리: `{os.getcwd()}`")
                     
-                    if system_os == "Windows" and not os.path.exists("run_tests.bat"):
-                         # Windows인데 bat 없으면 sh 시도 (Git Bash 등 환경)
-                         script_cmd = ["bash", "run_tests.sh"]
-
-                    st.write(f"🏃 명령어 실행: `{' '.join(script_cmd)}`")
+                    # [Step 1] pytest-html 설치 확인
+                    st.write("📦 pytest-html 설치 확인 중...")
+                    check_result = subprocess.run(
+                        [sys.executable, "-m", "pip", "show", "pytest-html"],
+                        capture_output=True, text=True
+                    )
+                    if check_result.returncode != 0:
+                        st.warning("⚠️ pytest-html이 설치되지 않았습니다. 설치 중...")
+                        install_result = subprocess.run(
+                            [sys.executable, "-m", "pip", "install", "pytest-html"],
+                            capture_output=True, text=True
+                        )
+                        if install_result.returncode == 0:
+                            st.success("✅ pytest-html 설치 완료!")
+                        else:
+                            st.error(f"설치 실패: {install_result.stderr}")
+                            status.update(label="❌ 설치 오류", state="error")
+                            st.stop()
+                    else:
+                        st.caption("✅ pytest-html 설치됨")
                     
-                    # [FIX] 이전 리포트 삭제 (Clean Run 보장)
+                    # [Step 2] 이전 리포트 삭제
                     report_path = "reports/test_report.html"
                     if os.path.exists(report_path):
                         try:
@@ -310,38 +325,64 @@ def render_dev_tools():
                             st.caption("🗑️ 이전 리포트 파일을 삭제했습니다.")
                         except Exception as e:
                             st.warning(f"이전 리포트 삭제 실패: {e}")
+                    
+                    # reports 디렉토리 생성
+                    os.makedirs("reports", exist_ok=True)
+                    
+                    # [Step 3] pytest 실행
+                    pytest_cmd = [
+                        sys.executable, "-m", "pytest",
+                        "tests/",
+                        "--html=reports/test_report.html",
+                        "--self-contained-html",
+                        "-v",
+                        "--tb=short"
+                    ]
+                    
+                    st.write(f"🏃 명령어 실행:")
+                    st.code(" ".join(pytest_cmd))
 
                     try:
-                        # 실행 (타임아웃 설정 추가)
                         result = subprocess.run(
-                            script_cmd, 
+                            pytest_cmd, 
                             capture_output=True, 
                             text=True, 
                             encoding='utf-8',
-                            errors='replace', # 인코딩 에러 방지
-                            timeout=120       # 2분 타임아웃
+                            errors='replace',
+                            timeout=300,  # 5분 타임아웃
+                            cwd=os.getcwd()
                         )
+                        
+                        # [항상 출력 표시]
+                        st.write(f"🔢 Exit Code: `{result.returncode}`")
+                        
+                        output_text = result.stdout or "(출력 없음)"
+                        error_text = result.stderr or ""
+                        
+                        with st.expander("📋 테스트 출력 로그", expanded=True):
+                            st.code(output_text[-8000:] if len(output_text) > 8000 else output_text)
+                        
+                        if error_text:
+                            with st.expander("⚠️ 에러/경고 로그", expanded=False):
+                                st.code(error_text[-3000:] if len(error_text) > 3000 else error_text)
                         
                         if result.returncode == 0:
                             status.update(label="✅ 테스트 완료!", state="complete", expanded=False)
                             st.success("테스트가 성공적으로 완료되었습니다.")
                         else:
-                            status.update(label="⚠️ 테스트 실패 (일부 에러)", state="error", expanded=False)
-                            st.error("테스트 실행 중 오류가 발생했습니다.")
-                            with st.expander("에러 로그 보기"):
-                                st.code(result.stderr)
+                            status.update(label="⚠️ 테스트 실패", state="error", expanded=False)
+                            st.error(f"테스트 실행 중 일부 실패가 있습니다. (Exit Code: {result.returncode})")
                                 
-                        # 리포트 로드 트리거 (rerun 대신 상태 업데이트)
-                        report_path = "reports/test_report.html"
+                        # 리포트 로드 트리거
                         if os.path.exists(report_path):
                             st.session_state["show_test_report"] = True
-                            # st.rerun() 삭제: 모달이 닫히는 현상 방지
+                            st.success(f"📄 리포트 생성됨: `{report_path}`")
                         else:
                             st.warning("리포트 파일이 생성되지 않았습니다.")
                             
                     except subprocess.TimeoutExpired:
                          status.update(label="⏰ 시간 초과", state="error")
-                         st.error("테스트 실행 시간이 초과되었습니다 (2분).")
+                         st.error("테스트 실행 시간이 초과되었습니다 (5분).")
                     except Exception as e:
                         status.update(label="❌ 실행 오류", state="error")
                         st.error(f"실행 중 예외 발생: {str(e)}")
