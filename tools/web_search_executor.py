@@ -129,6 +129,13 @@ def execute_web_search(user_input: str, rag_context: str = "") -> dict:
     if web_contents:
         final_context_str = "\n\n---\n\n".join(web_contents)
 
+    # [Optimization] 최대 출처 수 제한 (5개) - 사용자 피드백 반영
+    MAX_SOURCES = 5
+    if len(web_sources) > MAX_SOURCES:
+        web_sources = web_sources[:MAX_SOURCES]
+        web_urls = web_urls[:MAX_SOURCES]
+        # 컨텍스트 내용도 줄이면 좋겠지만, 내용을 함부로 자르기 어려우니 출처 목록만 제한하여 표기
+
     return {
         "context": final_context_str,
         "urls": web_urls,
