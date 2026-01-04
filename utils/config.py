@@ -4,15 +4,19 @@ PlanCraft Agent - 설정 관리 모듈
 이 모듈은 Azure OpenAI API 연결에 필요한 환경변수를 로드하고 관리합니다.
 .env.local 파일에서 설정을 읽어오며, 필수 변수가 없으면 예외를 발생시킵니다.
 
+[Observability - LangSmith Tracing]
+복잡한 Multi-Agent 워크플로우를 시각화하고 디버깅하려면 LangSmith를 활성화하세요.
+.env 파일에 다음 설정을 추가하면 자동으로 연동됩니다.
+
+    LANGCHAIN_TRACING_V2=true
+    LANGCHAIN_API_KEY=lsv2_... (API Key)
+    LANGCHAIN_PROJECT=PlanCraft-Agent (프로젝트명)
+
 사용 예시:
     from utils.config import Config
     
     # 설정 검증
     Config.validate()
-    
-    # 설정 값 접근
-    endpoint = Config.AOAI_ENDPOINT
-    api_key = Config.AOAI_API_KEY
 """
 
 import os

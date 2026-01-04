@@ -4,8 +4,18 @@ PlanCraft Agent - LangGraph 워크플로우 정의
 Multi-Agent 파이프라인을 LangGraph StateGraph로 정의합니다.
 각 Agent는 노드로 등록되며, 조건부 엣지를 통해 흐름을 제어합니다.
 
-워크플로우 구조:
+[CRITICAL SAFETY WARNING: Subgraph & Interrupt]
+서브그래프(Subgraph) 또는 워크플로우 내에서 `interrupt`가 발생하면,
+Resume 시 해당 인터럽트가 포함된 **가장 상위 그래프(Supergraph)의 노드부터 처음부터 재실행**될 수 있습니다.
 
+**개발자 준수 사항:**
+1. Side-Effect 분리: DB 쓰기, 외부 API 호출(과금), 이메일 발송 등은 반드시 `interrupt()` 호출 **이후**에 배치하세요.
+2. Idempotency(멱등성): 노드는 여러 번 실행되어도 결과가 동일하도록 설계해야 합니다.
+3. Resume Matching: `interrupt` 호출 순서나 개수는 동적으로 변경되면 안 됩니다. (Index 기반 매칭)
+
+워크플로우 구조:
+... (기존 다이어그램 유지) ...
+"""
             ┌──────────────┐
             │    START     │
             └──────┬───────┘
