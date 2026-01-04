@@ -116,22 +116,10 @@ def _render_header():
         trigger_browser_notification("PlanCraft 알림", "기획서 작성이 완료되었습니다! 📄")
         st.session_state.trigger_notification = False
 
-    col_title, col_preset, col_menu = st.columns([4, 2.5, 0.5])
+    col_title, col_blank, col_menu = st.columns([6, 1, 0.5])
 
     with col_title:
         st.markdown("### 📋 PlanCraft Agent")
-
-    with col_preset:
-        from utils.settings import GENERATION_PRESETS
-        preset_keys = list(GENERATION_PRESETS.keys())
-        st.selectbox(
-            "생성 모드",
-            options=preset_keys,
-            format_func=lambda k: f"{GENERATION_PRESETS[k].icon} {GENERATION_PRESETS[k].name} ({GENERATION_PRESETS[k].description})",
-            key="generation_preset",
-            label_visibility="collapsed",
-            help="⚡빠른(GPT-4o-mini): 속도/가성비 | ⚖️균형(GPT-4o): 표준 | 💎고품질(GPT-4o+Deep): 심층분석"
-        )
 
     with col_menu:
         with st.popover("☰"):
