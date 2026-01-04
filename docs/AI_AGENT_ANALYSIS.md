@@ -102,17 +102,21 @@ PlanCraft는 LangGraph가 조율하는 **계층적 다중 에이전트 아키텍
 
 ### 5. MCP (Model Context Protocol) 아키텍처
 
-PlanCraft는 최신 **MCP 표준(v1.0)**을 준수하는 **Client Mode** 구현체를 탑재했습니다.
+PlanCraft는 최신 **MCP 표준(v1.0)**을 준수하는 **Client Mode** 구현체를 탑재했습니다. 이는 별도의 서버 구축 없이 로컬 프로세스 간 통신을 활용하는 효율적인 구조입니다.
 
 > **MCP Client Mode란?**
-> - 앱(PlanCraft)이 `mcp-client`가 되어 외부의 표준 MCP 서버들과 통신하는 구조입니다.
-> - 전통적인 API 연동 방식과 달리, 서버의 도구(Tool) 목록을 동적으로 조회(`list_tools`)하고 실행(`call_tool`)합니다.
+> - 앱(PlanCraft)이 `mcp-client`가 되어, **로컬 자식 프로세스로 실행된** 표준 MCP 서버들과 통신하는 구조입니다.
+> - 전통적인 API 하드코딩 방식과 달리, 서버의 도구(Tool) 목록을 동적으로 조회(`list_tools`)하고 실행(`call_tool`)합니다.
 
 - **구성 요소**:
-    - **Client**: `mcp_client.py` (FastAPI 앱 내장)
-    - **Servers**: `tavily-mcp` (검색), `fetch-mcp` (콘텐츠 수집)
-- **통신 방식**: 표준 입출력(stdio) 파이프를 통한 JSON-RPC 통신.
-- **장점**: 코드 수정 없이 다른 MCP 호환 서버(예: Slack, PostgreSQL, Filesystem)를 플러그앤플레이로 연결할 수 있는 확장성을 확보했습니다.
+    - **Host (Client)**: `PlanCraft App` (FastAPI/Streamlit 내부 `mcp_client.py`)
+    - **Servers (Subprocesses)**: 
+        - `tavily-mcp`: `npx`로 실행되는 Node.js 프로세스 (검색 담당)
+        - `fetch-mcp`: `uvx`로 실행되는 Python 프로세스 (콘텐츠 수집 담당)
+- **통신 방식**: 표준 입출력(stdio) 파이프를 통한 JSON-RPC 통신. (네트워크 오버헤드 없음)
+- **장점**: 
+    1. **Zero Infra**: 별도의 서버를 띄우거나 관리할 필요가 없습니다. 앱 실행 시 자동으로 켜지고 꺼집니다.
+    2. **확장성**: 코드 수정 없이 다른 MCP 호환 서버(예: PostgreSQL, Filesystem)를 설정(`config.py`)만으로 연결할 수 있습니다.
 
 ---
 
