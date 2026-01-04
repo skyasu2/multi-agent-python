@@ -105,7 +105,7 @@ class MarketAgent:
         web_context = ""
         if web_search_results:
             for result in web_search_results[:5]:
-                web_context += f"- {result.get('title', '')}: {result.get('content', '')[:100]}\n"
+                web_context += f"- {result.get('title', '')}: {result.get('content', '')[:300]}\n"
         
         # 2. 검색 도구 준비 (Tavily)
         # [Rate Limit] 최대 2개 결과, 에이전트 루프에서 횟수 제한 유도
