@@ -379,9 +379,23 @@ def render_dev_tools():
                 with col_btn:
                     st.write("") # Spacer
                     if st.button("🌐 브라우저로 보기", type="primary"):
-                        import webbrowser
-                        webbrowser.open(f"file://{abs_path}")
-                        st.toast("브라우저에서 리포트를 열었습니다!", icon="🎉")
+                        try:
+                            import platform
+                            if platform.system() == "Windows":
+                                # Windows native open
+                                os.startfile(abs_path)
+                            else:
+                                # Cross-platform fallback
+                                import webbrowser
+                                from urllib.parse import quote
+                                # Handle spaces and special chars in path
+                                url_path = f"file://{quote(abs_path)}"
+                                webbrowser.open(url_path)
+                            
+                            st.toast("브라우저에서 리포트를 열었습니다!", icon="🎉")
+                            st.write(f"📂 열기 시도: `{abs_path}`")
+                        except Exception as e:
+                            st.error(f"브라우저 열기 실패: {e}")
 
                 # 간단한 미리보기 (선택 사항)
                 with st.expander("🔽 여기서 미리보기 (Embedded View)"):
