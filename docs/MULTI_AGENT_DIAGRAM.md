@@ -312,9 +312,9 @@ flowchart LR
 
 ## 📊 9. MCP (Model Context Protocol) Architecture
 
+### 9.1 Standard MCP Architecture (Ideal)
 > **Client Mode Implementation**:
-> PlanCraft App이 `mcp-client` 역할을 수행하며, 표준 입출력(stdio)을 통해
-> 외부 MCP 서버(Tavily, Fetch 등)와 통신합니다.
+> Node.js 및 Python 환경이 모두 갖춰진 경우, 표준 자식 프로세스 방식으로 동작합니다.
 
 ```mermaid
 graph TB
@@ -371,6 +371,48 @@ graph TB
     style MCP_NODE fill:#fff3e0,stroke:#fb8c00
     style MCP_PY fill:#e8f5e9,stroke:#43a047
     style CLIENT fill:#1565c0,color:#ffffff
+```
+
+### 9.2 Fallback Architecture (Actual/Safe Mode)
+> **SDK/Library Implementation**:
+> `npx` (Node.js)가 없는 환경에서는 자동으로 Fallback 모드로 전환되어, Python 라이브러리를 직접 호출합니다.
+
+```mermaid
+graph TB
+    subgraph PC["💻 User's Computer (Localhost)"]
+        
+        subgraph HOST_PROCESS["🧠 PlanCraft App (Python Process)"]
+            LG["LangGraph Workflow"]
+            AGENTS["AI Agents"]
+            
+            subgraph TOOLKIT["Search Toolkit"]
+                CLIENT["Client Helper<br/>(mcp_client.py)"]
+                SDK["Tavily Python SDK<br/>(Library)"]
+                REQ["Requests / BS4<br/>(Library)"]
+            end
+
+            LG --> AGENTS
+            AGENTS --> CLIENT
+            CLIENT -->|Function Call| SDK
+            CLIENT -->|Function Call| REQ
+        end
+        
+    end
+    
+    subgraph INTERNET["🌐 External Services"]
+        TAVILY_API["Tavily API"]
+        WEBSITES["Target Websites"]
+    end
+    
+    SDK -.->|HTTPS| TAVILY_API
+    REQ -.->|HTTPS| WEBSITES
+    
+    %% Styling
+    style PC fill:#f9f9f9,stroke:#333
+    style HOST_PROCESS fill:#e3f2fd,stroke:#1e88e5
+    style TOOLKIT fill:#fff,stroke:#999,stroke-dasharray: 5 5
+    style SDK fill:#fff3e0,stroke:#fb8c00
+    style REQ fill:#e8f5e9,stroke:#43a047
 ```
 
 ---
