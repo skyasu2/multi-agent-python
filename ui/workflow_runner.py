@@ -134,7 +134,8 @@ def poll_workflow_status(
     thread_id: str,
     status_widget,
     progress_bar,
-    current_step_display
+    current_step_display,
+    on_log_callback=None  # [NEW] Callback for real-time logging
 ) -> Tuple[Dict[str, Any], list]:
     """
     워크플로우 상태를 폴링하여 완료될 때까지 대기합니다.
@@ -144,6 +145,7 @@ def poll_workflow_status(
         status_widget: Streamlit status 위젯
         progress_bar: 진행률 바
         current_step_display: 현재 단계 표시 위젯
+        on_log_callback: 로그 발생 시 호출할 콜백 함수
 
     Returns:
         Tuple[final_result, execution_log]: 최종 결과와 실행 로그
@@ -216,7 +218,7 @@ def poll_workflow_status(
                     current_step_display.markdown(f"🟢 **진행 중:** {label} 단계")
                 break
 
-        # 로그 수집
+        # 로그 수집 & 콜백 실행
         if len(step_history) > last_step_count:
             new_steps = step_history[last_step_count:]
             for step in new_steps:
@@ -230,12 +232,18 @@ def poll_workflow_status(
                         icon = ic
                         break
 
-                execution_log.append({
+                log_entry = {
                     "step": step_name,
                     "summary": summary,
                     "icon": icon,
                     "time": exec_time or f"{elapsed}s"
-                })
+                }
+                
+                execution_log.append(log_entry)
+                
+                # [NEW] 실시간 로그 출력 콜백
+                if on_log_callback:
+                    on_log_callback(log_entry)
 
             last_step_count = len(step_history)
 
@@ -422,9 +430,15 @@ def run_pending_workflow(pending_text: str, status_placeholder):
                 progress_bar = status.progress(0)
                 current_step_display = status.empty()
 
+                # [NEW] 실시간 로그 콜백
+                def on_log_update(log_entry):
+                    # 새로운 단계 로그를 status 바디에 출력
+                    status.markdown(f"**{log_entry['icon']} {log_entry['step'].upper()}** — {log_entry['summary']}")
+
                 # 폴링
                 final_result, execution_log = poll_workflow_status(
-                    thread_id, status, progress_bar, current_step_display
+                    thread_id, status, progress_bar, current_step_display,
+                    on_log_callback=on_log_update  # 콜백 전달
                 )
 
                 # 완료 상태 표시
@@ -434,10 +448,8 @@ def run_pending_workflow(pending_text: str, status_placeholder):
                 current_step_display.empty()
 
                 if execution_log:
-                    status.markdown(f"✅ **완료** — 총 {len(execution_log)}단계 실행됨")
-                    with status.expander("📋 세부 진행 내역 보기", expanded=False):
-                        for log in execution_log:
-                            st.write(f"✔ **{log['step'].upper()}** — {log.get('summary', '')} `{log['time']}`")
+                    # status.markdown(f"✅ **완료** — 총 {len(execution_log)}단계 실행됨") # 중복 제거
+                    pass
 
                 status.update(label=f"✅ 완료! (총 {total_elapsed}초)", state="complete", expanded=False)
 

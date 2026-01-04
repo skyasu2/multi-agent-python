@@ -303,13 +303,14 @@ def render_dev_tools():
                     st.write(f"🏃 명령어 실행: `{' '.join(script_cmd)}`")
                     
                     try:
-                        # 실행
+                        # 실행 (타임아웃 설정 추가)
                         result = subprocess.run(
                             script_cmd, 
                             capture_output=True, 
                             text=True, 
                             encoding='utf-8',
-                            errors='replace' # 인코딩 에러 방지
+                            errors='replace', # 인코딩 에러 방지
+                            timeout=120       # 2분 타임아웃
                         )
                         
                         if result.returncode == 0:
@@ -321,14 +322,17 @@ def render_dev_tools():
                             with st.expander("에러 로그 보기"):
                                 st.code(result.stderr)
                                 
-                        # 리포트 로드
+                        # 리포트 로드 트리거 (rerun 대신 상태 업데이트)
                         report_path = "reports/test_report.html"
                         if os.path.exists(report_path):
                             st.session_state["show_test_report"] = True
-                            st.rerun()
+                            # st.rerun() 삭제: 모달이 닫히는 현상 방지
                         else:
                             st.warning("리포트 파일이 생성되지 않았습니다.")
                             
+                    except subprocess.TimeoutExpired:
+                         status.update(label="⏰ 시간 초과", state="error")
+                         st.error("테스트 실행 시간이 초과되었습니다 (2분).")
                     except Exception as e:
                         status.update(label="❌ 실행 오류", state="error")
                         st.error(f"실행 중 예외 발생: {str(e)}")
