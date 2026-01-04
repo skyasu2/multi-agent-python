@@ -429,11 +429,32 @@ def run_pending_workflow(pending_text: str, status_placeholder):
                 # 진행률 UI
                 progress_bar = status.progress(0)
                 current_step_display = status.empty()
-
-                # [NEW] 실시간 로그 콜백
+                
+                # [NEW] 로그 히스토리 컨테이너 (최근 3개만 표시, 나머지는 접힘)
+                log_container = status.container()
+                visible_logs = []  # 최근 3개 로그 저장
+                
                 def on_log_update(log_entry):
-                    # 새로운 단계 로그를 status 바디에 출력
-                    status.markdown(f"**{log_entry['icon']} {log_entry['step'].upper()}** — {log_entry['summary']}")
+                    """실시간 로그 업데이트 (최근 3개만 표시)"""
+                    nonlocal visible_logs
+                    visible_logs.append(log_entry)
+                    
+                    # 컨테이너 초기화 후 다시 렌더링
+                    with log_container:
+                        # 3개 초과 시 "이전 로그 보기" 표시
+                        if len(visible_logs) > 3:
+                            with st.expander(f"📜 이전 단계 보기 ({len(visible_logs) - 3}개)", expanded=False):
+                                for old_log in visible_logs[:-3]:
+                                    st.markdown(
+                                        f"<div style='color:#888; font-size:0.85rem;'>"
+                                        f"✓ {old_log['step']} — {old_log['summary'][:50]}...</div>",
+                                        unsafe_allow_html=True
+                                    )
+                        
+                        # 최근 3개 로그 표시
+                        recent_logs = visible_logs[-3:] if len(visible_logs) >= 3 else visible_logs
+                        for log in recent_logs:
+                            st.markdown(f"**{log['icon']} {log['step'].upper()}** — {log['summary']}")
 
                 # 폴링
                 final_result, execution_log = poll_workflow_status(
