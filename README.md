@@ -34,7 +34,7 @@
 
 **PlanCraft Agent**는 사용자의 아이디어를 입력하면 **10개의 AI 에이전트**가 협업하여 **전문 수준의 기획서**를 자동으로 생성하는 시스템입니다.
 
-> 📄 **과제 평가용 문서**: [PROJECT_REPORT.md](docs/PROJECT_REPORT.md) | [SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md)
+> 📖 **상세 문서**: [PROJECT_REPORT.md](docs/PROJECT_REPORT.md) | [SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md)
 
 ### 서비스 플로우
 
@@ -265,7 +265,7 @@ plancraft-agent/
 
 | 문서 | 설명 |
 |------|------|
-| 📄 [**PROJECT_REPORT.md**](docs/PROJECT_REPORT.md) | 프로젝트 리포트 **(과제 제출용)** |
+| 📄 [**PROJECT_REPORT.md**](docs/PROJECT_REPORT.md) | 프로젝트 리포트 |
 | 📐 [**SYSTEM_DESIGN.md**](docs/SYSTEM_DESIGN.md) | 시스템 아키텍처 설계서 |
 | 🔀 [**MULTI_AGENT_DIAGRAM.md**](docs/MULTI_AGENT_DIAGRAM.md) | 멀티에이전트 구성도 (Mermaid) |
 | 💬 [**HITL_GUIDE.md**](docs/HITL_GUIDE.md) | Human-in-the-Loop 가이드 |
