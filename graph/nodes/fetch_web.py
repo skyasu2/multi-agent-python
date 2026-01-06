@@ -19,6 +19,9 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
 
     LangSmith: run_name="📚 컨텍스트 수집", tags=["rag", "retrieval", "web", "search", "tavily"]
     """
+    import time
+    start_time = time.time()
+    
     user_input = state.get("user_input", "")
     rag_context = state.get("rag_context")
     
@@ -70,4 +73,4 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
     url_count = len(new_state.get("web_urls") or [])
     summary = f"웹 정보 수집: {url_count}개 URL 참조"
     
-    return update_step_history(new_state, "fetch_web", status, summary, new_state.get("error"))
+    return update_step_history(new_state, "fetch_web", status, summary, new_state.get("error"), start_time=start_time)

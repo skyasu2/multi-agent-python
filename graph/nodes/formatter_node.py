@@ -27,6 +27,9 @@ def run_formatter_node(state: PlanCraftState) -> PlanCraftState:
 
     재시도 안전: 포맷팅만 수행, 외부 상태 변경 없음
     """
+    import time
+    start_time = time.time()
+    
     # =========================================================================
     # 1단계: Draft -> Final Output 변환
     # =========================================================================
@@ -107,5 +110,5 @@ def run_formatter_node(state: PlanCraftState) -> PlanCraftState:
     new_state = formatter_run(state_with_output)
 
     return update_step_history(
-        new_state, "format", "SUCCESS", summary="최종 포맷팅 및 교정 완료"
+        new_state, "format", "SUCCESS", summary="최종 포맷팅 및 교정 완료", start_time=start_time
     )

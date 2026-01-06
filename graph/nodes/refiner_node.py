@@ -19,6 +19,9 @@ def run_refiner_node(state: PlanCraftState) -> PlanCraftState:
 
     LangSmith: run_name="✨ 개선 적용", tags=["agent", "llm", "refinement"]
     """
+    import time
+    start_time = time.time()
+    
     new_state = run(state)
     refine_count = new_state.get("refine_count", 0)
 
@@ -26,5 +29,6 @@ def run_refiner_node(state: PlanCraftState) -> PlanCraftState:
         new_state,
         "refine",
         "SUCCESS",
-        summary=f"기획서 개선 완료 (Round {refine_count})"
+        summary=f"기획서 개선 완료 (Round {refine_count})",
+        start_time=start_time
     )

@@ -22,7 +22,11 @@ def run_writer_node(state: PlanCraftState) -> PlanCraftState:
     LangSmith: run_name="✍️ 콘텐츠 작성", tags=["agent", "llm", "generation", "slow"]
     """
     # [Event] 작성 시작 이벤트 로그
+    import time
     from datetime import datetime
+    
+    start_time = time.time()
+    
     current_log = state.get("execution_log", []) or []
     current_log.append({
         "type": "writer_start",
@@ -42,5 +46,5 @@ def run_writer_node(state: PlanCraftState) -> PlanCraftState:
              draft_len = sum(len(s.get("content", "") if isinstance(s, dict) else s.content) for s in sections)
     
     return update_step_history(
-        new_state, "write", "SUCCESS", summary=f"초안 작성 완료 ({draft_len}자)"
+        new_state, "write", "SUCCESS", summary=f"초안 작성 완료 ({draft_len}자)", start_time=start_time
     )

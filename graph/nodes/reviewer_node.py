@@ -19,6 +19,9 @@ def run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
 
     LangSmith: run_name="🔎 품질 검토", tags=["agent", "llm", "evaluation"]
     """
+    import time
+    start_time = time.time()
+    
     new_state = run(state)
     review = new_state.get("review")
     verdict = "N/A"
@@ -32,5 +35,5 @@ def run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
             score = getattr(review, "overall_score", 0)
 
     return update_step_history(
-        new_state, "review", "SUCCESS", summary=f"심사 결과: {verdict} ({score}점)"
+        new_state, "review", "SUCCESS", summary=f"심사 결과: {verdict} ({score}점)", start_time=start_time
     )

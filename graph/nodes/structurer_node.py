@@ -21,6 +21,9 @@ def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
 
     LangSmith: run_name="🏗️ 구조 설계", tags=["agent", "llm", "planning"]
     """
+    import time
+    start_time = time.time()
+    
     new_state = run(state)
     structure = new_state.get("structure")
     count = 0
@@ -32,5 +35,6 @@ def run_structurer_node(state: PlanCraftState) -> PlanCraftState:
         new_state, 
         "structure", 
         "SUCCESS", 
-        summary=f"섹션 {count}개 구조화"
+        summary=f"섹션 {count}개 구조화",
+        start_time=start_time
     )

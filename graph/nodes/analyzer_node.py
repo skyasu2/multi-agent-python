@@ -21,6 +21,8 @@ def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
         - run_name: "🔍 요구사항 분석"
         - tags: ["agent", "llm", "analysis", "critical"]
     """
+    import time
+    start_time = time.time()
     
     # [PHASE 1] Reviewer에서 복귀한 경우 restart_count 증가
     current_restart_count = state.get("restart_count", 0)
@@ -46,5 +48,6 @@ def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
         new_state, 
         "analyze", 
         "SUCCESS", 
-        summary=f"주제 분석: {topic}" + (f" (재분석 #{current_restart_count})" if has_review else "")
+        summary=f"주제 분석: {topic}" + (f" (재분석 #{current_restart_count})" if has_review else ""),
+        start_time=start_time
     )
