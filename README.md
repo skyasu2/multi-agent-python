@@ -7,6 +7,15 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-ff4b4b?style=for-the-badge&logo=streamlit)](https://streamlit.io/)
 
+### 🆕 최근 업데이트 (2026-01-06)
+
+| 개선 항목 | 설명 |
+|-----------|------|
+| ⚡ **실시간 활동 로그** | 에이전트 작업 상태가 UI에 실시간으로 표시 |
+| ⏱️ **정확한 실행 시간** | 각 단계별 소요 시간이 정확히 측정됨 |
+| 🎯 **타겟 피드백** | Reviewer가 수정이 필요한 섹션을 구체적으로 지정 |
+| 🔄 **자동 복구 RAG** | 앱 시작 시 벡터스토어 자동 점검 및 복구 |
+
 ---
 
 ## 📋 목차
