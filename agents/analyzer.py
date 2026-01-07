@@ -170,6 +170,15 @@ def run(state: PlanCraftState) -> PlanCraftState:
             analysis_dict["is_general_query"] = False
             analysis_dict["need_more_info"] = True  # 짧은 기획 요청은 제안 모드로
 
+            # [FIX] LLM이 options를 생성하지 않은 경우 기본 옵션 추가
+            if not analysis_dict.get("options"):
+                topic = analysis_dict.get("topic", user_input)
+                analysis_dict["option_question"] = f"💡 '{user_input}'을(를) 기반으로 기획서를 작성할까요?"
+                analysis_dict["options"] = [
+                    {"id": "yes", "title": "네, 진행합니다", "description": f"'{topic}' 컨셉으로 기획서 생성"},
+                    {"id": "retry", "title": "아니요, 다시 입력할게요", "description": "새로운 아이디어로 시작"}
+                ]
+
         # [HITL 정책] Fast Track vs Propose & Confirm 분기
         # - 구체적 입력(20자 이상): 사용자 의도가 명확하므로 바로 진행 (Fast Track)
         # - 빈약한 입력(20자 미만): 컨셉 제안 후 사용자 확인 요청 (Propose & Confirm)
