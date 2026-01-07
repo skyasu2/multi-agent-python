@@ -183,6 +183,9 @@ class WorkflowService:
             if status == WorkflowStatus.FAILED and not result_data.get("error"):
                 result_data["error"] = "Unknown error occurred"
 
+            # [DEBUG] intent 필드 확인
+            logger.info(f"[API DEBUG] get_status result_data intent={result_data.get('intent')}, final_output={bool(result_data.get('final_output'))}")
+
         # Extract token usage if available
         token_usage = self._extract_token_usage(state.get("token_usage"))
 

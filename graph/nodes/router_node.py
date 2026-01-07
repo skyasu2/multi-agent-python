@@ -212,6 +212,9 @@ def smart_router_node(state: PlanCraftState) -> PlanCraftState:
         current_step="router"
     )
 
+    # [DEBUG] 상태 업데이트 확인
+    logger.info(f"[SmartRouter] ✅ State updated: intent={new_state.get('intent')}")
+
     # 4단계: 로깅 및 히스토리
     summary = f"의도 분류: {intent.value}"
     return update_step_history(new_state, "router", "SUCCESS", summary, start_time=start_time)
