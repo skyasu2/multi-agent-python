@@ -19,11 +19,16 @@ Resume 시 해당 인터럽트가 포함된 **가장 상위 그래프(Supergraph
             │    START     │
             └──────┬───────┘
                    │
+            ┌──────▼───────┐      intent=greeting     ┌─────────────┐
+            │    router    │ ────────────────────────▶│greeting_resp│──▶ END
+            │ (Smart Router)│                          └─────────────┘
+            └──────┬───────┘
+                   │ intent=planning
             ┌──────▼───────┐
             │   context    │  <- RAG + MCP (병렬 컨텍스트 수집)
             │  gathering   │
             └──────┬───────┘
-                   │
+                   │ (intent=confirmation은 여기 스킵)
             ┌──────▼───────┐      need_more_info=True     ┌─────────┐
             │   analyze    │ ───────────────────────────▶ │   END   │
             └──────┬───────┘      (질문 생성 및 중단)      └─────────┘
@@ -87,6 +92,9 @@ from utils.settings import settings, QualityThresholds
 # 3. 워크플로우 문서화 자동화
 # =============================================================================
 
+# Smart Router 분기 후 가능한 목적지
+RouterRoutes = Literal["greeting", "planning", "confirmation"]
+
 # Analyzer 분기 후 가능한 목적지
 AnalyzerRoutes = Literal["option_pause", "general_response", "structure"]
 
@@ -117,6 +125,11 @@ class RouteKey(str, Enum):
     문자열 하드코딩 대신 Enum 사용으로 타입 안전성 및 자동완성 지원.
     str 상속으로 add_conditional_edges에서 직접 사용 가능.
     """
+    # Smart Router 분기 (Entry Point)
+    GREETING = "greeting"          # 인사/잡담 → general_response
+    PLANNING = "planning"          # 기획 요청 → context_gathering
+    CONFIRMATION = "confirmation"  # 승인 → analyze (context 스킵)
+
     # Analyzer 분기
     CONTINUE = "continue"
     OPTION_PAUSE = "option_pause"
@@ -155,6 +168,7 @@ from graph.nodes.discussion_node import run_discussion_node
 from graph.nodes.common import update_step_history
 from graph.nodes.hitl_node import option_pause_node
 from graph.nodes.utility_nodes import general_response_node
+from graph.nodes.router_node import smart_router_node, Intent
 
 # [DEPRECATED] Dynamic Q&A Nodes - Writer ReAct 패턴으로 대체됨
 # data_gap_analysis 노드는 제거됨. Writer가 작성 중 자율적으로 도구 호출.
@@ -444,7 +458,7 @@ def is_human_interrupt_required(state: PlanCraftState) -> bool:
 def is_general_query(state: PlanCraftState) -> bool:
     """
     사용자 입력이 기획서 요청이 아닌 일반 질의인지 판단.
-    
+
     Analyzer가 분석 결과에서 is_general_query=True를 설정한 경우 True.
     (예: "안녕하세요", "뭘 할 수 있어요?" 같은 질문)
     """
@@ -454,6 +468,38 @@ def is_general_query(state: PlanCraftState) -> bool:
     if isinstance(analysis, dict):
         return analysis.get("is_general_query", False)
     return getattr(analysis, "is_general_query", False)
+
+
+def route_by_intent(state: PlanCraftState) -> RouterRoutes:
+    """
+    Smart Router 결과에 따라 다음 노드 결정
+
+    Return Type: RouterRoutes = Literal["greeting", "planning", "confirmation"]
+
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                     판정표 (Decision Table)                             │
+    ├────────────────────────┬───────────────────────┬────────────────────────┤
+    │ Intent                 │ 반환값                │ 다음 노드              │
+    ├────────────────────────┼───────────────────────┼────────────────────────┤
+    │ greeting               │ RouteKey.GREETING     │ greeting_response      │
+    │ confirmation           │ RouteKey.CONFIRMATION │ analyze (context 스킵) │
+    │ planning (기본)        │ RouteKey.PLANNING     │ context_gathering      │
+    └────────────────────────┴───────────────────────┴────────────────────────┘
+    """
+    logger = get_file_logger()
+    intent = state.get("intent", "planning")
+
+    logger.info(f"[ROUTING] route_by_intent: intent={intent}")
+
+    if intent == Intent.GREETING.value:
+        logger.info("[ROUTING] → greeting_response (context 스킵)")
+        return RouteKey.GREETING
+    elif intent == Intent.CONFIRMATION.value:
+        logger.info("[ROUTING] → analyze (confirmation, context 스킵)")
+        return RouteKey.CONFIRMATION
+    else:
+        logger.info("[ROUTING] → context_gathering (planning)")
+        return RouteKey.PLANNING
 
 
 
@@ -495,12 +541,18 @@ def create_workflow() -> StateGraph:
     )
 
     # 노드 등록 (래퍼 함수 사용)
+    # [NEW] Smart Router - Entry Point (Rule + LLM Hybrid)
+    workflow.add_node("router", smart_router_node)
+
+    # [NEW] Greeting Response (인사/잡담 전용, context 스킵)
+    workflow.add_node("greeting_response", general_response_node)
+
     # [UPDATE] 컨텍스트 수집 단계 병렬화 (Sub-graph Node)
     from graph.subgraphs import run_context_subgraph
     workflow.add_node("context_gathering", run_context_subgraph)
-    
+
     workflow.add_node("analyze", run_analyzer_node)
-    
+
     # [NEW] 분기 처리용 노드 등록
     workflow.add_node("option_pause", option_pause_node)
     workflow.add_node("general_response", general_response_node)
@@ -519,8 +571,24 @@ def create_workflow() -> StateGraph:
     workflow.add_node("format", run_formatter_node)
 
     # 엣지 정의
-    # [UPDATE] 병렬 컨텍스트 수집 노드로 진입
-    workflow.set_entry_point("context_gathering")
+    # [NEW] Smart Router를 Entry Point로 설정
+    workflow.set_entry_point("router")
+
+    # [NEW] Router → Intent 기반 분기
+    workflow.add_conditional_edges(
+        "router",
+        route_by_intent,
+        {
+            RouteKey.GREETING: "greeting_response",      # 인사 → 바로 응답
+            RouteKey.PLANNING: "context_gathering",      # 기획 → RAG/Web 검색
+            RouteKey.CONFIRMATION: "analyze"             # 승인 → 바로 분석
+        }
+    )
+
+    # greeting_response는 END로 종료 (context 불필요)
+    workflow.add_edge("greeting_response", END)
+
+    # context_gathering → analyze
     workflow.add_edge("context_gathering", "analyze")
 
     # [UPDATE] 조건부 분기 개선 (명시적 노드로 라우팅)
@@ -837,6 +905,8 @@ def run_plancraft(
 
     # 노드 이름 → 타임라인 단계 매핑 (워크플로우 add_node 이름과 일치!)
     NODE_TO_STEP = {
+        "router": "router",               # [NEW] Smart Router
+        "greeting_response": "router",    # [NEW] 인사 응답
         "context_gathering": "context",   # SubGraph
         "analyze": "analyze",
         "option_pause": "analyze",

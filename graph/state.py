@@ -270,6 +270,9 @@ class PlanCraftState(TypedDict, total=False):
     pending_specialist_requests: List[dict]  # 대기 중인 Specialist 요청
     specialist_responses: List[dict]  # Specialist 응답 (수집용)
 
+    # [NEW] Smart Router 의도 분류 결과
+    intent: Optional[str]  # "greeting" | "planning" | "confirmation"
+
 
 
 # =============================================================================
@@ -345,6 +348,9 @@ def create_initial_state(
         "data_gap_analysis": None,
         "pending_specialist_requests": [],
         "specialist_responses": [],
+
+        # Smart Router
+        "intent": None,  # "greeting" | "planning" | "confirmation"
     }
 
 

@@ -155,32 +155,18 @@ def run(state: PlanCraftState) -> PlanCraftState:
         # 5. 상태 업데이트 (Pydantic -> Dict 일관성 보장)
         analysis_dict = ensure_dict(analysis_result)
 
-        # [FIX] 키워드 기반 is_general_query 오버라이드
-        # LLM이 잡담으로 판단해도, 기획 키워드가 있으면 강제로 기획 요청으로 처리
-        planning_keywords = [
-            "앱", "플랫폼", "서비스", "시스템", "웹", "사이트",
-            "기획", "사업", "창업", "스타트업", "비즈니스",
-            "리뷰", "추천", "검색", "관리", "예약", "배달", "쇼핑",
-            "만들어", "개발", "구축", "설계"
-        ]
-        has_planning_keyword = any(kw in user_input for kw in planning_keywords)
+        # [NOTE] 키워드 기반 is_general_query 오버라이드 로직은 Smart Router로 이전됨
+        # Smart Router가 intent 분류를 담당하므로, Analyzer는 LLM 결과를 신뢰합니다.
+        # Router가 planning으로 판단한 경우에만 Analyzer가 호출됩니다.
 
-        # [DEBUG] 오버라이드 전 상태 로깅
-        get_file_logger().info(f"[Analyzer] 오버라이드 체크: is_general={analysis_dict.get('is_general_query')}, has_keyword={has_planning_keyword}, input='{user_input}'")
-
-        if analysis_dict.get("is_general_query", False) and has_planning_keyword:
-            get_file_logger().info(f"[Analyzer] ✅ 기획 키워드 감지, is_general_query 오버라이드: '{user_input}'")
-            analysis_dict["is_general_query"] = False
-            analysis_dict["need_more_info"] = True  # 짧은 기획 요청은 제안 모드로
-
-            # [FIX] LLM이 options를 생성하지 않은 경우 기본 옵션 추가
-            if not analysis_dict.get("options"):
-                topic = analysis_dict.get("topic", user_input)
-                analysis_dict["option_question"] = f"💡 '{user_input}'을(를) 기반으로 기획서를 작성할까요?"
-                analysis_dict["options"] = [
-                    {"id": "yes", "title": "네, 진행합니다", "description": f"'{topic}' 컨셉으로 기획서 생성"},
-                    {"id": "retry", "title": "아니요, 다시 입력할게요", "description": "새로운 아이디어로 시작"}
-                ]
+        # [DEBUG] 분석 결과 로깅
+        intent = state.get("intent", "unknown")
+        get_file_logger().info(
+            f"[Analyzer] LLM 분석 완료: topic='{analysis_dict.get('topic')}', "
+            f"is_general={analysis_dict.get('is_general_query')}, "
+            f"need_info={analysis_dict.get('need_more_info')}, "
+            f"router_intent={intent}"
+        )
 
         # [HITL 정책] Fast Track vs Propose & Confirm 분기
         # - 구체적 입력(20자 이상): 사용자 의도가 명확하므로 바로 진행 (Fast Track)
