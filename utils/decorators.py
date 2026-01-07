@@ -11,6 +11,7 @@ PlanCraft 유틸리티 데코레이터 모듈
         ...
 """
 
+import copy
 import functools
 from typing import List, Any, Callable, Dict
 from utils.file_logger import get_file_logger
@@ -56,12 +57,11 @@ def require_state_keys(required_keys: List[str]):
             if missing_keys:
                 error_msg = f"[{func.__name__}] 필수 입력 데이터 누락: {', '.join(missing_keys)}"
                 logger.error(error_msg)
-                
-                # 에러 상태로 업데이트하여 반환 (Node 실행 중단 효과)
-                # Workflow 중단 대신 에러 state 반환으로 처리 (LangGraph 패턴)
+
+                # [FIX] 깊은 복사로 원본 상태 오염 방지
+                # 얕은 복사(state.copy())는 중첩된 dict/list가 원본을 참조하여 부작용 발생
                 if isinstance(state, dict):
-                    # update_state 함수 사용 권장되나, 순환 참조 방지를 위해 직접 dict 조작 또는 shallow copy
-                    new_state = state.copy()
+                    new_state = copy.deepcopy(state)
                     new_state["error"] = error_msg
                     return new_state
                 else:

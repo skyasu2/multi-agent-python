@@ -353,8 +353,11 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
                 print(f"[HITL] Interrupt Expired! (Event ID: {last_interrupt.get('event_id')})")
                 # 만료 시 에러 상태 반환 (User에게 재시도 요청 또는 종료 유도)
                 return update_state(state, error="Time Limit Exceeded: 입력 시간이 만료되었습니다.")
-        except Exception as e:
-            print(f"[ERROR] Expiry Check Failed: {e}")
+        except (ValueError, TypeError) as e:
+            # [FIX] 구체적인 예외 타입 지정 + 로깅 강화
+            from utils.file_logger import get_file_logger
+            get_file_logger().warning(f"[HITL] Expiry check failed (invalid format): {e}")
+            # 만료 체크 실패는 무시하고 계속 진행 (graceful degradation)
 
     pause_type = last_interrupt.get("type", "option")  # 기본값: option
     current_timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -421,9 +424,10 @@ def handle_user_response(state: PlanCraftState, response: Dict[str, Any]) -> Pla
             print(f"[ERROR] Resume Validation Failed (STRICT): {e}")
             # graceful degradation: 에러 상태 반환
             return update_state(state, error=f"입력 검증 실패: {e.reason}")
-        except Exception as e:
-            # 기타 예외는 경고만 출력 (하위 호환성)
-            print(f"[WARN] Resume Input Validation Failed: {e}")
+        except (AttributeError, KeyError, TypeError) as e:
+            # [FIX] 기타 예외는 경고 로깅 (하위 호환성 유지)
+            from utils.file_logger import get_file_logger
+            get_file_logger().warning(f"[HITL] Resume validation skipped (non-critical): {type(e).__name__}: {e}")
 
     # 1. 폼 데이터 처리 (input_schema_name이 있었던 경우)
     if state.get("input_schema_name") and isinstance(response, dict):

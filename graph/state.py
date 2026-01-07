@@ -236,6 +236,7 @@ class PlanCraftState(TypedDict, total=False):
     last_error: Optional[str]
     error_category: Optional[str]  # LLM_ERROR, NETWORK_ERROR, VALIDATION_ERROR, STATE_ERROR, UNKNOWN_ERROR
     execution_time: Optional[str]
+    execution_log: List[dict]  # [FIX] 실행 로그 (writer_node 등에서 사용)
 
     # ========== Graceful End-of-Loop (LangGraph Best Practice) ==========
     # 무한 루프 방지를 위한 남은 스텝 카운터
@@ -344,6 +345,7 @@ def create_initial_state(
         "step_status": "RUNNING",
         "last_error": None,
         "execution_time": datetime.now().isoformat(),
+        "execution_log": [],  # [FIX] 실행 로그 초기화
 
         # Interrupt & Routing
         "confirmed": None,

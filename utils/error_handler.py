@@ -59,37 +59,53 @@ class StateError(PlanCraftError):
 def categorize_error(exception: Exception) -> str:
     """
     예외 유형을 분석하여 에러 카테고리를 반환합니다.
-    
+
     Returns:
-        str: 에러 카테고리 (LLM_ERROR, NETWORK_ERROR, VALIDATION_ERROR, STATE_ERROR, UNKNOWN_ERROR)
+        str: 에러 카테고리
+        - RATE_LIMIT_ERROR: API 호출 제한 (재시도 가능, 대기 필요)
+        - TIMEOUT_ERROR: 타임아웃 (재시도 가능)
+        - LLM_ERROR: LLM 관련 오류 (재시도 가능)
+        - NETWORK_ERROR: 네트워크 오류 (재시도 가능)
+        - VALIDATION_ERROR: 검증 오류 (재시도 불가)
+        - STATE_ERROR: 상태 오류 (재시도 불가)
+        - UNKNOWN_ERROR: 기타 (재시도 불가)
     """
     error_msg = str(exception).lower()
     error_type = type(exception).__name__
-    
+
     # PlanCraft 커스텀 예외
     if isinstance(exception, PlanCraftError):
         return exception.category
-    
+
+    # [P3-FIX] Rate Limit 별도 분류 (재시도 전략 구분)
+    rate_limit_keywords = ["rate limit", "429", "quota", "too many requests", "throttl"]
+    if any(kw in error_msg for kw in rate_limit_keywords):
+        return "RATE_LIMIT_ERROR"
+
+    # [P3-FIX] Timeout 별도 분류 (재시도 가능)
+    if error_type == "TimeoutError" or "timeout" in error_msg or "timed out" in error_msg:
+        return "TIMEOUT_ERROR"
+
     # LLM 관련 오류
-    llm_keywords = ["openai", "azure", "api", "token", "rate limit", "timeout", "model", "completion"]
+    llm_keywords = ["openai", "azure", "api", "token", "model", "completion", "llm"]
     if any(kw in error_msg for kw in llm_keywords) or "openai" in error_type.lower():
         return "LLM_ERROR"
-    
+
     # 네트워크 관련 오류
     network_keywords = ["connection", "network", "http", "url", "request", "socket", "dns", "ssl"]
-    network_types = ["ConnectionError", "TimeoutError", "HTTPError", "URLError", "SSLError"]
+    network_types = ["ConnectionError", "HTTPError", "URLError", "SSLError"]
     if any(kw in error_msg for kw in network_keywords) or error_type in network_types:
         return "NETWORK_ERROR"
-    
+
     # 검증 관련 오류
     validation_types = ["ValidationError", "ValueError", "TypeError", "KeyError", "AttributeError"]
     if error_type in validation_types or "validation" in error_msg:
         return "VALIDATION_ERROR"
-    
+
     # 상태 관련 오류
     if "state" in error_msg or "typeddict" in error_msg:
         return "STATE_ERROR"
-    
+
     return "UNKNOWN_ERROR"
 
 

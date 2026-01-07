@@ -24,14 +24,15 @@ def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
     import time
     start_time = time.time()
     
-    # [PHASE 1] Reviewer에서 복귀한 경우 restart_count 증가
+    # [PHASE 1] Reviewer FAIL 판정으로 복귀한 경우만 restart_count 증가
+    # [FIX] 리뷰 존재 여부가 아닌 FAIL verdict 체크로 오버카운팅 방지
     current_restart_count = state.get("restart_count", 0)
-    has_review = state.get("review") is not None
-    
-    if has_review:
-        # Reviewer를 거친 후 다시 Analyzer로 온 경우 = 재분석
+    review = state.get("review")
+
+    # FAIL 판정일 때만 restart count 증가 (PASS/REVISE는 증가하지 않음)
+    if review and isinstance(review, dict) and review.get("verdict") == "FAIL":
         current_restart_count += 1
-        print(f"[ROUTING] Analyzer 재진입 (restart_count: {current_restart_count})")
+        print(f"[ROUTING] Reviewer FAIL → Analyzer 재진입 (restart_count: {current_restart_count})")
     
     new_state = run(state)
     
@@ -49,6 +50,6 @@ def run_analyzer_node(state: PlanCraftState) -> PlanCraftState:
         new_state, 
         "analyze", 
         "SUCCESS", 
-        summary=f"주제 분석: {topic}" + (f" (재분석 #{current_restart_count})" if has_review else ""),
+        summary=f"주제 분석: {topic}" + (f" (재분석 #{current_restart_count})" if review else ""),
         start_time=start_time
     )

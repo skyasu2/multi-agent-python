@@ -27,16 +27,20 @@ def run_writer_node(state: PlanCraftState) -> PlanCraftState:
     
     start_time = time.time()
     
-    current_log = state.get("execution_log", []) or []
+    # [FIX] 불변성 유지 - state 직접 수정 대신 update_state 사용
+    from graph.state import update_state
+
+    current_log = list(state.get("execution_log", []) or [])  # 복사본 생성
     current_log.append({
         "type": "writer_start",
         "timestamp": datetime.now().isoformat(),
         "message": "기획서 초안 작성을 시작합니다..."
     })
-    # state에 미리 로그 반영 (run 함수 내에서 추가 로그가 쌓일 수 있도록)
-    state["execution_log"] = current_log
-    
-    new_state = run(state)
+
+    # 불변성 유지: update_state로 새 상태 생성
+    state_with_log = update_state(state, execution_log=current_log)
+
+    new_state = run(state_with_log)
     draft = new_state.get("draft")
     draft_len = 0
     if draft:
