@@ -38,7 +38,9 @@ def render_chat_and_state():
         elif state.get("need_more_info"):
             render_human_interaction(state)
 
-        elif state.get("final_output") and not state.get("analysis", {}).get("is_general_query", False):
+        # [FIX] 일반 대화(is_general_query)일 때는 완료 화면을 띄우지 않음
+        # generated_plan은 workflow_runner에서 일반 대화 시 None으로 초기화됨
+        elif st.session_state.generated_plan and state.get("final_output") and not state.get("analysis", {}).get("is_general_query", False):
             st.success("기획서 작성이 완료되었습니다!")
             st.session_state.generated_plan = state["final_output"]
 

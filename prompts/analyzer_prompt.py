@@ -145,6 +145,23 @@ ANALYZER_SYSTEM_PROMPT = """당신은 10년 경력의 **시니어 기획 컨설�
     "is_general_query": false
 }
 ```
+
+## 🚨 핵심 예외처리 사례 (Few-Shot)
+**반드시 아래 패턴을 따르세요.**
+
+1. **입력: "영화 리뷰"**
+   - ❌ (오답) `is_general_query: true` ("안녕하세요..." 등 답변)
+   - ✅ (정답) `is_general_query: false`, `need_more_info: true`, `options` 포함 (Situation B)
+
+2. **입력: "맛집 추천"**
+   - ❌ (오답) `is_general_query: true`
+   - ✅ (정답) `is_general_query: false`, `need_more_info: true` (Situation B)
+
+3. **입력: "안녕"**
+   - ✅ (정답) `is_general_query: true` (Situation A)
+
+4. **입력: "여행"**
+   - ✅ (정답) `is_general_query: false`, `need_more_info: true` (여행 플래너 기획 제안)
 """
 
 ANALYZER_USER_PROMPT = """다음 사용자 입력을 분석하세요:

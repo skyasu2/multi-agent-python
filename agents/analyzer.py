@@ -174,6 +174,30 @@ def run(state: PlanCraftState) -> PlanCraftState:
         is_general = analysis_dict.get("is_general_query", False)
         need_info = analysis_dict.get("need_more_info", False)
 
+        # [GUARDRAIL] LLM이 짧은 키워드를 잡담으로 오판하는 경우 코드 레벨에서 강제 보정
+        # 예: "영화 리뷰", "맛집 추천" 등 -> 잡담 아님!
+        SERVICE_KEYWORDS = ["리뷰", "추천", "앱", "플랫폼", "기획", "개발", "아이디어", "창업", "사이트", "웹", "시스템", "서비스", "분석"]
+        input_lower = user_input.lower().strip()
+        
+        # 키워드가 포함되어 있는데 잡담으로 분류된 경우 -> 강제 전환
+        if is_general and any(kw in input_lower for kw in SERVICE_KEYWORDS):
+            get_file_logger().info(f"[Guardrail] 잡담 오분류 감지됨 (키워드 포함). 기획 제안 모드로 강제 전환.")
+            is_general = False
+            need_info = True
+            
+            # 강제 전환 시 필드값 보정
+            analysis_dict["is_general_query"] = False
+            analysis_dict["need_more_info"] = True
+            analysis_dict["topic"] = analysis_dict.get("topic") if analysis_dict.get("topic") != "잡담" else f"{user_input} 서비스"
+            
+            # 옵션이 없으면 자동 생성
+            if not analysis_dict.get("options"):
+                analysis_dict["option_question"] = f"'{user_input}'에 대한 기획을 진행할까요?"
+                analysis_dict["options"] = [
+                    {"title": "네, 진행합니다", "description": "AI가 제안하는 방향으로 기획서 작성"},
+                    {"title": "직접 내용 입력", "description": "더 구체적인 요구사항 입력하기"}
+                ]
+
         if need_info and not is_general:
             input_len = len(user_input.strip())
             if input_len >= 20:
