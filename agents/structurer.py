@@ -48,7 +48,6 @@ def run(state: PlanCraftState) -> PlanCraftState:
     generation_preset = state.get("generation_preset", "balanced")
     preset = get_preset(generation_preset)
 
-    user_input = state.get("user_input", "")
     analysis = state.get("analysis")
     
     if not analysis:

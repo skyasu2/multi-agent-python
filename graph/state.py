@@ -288,8 +288,8 @@ class PlanCraftState(TypedDict, total=False):
 
 def create_initial_state(
     user_input: str,
-    file_content: str = None,
-    previous_plan: str = None,
+    file_content: Optional[str] = None,
+    previous_plan: Optional[str] = None,
     thread_id: str = "default_thread",
     generation_preset: str = "balanced"
 ) -> PlanCraftState:

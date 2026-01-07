@@ -237,7 +237,7 @@ def run(state: PlanCraftState) -> PlanCraftState:
         input_lower = user_input.lower().strip()
 
         if is_general and any(kw in input_lower for kw in SERVICE_KEYWORDS):
-            get_file_logger().info(f"[Guardrail] 잡담 오분류 감지됨. 기획 모드로 강제 전환.")
+            get_file_logger().info("[Guardrail] 잡담 오분류 감지됨. 기획 모드로 강제 전환.")
             is_general = False
             analysis_dict["is_general_query"] = False
             analysis_dict["topic"] = analysis_dict.get("topic") if analysis_dict.get("topic") != "잡담" else f"{user_input} 서비스"
@@ -269,7 +269,7 @@ def run(state: PlanCraftState) -> PlanCraftState:
                 _set_hitl_options(analysis_dict, user_input, clarification_questions)
             else:
                 # 템플릿 + 슬롯 충분 → AutoPlan
-                get_file_logger().info(f"[Gate] 템플릿 + 슬롯 충분 → AutoPlan")
+                get_file_logger().info("[Gate] 템플릿 + 슬롯 충분 → AutoPlan")
                 analysis_dict["need_more_info"] = False
                 analysis_dict["option_question"] = None
                 analysis_dict["options"] = []
@@ -283,7 +283,7 @@ def run(state: PlanCraftState) -> PlanCraftState:
                 _set_hitl_options(analysis_dict, user_input, clarification_questions)
             else:
                 # 직접 입력 + 슬롯 충분 → AutoPlan (바로 진행)
-                get_file_logger().info(f"[Gate] 직접입력 + 슬롯 충분 → AutoPlan")
+                get_file_logger().info("[Gate] 직접입력 + 슬롯 충분 → AutoPlan")
                 analysis_dict["need_more_info"] = False
                 analysis_dict["option_question"] = None
                 analysis_dict["options"] = []

@@ -90,7 +90,7 @@ def init_vectorstore() -> FAISS:
     # 3. 텍스트 분할 (Advanced Chunking)
     # =========================================================================
     print("  - Chunking documents...")
-    from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+    from langchain_text_splitters import MarkdownHeaderTextSplitter
     
     # 1단계: Markdown Header 기반 구조적 분할 (Semantic Chunking)
     # 문서를 단순히 글자 수로 자르는 것이 아니라, # 헤더 단위로 잘라서 '주제'를 모읍니다.

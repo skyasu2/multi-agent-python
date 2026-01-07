@@ -332,8 +332,8 @@ class MCPToolkit:
         if self._client:
             try:
                 await self._client.__aexit__(None, None, None)
-            except:
-                pass
+            except Exception:
+                pass  # 종료 시 예외는 무시
         self._initialized = False
 
 
@@ -364,7 +364,6 @@ def _run_async(coro):
     비동기 코루틴을 동기적으로 실행합니다.
     Streamlit 등 이미 이벤트 루프가 있는 환경에서도 동작합니다.
     """
-    import asyncio
     
     try:
         # 이미 실행 중인 이벤트 루프가 있는지 확인

@@ -228,7 +228,7 @@ def expand_short_input(
     # LLM 호출 제한 체크
     current_count = session_call_count if session_call_count is not None else _llm_call_count
     if current_count >= MAX_LLM_CALLS_PER_SESSION:
-        print(f"[INFO] LLM 제한으로 입력 증강 스킵")
+        print("[INFO] LLM 제한으로 입력 증강 스킵")
         return None
 
     try:

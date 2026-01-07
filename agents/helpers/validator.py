@@ -50,7 +50,7 @@ def validate_draft(draft_dict: dict, preset, specialist_context: str,
             for sec in sections
         )
         if not has_mermaid:
-            validation_issues.append(f"Mermaid 다이어그램 누락")
+            validation_issues.append("Mermaid 다이어그램 누락")
 
     # 검증 4: ASCII 차트
     if preset.include_charts > 0:
@@ -60,7 +60,7 @@ def validate_draft(draft_dict: dict, preset, specialist_context: str,
             for sec in sections
         )
         if not has_chart:
-            validation_issues.append(f"ASCII 차트 누락")
+            validation_issues.append("ASCII 차트 누락")
 
     # 검증 5: Specialist 분석 반영
     if specialist_context and refine_count == 0:

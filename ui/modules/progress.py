@@ -244,8 +244,8 @@ def render_specialist_agents_status(specialist_analysis: dict = None, is_running
                         s = datetime.fromisoformat(start)
                         e = datetime.fromisoformat(end)
                         duration = f"{(e-s).total_seconds():.2f}s"
-                    except:
-                        pass
+                    except (ValueError, TypeError):
+                        pass  # 날짜 파싱 실패 시 기본값 유지
                 
                 with m1:
                     st.metric("총 소요 시간", duration)

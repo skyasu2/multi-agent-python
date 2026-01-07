@@ -176,7 +176,6 @@ def _reviewer_speak_node(state: PlanCraftState) -> PlanCraftState:
     # 대화 이력 가져오기
     discussion_messages = state.get("discussion_messages", [])
     review = state.get("review", {})
-    draft = state.get("draft", {})
     discussion_round = state.get("discussion_round", 0)
 
     # 첫 번째 라운드: 초기 피드백 제시
@@ -308,7 +307,6 @@ def _check_consensus_node(state: PlanCraftState) -> PlanCraftState:
     # 합의 여부 판단 (LLM 기반)
     consensus_reached = False
     agreed_items = []
-    unresolved_items = []
 
     if discussion_messages and len(discussion_messages) >= 2:
         # 대화 이력 포맷팅
@@ -335,7 +333,6 @@ def _check_consensus_node(state: PlanCraftState) -> PlanCraftState:
 
             consensus_reached = result.consensus_reached
             agreed_items = result.agreed_items
-            unresolved_items = result.unresolved_items
 
             # 높은 신뢰도로 합의 도달 시에만 진정한 합의로 인정
             from utils.settings import QualityThresholds
@@ -477,8 +474,7 @@ def run_context_subgraph(state: PlanCraftState) -> PlanCraftState:
         )
 
     # 1. 초기 상태 로깅
-    current_history = state.get("step_history", []) or []
-    print(f"[Subgraph] 병렬 Context Gathering Started")
+    print("[Subgraph] 병렬 Context Gathering Started")
     start_time = time.time()
     
     # =========================================================================

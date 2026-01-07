@@ -22,7 +22,7 @@ def render_file_upload():
                     st.error(f"파일이 너무 큽니다. 최대 {MAX_FILE_SIZE_MB}MB까지 허용됩니다.")
                 elif ".." in uploaded_file.name or "/" in uploaded_file.name or "\\" in uploaded_file.name:
                     st.error("유효하지 않은 파일명입니다.")
-                elif not uploaded_file.name.split(".")[-1].lower() in ALLOWED_EXTENSIONS:
+                elif uploaded_file.name.split(".")[-1].lower() not in ALLOWED_EXTENSIONS:
                     st.error("지원하지 않는 파일 형식입니다.")
                 else:
                     content = uploaded_file.read().decode("utf-8", errors='ignore')
@@ -31,7 +31,7 @@ def render_file_upload():
                         st.warning("파일이 너무 길어 일부만 사용됩니다 (50,000자 제한)")
                     st.session_state.uploaded_content = content
                     st.success(f"✅ '{uploaded_file.name}' 업로드됨 ({file_size // 1024}KB)")
-            except Exception as e:
+            except Exception:
                 st.error("파일을 읽을 수 없습니다. 파일 형식을 확인해주세요.")
 
 

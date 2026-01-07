@@ -252,7 +252,7 @@ def format_trace_for_langsmith(state: dict) -> str:
     summary = get_trace_summary(state)
 
     lines = [
-        f"📊 실행 요약",
+        "📊 실행 요약",
         f"- 완료 단계: {len(summary['completed_steps'])}/{summary['total_steps']}",
         f"- 현재 단계: {summary['current_step']}",
         f"- 개선 횟수: {summary['refine_count']}",

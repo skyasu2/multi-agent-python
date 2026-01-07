@@ -272,7 +272,6 @@ def detect_error_type(exception: Exception) -> ValidationErrorType:
         ValidationErrorType
     """
     error_msg = str(exception).lower()
-    error_type_name = type(exception).__name__
 
     # 네트워크 관련
     network_keywords = ["connection", "network", "http", "socket", "dns", "ssl", "timeout"]

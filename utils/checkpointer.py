@@ -101,7 +101,7 @@ def get_checkpointer(
             if not db_url:
                 raise ValueError("CHECKPOINTER_TYPE is postgres but DB_CONNECTION_STRING is missing")
 
-            print(f"[Checkpointer] Connecting to PostgreSQL...")
+            print("[Checkpointer] Connecting to PostgreSQL...")
             pool = ConnectionPool(conninfo=db_url, max_size=20)
             return PostgresSaver(pool)
 

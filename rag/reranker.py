@@ -16,7 +16,7 @@ Cross-Encoder를 사용하여 검색 결과의 순위를 재조정합니다.
     reranked = rerank_documents(query, docs, top_k=3)
 """
 
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from functools import lru_cache
 
 # =============================================================================
@@ -122,7 +122,7 @@ def rerank_with_scores(
     query: str,
     documents: List,
     model_name: str = DEFAULT_MODEL
-) -> List[Tuple[float, any]]:
+) -> List[Tuple[float, Any]]:
     """
     문서와 점수를 함께 반환합니다.
 

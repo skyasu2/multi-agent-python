@@ -123,7 +123,6 @@ def execute_web_search(
                             print(f"[WebSearch] Query '{q}' result: success={search_result.get('success')}, source={search_result.get('source', 'unknown')}")
 
                             if search_result.get("success"):
-                                formatted_result = ""
                                 if "results" in search_result and isinstance(search_result["results"], list):
                                     for res in search_result["results"][:5]:  # 필터링 고려하여 더 확인
                                         title = res.get("title", "제목 없음")

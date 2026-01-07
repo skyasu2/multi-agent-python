@@ -202,7 +202,7 @@ def smart_router_node(state: PlanCraftState) -> PlanCraftState:
 
     # 2단계: 불확실하면 LLM 폴백
     if intent == Intent.UNCERTAIN:
-        logger.info(f"[SmartRouter] 규칙 불확실, LLM 폴백 실행")
+        logger.info("[SmartRouter] 규칙 불확실, LLM 폴백 실행")
         intent = _classify_by_llm(user_input)
 
     # 3단계: 상태 업데이트

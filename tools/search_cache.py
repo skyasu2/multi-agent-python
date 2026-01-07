@@ -3,7 +3,7 @@ PlanCraft Agent - 웹 검색 결과 캐싱
 
 세션 기반 검색 결과 캐싱으로 동일 쿼리 중복 호출을 방지합니다.
 - LRU 방식으로 메모리 관리
-- MD5 해시 기반 키 생성
+- SHA256 해시 기반 키 생성 (보안 강화)
 - TTL 없음 (세션 종료 시 자동 초기화)
 
 사용법:
@@ -19,7 +19,7 @@ PlanCraft Agent - 웹 검색 결과 캐싱
     cache_search_result(query, result)
 """
 
-from hashlib import md5
+from hashlib import sha256
 from typing import Dict, Any, Optional
 from collections import OrderedDict
 
@@ -49,9 +49,9 @@ class SearchCache:
         self._misses = 0
 
     def _make_key(self, query: str) -> str:
-        """쿼리 문자열을 MD5 해시 키로 변환"""
+        """쿼리 문자열을 SHA256 해시 키로 변환"""
         normalized = query.strip().lower()
-        return md5(normalized.encode()).hexdigest()
+        return sha256(normalized.encode()).hexdigest()[:32]  # 32자로 truncate
 
     def get(self, query: str) -> Optional[Dict[str, Any]]:
         """

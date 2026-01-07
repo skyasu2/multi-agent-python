@@ -129,8 +129,8 @@ def render_dev_tools():
             for old_file in files[10:]:  # 10개 초과 삭제
                 try:
                     os.remove(os.path.join(reports_dir, old_file))
-                except:
-                    pass
+                except OSError:
+                    pass  # 파일 삭제 실패 무시
         
         col_run, col_status = st.columns([1, 2])
         with col_run:
@@ -163,7 +163,7 @@ def render_dev_tools():
                     st.session_state["test_running"] = True
                     st.session_state["test_pid"] = process.pid
                     st.session_state["latest_report"] = report_filename
-                    st.success(f"🚀 테스트가 백그라운드에서 시작되었습니다!")
+                    st.success("🚀 테스트가 백그라운드에서 시작되었습니다!")
                     st.caption(f"PID: {process.pid} | 리포트: {report_filename}")
                     st.info("완료 후 페이지를 새로고침하면 결과가 표시됩니다.")
                     
@@ -200,8 +200,7 @@ def render_dev_tools():
             
             if selected_report:
                 report_path = os.path.join(reports_dir, selected_report)
-                abs_path = os.path.abspath(report_path)
-                
+
                 with col_btn:
                     st.write("") # Spacer
                 with col_btn:
@@ -308,7 +307,7 @@ def render_dev_tools():
                     
                     with col_action:
                         if i > 0:
-                            if st.button(f"⏪ 롤백", key=f"rollback_{i}", use_container_width=True):
+                            if st.button("⏪ 롤백", key=f"rollback_{i}", use_container_width=True):
                                 try:
                                     from graph.workflow import app as workflow_app
                                     workflow_app.update_state(h.config, h.values, as_node=h.next[0] if h.next else None)

@@ -539,17 +539,8 @@ def resolve_execution_plan_dag(required_agents: List[str], reasoning: str = "") 
         if not added:
             break
             
-    # 2. 진입 차수(Indegree) 계산
-    # subset에 대해서만 그래프 구축
+    # 2. subset에 대해서만 그래프 구축
     subset_graph = {a: [d for d in graph.get(a, []) if d in all_required] for a in all_required}
-    in_degree = {a: 0 for a in all_required}
-    
-    for agent, deps in subset_graph.items():
-        # deps는 'agent'가 의존하는 대상들.
-        # 즉 deps -> agent 방향. 따라서 의존성이 있으면 내 indegree가 증가하지 않음?
-        # 아니, 의존성 A->B (B가 A에 의존)라면 A가 끝나야 B 시작.
-        # 여기선 depends_on이 [A]면 A가 선행되어야 함.
-        pass
 
     # Kahn's Algorithm 변형 (Layer별 그룹핑)
     # 1. depends_on에 있는 에이전트들이 완료되었는지를 체크
@@ -715,7 +706,7 @@ def export_plan_to_mermaid(plan: ExecutionPlan, title: str = "Execution Plan") -
             Step1 --> Step2
         ```
     """
-    lines = ["```mermaid", f"flowchart TD", f"    %% {title}"]
+    lines = ["```mermaid", "flowchart TD", f"    %% {title}"]
 
     # 각 단계를 subgraph로 표현
     for step in plan.steps:

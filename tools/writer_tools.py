@@ -226,6 +226,6 @@ def get_writer_tool_descriptions() -> str:
         str: 도구 설명 마크다운
     """
     descriptions = []
-    for tool in WRITER_TOOLS:
-        descriptions.append(f"- **{tool.name}**: {tool.description.split('.')[0]}")
+    for t in WRITER_TOOLS:
+        descriptions.append(f"- **{t.name}**: {t.description.split('.')[0]}")
     return "\n".join(descriptions)

@@ -111,7 +111,7 @@ def verify_deployment(root_dir):
             passed_files += 1
 
     print("-" * 40)
-    print(f"📊 Verification Summary")
+    print("📊 Verification Summary")
     print(f"   Total Files Checked: {len(manifest)}")
     print(f"   ✅ OK: {passed_files}")
     

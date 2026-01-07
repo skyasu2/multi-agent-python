@@ -88,13 +88,7 @@ def execute_specialist_agents(state: PlanCraftState, user_input: str,
                         web_search_list.append({"title": "", "content": line[:500]})
 
             supervisor = PlanSupervisor()
-            # [NEW] 프리셋의 deep_analysis_mode 확인
-            deep_mode = False
-            if hasattr(settings, "quality_preset") and hasattr(state, "get"):
-                 pass
-
-            # 호출 시그니처 변경 없이 state에서 가져오거나 기본값 사용
-            # * Supervisor.run에 deep_analysis_mode를 전달할 수 있도록 수정 필요
+            # TODO: 프리셋의 deep_analysis_mode를 Supervisor.run에 전달하도록 개선 필요
             
             specialist_results = supervisor.run(
                 service_overview=user_input,

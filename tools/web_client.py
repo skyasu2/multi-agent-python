@@ -297,8 +297,8 @@ class WebClient:
         if self._client:
             try:
                 await self._client.__aexit__(None, None, None)
-            except:
-                pass
+            except Exception:
+                pass  # 종료 시 예외는 무시
         self._initialized = False
 
 

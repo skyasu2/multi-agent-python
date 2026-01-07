@@ -17,7 +17,7 @@ def check_connection():
     print("=== Azure OpenAI 연결 진단 시작 ===")
     
     # 1. 환경변수 확인
-    print(f"1. 환경변수 로드 확인")
+    print("1. 환경변수 로드 확인")
     print(f"   - Endpoint: {Config.AOAI_ENDPOINT}")
     # 보안상 키는 일부만 마스킹해서 출력
     key = Config.AOAI_API_KEY

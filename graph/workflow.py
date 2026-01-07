@@ -932,22 +932,6 @@ def run_plancraft(
     # 각 노드 완료 시 콜백의 set_step 호출
     final_state = None
 
-    # 노드 이름 → 타임라인 단계 매핑 (워크플로우 add_node 이름과 일치!)
-    NODE_TO_STEP = {
-        "router": "router",               # [NEW] Smart Router
-        "greeting_response": "router",    # [NEW] 인사 응답
-        "context_gathering": "context",   # SubGraph
-        "analyze": "analyze",
-        "option_pause": "analyze",
-        "general_response": "analyze",
-        "structure": "structure",
-        "write": "write",
-        "review": "review",
-        "discussion": "discuss",
-        "refine": "refine",
-        "format": "format",
-    }
-
     # StreamlitStatusCallback 찾기
     timeline_callback = None
     if callbacks:

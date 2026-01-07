@@ -1207,7 +1207,7 @@ class FormResumeValue(BaseResumeValue):
             if field not in data or data[field] is None or data[field] == "":
                 validate_or_warn(
                     field=field,
-                    reason=f"필수 필드 누락 또는 비어있음",
+                    reason="필수 필드 누락 또는 비어있음",
                     original_value=data.get(field)
                 )
 
