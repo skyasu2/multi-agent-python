@@ -353,9 +353,11 @@ def handle_workflow_result(final_result: Dict[str, Any], status_data: Dict = Non
     intent = final_result.get("intent")
     is_greeting = intent == "greeting"
 
-    # [DEBUG] 라우팅 판단 로깅
-    print(f"[UI DEBUG] intent={intent}, is_greeting={is_greeting}, generated_plan={bool(generated_plan)}, is_general={is_general}")
-    print(f"[UI DEBUG] final_result keys: {list(final_result.keys())}")
+    # [DEBUG] 라우팅 판단 로깅 (파일 로거 사용)
+    from utils.file_logger import get_file_logger
+    debug_logger = get_file_logger()
+    debug_logger.info(f"[UI ROUTING] intent={intent}, is_greeting={is_greeting}, generated_plan={bool(generated_plan)}, is_general={is_general}")
+    debug_logger.info(f"[UI ROUTING] final_result keys: {list(final_result.keys())}")
 
     # 결과 유형별 처리
     if is_greeting:
