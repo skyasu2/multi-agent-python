@@ -355,6 +355,10 @@ class NativeSupervisor:
             plan_id=f"plan_{datetime.now().strftime('%H%M%S')}",
             total_agents=len(plan.get_all_agents())
         )
+        
+        # [NEW] 세션 시작 로그 출력
+        user_input = context.get("service_overview", "")
+        logger.info(stats.to_start_log(user_input))
 
         # 설정 로드
         from utils.settings import settings

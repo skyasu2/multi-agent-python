@@ -123,6 +123,25 @@ class ExecutionStats:
         lines.append("=" * 50)
         return "\n".join(lines)
 
+    def to_start_log(self, user_input: str) -> str:
+        """세션 시작 로그 (Session Start Log)"""
+        dt = self.started_at or datetime.now()
+        ts = dt.strftime("%Y-%m-%d %H:%M:%S")
+        
+        lines = [
+            "=" * 80,
+            f"{'🚀 PlanCraft Multi-Agent System':^80}",
+            f"{'Service Execution Log':^80}",
+            "=" * 80,
+            "",
+            f"[{ts}] ========== SESSION START ==========",
+            f"[{ts}] User Input: \"{user_input}\"",
+            f"[{ts}] Session ID: {self.plan_id}",
+        ]
+        return "\n".join(lines)
+
+
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "plan_id": self.plan_id,

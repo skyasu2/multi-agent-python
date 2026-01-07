@@ -38,39 +38,35 @@ class FileLogger:
         # 실행 시마다 새로운 로그 파일 생성 (시간별)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_file = os.path.join(LOG_DIR, f"execution_{timestamp}.jsonl")
+        self.text_log_file = os.path.join(LOG_DIR, f"execution_{timestamp}.log") # [NEW] 가독성용 로그
         self._context: Dict[str, Any] = {}  # 글로벌 컨텍스트
 
     def _cleanup_old_logs(self):
         """
         로그 파일이 MAX_LOG_FILES개를 초과하지 않도록 오래된 파일 삭제
-
-        동작:
-        1. logs/ 디렉토리의 .jsonl 파일 목록 조회
-        2. 수정 시간 기준 정렬 (오래된 것 먼저)
-        3. MAX_LOG_FILES - 1개를 초과하면 오래된 것부터 삭제
-           (새 파일 생성 후 MAX_LOG_FILES개가 되도록)
         """
         try:
-            log_files = [
+            # .jsonl 및 .log 파일 모두 조회
+            all_files = [
                 f for f in os.listdir(LOG_DIR)
-                if f.endswith(".jsonl") and os.path.isfile(os.path.join(LOG_DIR, f))
+                if (f.endswith(".jsonl") or f.endswith(".log")) and os.path.isfile(os.path.join(LOG_DIR, f))
             ]
 
-            if len(log_files) < self.MAX_LOG_FILES:
-                return  # 정리 불필요
+            if len(all_files) < self.MAX_LOG_FILES * 2: # 파일 종류가 2개이므로
+                return
 
-            # 수정 시간 기준 정렬 (오래된 것 먼저)
-            log_files_with_time = [
+            # 수정 시간 기준 정렬
+            files_with_time = [
                 (f, os.path.getmtime(os.path.join(LOG_DIR, f)))
-                for f in log_files
+                for f in all_files
             ]
-            log_files_with_time.sort(key=lambda x: x[1])  # 오래된 것 먼저
+            files_with_time.sort(key=lambda x: x[1])
 
-            # 새 파일 생성 후 MAX_LOG_FILES개가 되도록, MAX_LOG_FILES - 1개만 유지
-            files_to_delete = len(log_files) - (self.MAX_LOG_FILES - 1)
-
-            for i in range(files_to_delete):
-                file_to_delete = os.path.join(LOG_DIR, log_files_with_time[i][0])
+            # 삭제 대상 선정
+            files_to_delete = len(all_files) - (self.MAX_LOG_FILES * 2)
+            
+            for i in range(max(0, files_to_delete)):
+                file_to_delete = os.path.join(LOG_DIR, files_with_time[i][0])
                 try:
                     os.unlink(file_to_delete)
                 except Exception as e:
@@ -97,21 +93,16 @@ class FileLogger:
         **extra_context
     ):
         """
-        구조적 JSONL 로그 기록
-
-        Args:
-            step: 현재 실행 단계 (예: "retrieve", "analyze")
-            data: 기록할 데이터 (input, output, state 등)
-            level: 로그 레벨 (INFO, WARNING, ERROR, DEBUG)
-            event_type: 이벤트 유형 (workflow, agent, hitl, api, error)
-            source: 소스 모듈/함수 (예: "agents.supervisor.run")
-            **extra_context: 추가 컨텍스트 정보
+        구조적 JSONL 로그 기록 + Plain Text 로그 기록
         """
         # 컨텍스트 병합
         context = {**self._context, **extra_context}
+        ts_now = datetime.datetime.now()
+        ts_iso = ts_now.isoformat()
 
+        # [1] JSONL 기록
         log_entry = {
-            "timestamp": datetime.datetime.now().isoformat(),
+            "timestamp": ts_iso,
             "level": level,
             "event_type": event_type,
             "source": source,
@@ -119,7 +110,6 @@ class FileLogger:
             "data": self._serialize(data),
             "context": context if context else None,
         }
-
         # None 값 제거
         log_entry = {k: v for k, v in log_entry.items() if v is not None}
 
@@ -127,11 +117,38 @@ class FileLogger:
             with open(self.log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
         except Exception as e:
-            print(f"[FileLogger] Logging failed: {e}")
+            print(f"[FileLogger] JSON logging failed: {e}")
+
+        # [2] Plain Text 기록 (가독성용)
+        try:
+            # 메시지 추출 (data가 문자열이면 그대로, dict면 message 필드, 아니면 serialize)
+            msg_str = ""
+            if isinstance(data, str):
+                msg_str = data
+            elif isinstance(data, dict) and "message" in data:
+                msg_str = str(data["message"])
+            else:
+                msg_str = json.dumps(self._serialize(data), ensure_ascii=False)
+
+            # 포맷: [YYYY-MM-DD HH:MM:SS] [LEVEL] [STEP] Message
+            ts_readable = ts_now.strftime("%Y-%m-%d %H:%M:%S")
+            text_line = f"[{ts_readable}] [{level:<5}] [{step}] {msg_str}\n"
+
+            # "Service Execution Log" 같은 배너는 이미 포맷팅 되어 있으므로 raw하게 출력
+            # (구분: 메시지 내에 개행문자가 있고 시작이 '='로 시작하면 raw 출력 고려)
+            if isinstance(data, str) and ("\n" in data or data.strip().startswith("=")):
+                text_line = f"{data}\n" # 타임스탬프 없이 원문 그대로 출력 (배너용)
+            
+            with open(self.text_log_file, "a", encoding="utf-8") as f:
+                f.write(text_line)
+                
+        except Exception as e:
+            print(f"[FileLogger] Text logging failed: {e}")
 
     def info(self, message: str, source: Optional[str] = None, **kwargs):
         """정보 로그 기록"""
-        self.log("info", {"message": message}, level="INFO", source=source, **kwargs)
+        # [IMPROVEMENT] 단순 텍스트는 dict 래핑 없이 바로 저장
+        self.log("info", message, level="INFO", source=source, **kwargs)
 
     def error(
         self,
@@ -150,11 +167,13 @@ class FileLogger:
 
     def warning(self, message: str, source: Optional[str] = None, **kwargs):
         """경고 로그 기록"""
-        self.log("warning", {"message": message}, level="WARNING", source=source, **kwargs)
+        # [IMPROVEMENT] 단순 텍스트는 dict 래핑 없이 바로 저장
+        self.log("warning", message, level="WARNING", source=source, **kwargs)
 
     def debug(self, message: str, source: Optional[str] = None, **kwargs):
         """디버그 로그 기록"""
-        self.log("debug", {"message": message}, level="DEBUG", source=source, **kwargs)
+        # [IMPROVEMENT] 단순 텍스트는 dict 래핑 없이 바로 저장
+        self.log("debug", message, level="DEBUG", source=source, **kwargs)
 
     def agent_start(self, agent_id: str, input_data: Any, **kwargs):
         """에이전트 시작 로그"""
