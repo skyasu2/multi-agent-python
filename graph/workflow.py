@@ -416,10 +416,19 @@ def should_ask_user(state: PlanCraftState) -> AnalyzerRoutes:
     Returns:
         AnalyzerRoutes: 다음 노드를 결정하는 라우팅 키 (Literal 타입)
     """
-    if is_human_interrupt_required(state):
+    # [DEBUG] 라우팅 판단 로깅
+    logger = get_file_logger()
+    need_info = is_human_interrupt_required(state)
+    is_general = is_general_query(state)
+    logger.info(f"[ROUTING] should_ask_user: need_more_info={need_info}, is_general_query={is_general}")
+
+    if need_info:
+        logger.info("[ROUTING] → option_pause (HITL)")
         return RouteKey.OPTION_PAUSE
-    if is_general_query(state):
+    if is_general:
+        logger.info("[ROUTING] → general_response")
         return RouteKey.GENERAL_RESPONSE
+    logger.info("[ROUTING] → structure (continue)")
     return RouteKey.CONTINUE
 
 

@@ -165,8 +165,11 @@ def run(state: PlanCraftState) -> PlanCraftState:
         ]
         has_planning_keyword = any(kw in user_input for kw in planning_keywords)
 
+        # [DEBUG] 오버라이드 전 상태 로깅
+        get_file_logger().info(f"[Analyzer] 오버라이드 체크: is_general={analysis_dict.get('is_general_query')}, has_keyword={has_planning_keyword}, input='{user_input}'")
+
         if analysis_dict.get("is_general_query", False) and has_planning_keyword:
-            get_file_logger().info(f"[Analyzer] 기획 키워드 감지, is_general_query 오버라이드: '{user_input}'")
+            get_file_logger().info(f"[Analyzer] ✅ 기획 키워드 감지, is_general_query 오버라이드: '{user_input}'")
             analysis_dict["is_general_query"] = False
             analysis_dict["need_more_info"] = True  # 짧은 기획 요청은 제안 모드로
 
