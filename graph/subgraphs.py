@@ -338,7 +338,8 @@ def _check_consensus_node(state: PlanCraftState) -> PlanCraftState:
             unresolved_items = result.unresolved_items
 
             # 높은 신뢰도로 합의 도달 시에만 진정한 합의로 인정
-            if consensus_reached and result.confidence < 0.7:
+            from utils.settings import QualityThresholds
+            if consensus_reached and result.confidence < QualityThresholds.CONSENSUS_CONFIDENCE_THRESHOLD:
                 consensus_reached = False
                 discussion_messages.append({
                     "role": "system",

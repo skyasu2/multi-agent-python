@@ -27,12 +27,10 @@ def run_reviewer_node(state: PlanCraftState) -> PlanCraftState:
     verdict = "N/A"
     score = 0
     if review:
-        if isinstance(review, dict):
-            verdict = review.get("verdict", "N/A")
-            score = review.get("overall_score", 0)
-        else:
-            verdict = getattr(review, "verdict", "N/A")
-            score = getattr(review, "overall_score", 0)
+        from graph.state import ensure_dict
+        review_dict = ensure_dict(review)
+        verdict = review_dict.get("verdict", "N/A")
+        score = review_dict.get("overall_score", 0)
 
     return update_step_history(
         new_state, "review", "SUCCESS", summary=f"심사 결과: {verdict} ({score}점)", start_time=start_time

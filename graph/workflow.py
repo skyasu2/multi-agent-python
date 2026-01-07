@@ -556,6 +556,7 @@ def create_workflow() -> StateGraph:
         │ 조건         │ 점수 범위    │ 반환값           │ 다음 노드             │
         ├──────────────┼──────────────┼──────────────────┼───────────────────────┤
         │ 품질 통과    │ score >= 9   │ RouteKey.COMPLETE│ format (즉시 완료)    │
+        │ 최대 재시작  │ restart >= 2 │ RouteKey.SKIP    │ refine (무한루프 방지)│
         │ 품질 실패    │ score < 5    │ RouteKey.RESTART │ analyze (재분석)      │
         │ 중간 품질    │ 7 <= s < 9   │ RouteKey.SKIP    │ refine (토론 스킵)    │
         │ 낮은 품질    │ 5 <= s < 7   │ RouteKey.DISCUSS │ discussion (토론 필요)│
@@ -568,11 +569,17 @@ def create_workflow() -> StateGraph:
         review = state.get("review", {})
         score = review.get("overall_score", QualityThresholds.FALLBACK_SCORE)
         verdict = review.get("verdict", "REVISE")
+        restart_count = state.get("restart_count", 0)
 
         # PASS 판정: 바로 완료
         if QualityThresholds.is_pass(score) and verdict == "PASS":
             logger.info(f"[ROUTING] 품질 우수 ({score}점), 바로 완료")
             return RouteKey.COMPLETE
+
+        # [NEW] 최대 재시작 횟수 도달: Analyzer 복귀 대신 Refine으로 진행 (무한 루프 방지)
+        if restart_count >= QualityThresholds.MAX_RESTART_COUNT:
+            logger.info(f"[ROUTING] 최대 재시작 횟수 도달 ({restart_count}회), Refine으로 진행")
+            return RouteKey.SKIP_TO_REFINE
 
         # FAIL 판정: Analyzer 복귀
         if QualityThresholds.is_fail(score) or verdict == "FAIL":

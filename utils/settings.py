@@ -161,6 +161,9 @@ class QualityThresholds:
     # Fallback 점수 (리뷰어 오류 시)
     FALLBACK_SCORE = 7      # 리뷰어 실패 시 기본 점수
 
+    # Discussion 합의 판정 (LLM 기반)
+    CONSENSUS_CONFIDENCE_THRESHOLD = 0.7  # 합의 판정 최소 신뢰도 (70%)
+
     @classmethod
     def is_pass(cls, score: int) -> bool:
         """점수가 통과 기준인지 확인"""
