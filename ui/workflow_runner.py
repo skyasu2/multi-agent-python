@@ -21,6 +21,7 @@ from utils.config import Config
 
 # 단계별 진행률 매핑
 STEP_PROGRESS = {
+    "router": 5,                     # [NEW] Smart Router
     "retrieve": 10, "context": 10,
     "analyze": 25,
     "structure": 40,
@@ -31,6 +32,7 @@ STEP_PROGRESS = {
 }
 
 STEP_LABELS = {
+    "router": ("🚦", "입력 분류"),   # [NEW] Smart Router
     "retrieve": ("📚", "컨텍스트 수집"),
     "context": ("📚", "컨텍스트 수집"),
     "analyze": ("🔍", "요구사항 분석"),
@@ -347,8 +349,15 @@ def handle_workflow_result(final_result: Dict[str, Any], status_data: Dict = Non
     if analysis_res and isinstance(analysis_res, dict):
         is_general = analysis_res.get("is_general_query", False)
 
+    # [NEW] Router intent 확인 (greeting/confirmation은 일반 응답으로 처리)
+    intent = final_result.get("intent")
+    is_greeting = intent == "greeting"
+
     # 결과 유형별 처리
-    if options and len(options) > 0 and not is_general:
+    if is_greeting:
+        # [NEW] greeting intent → 채팅으로 응답 (기획서 X)
+        _handle_greeting_result(generated_plan or "안녕하세요!")
+    elif options and len(options) > 0 and not is_general:
         _handle_options_result(options, option_question, analysis_res)
     elif is_general:
         _handle_general_result(analysis_res)
@@ -392,6 +401,20 @@ def _handle_general_result(analysis_res: dict):
         "role": "assistant", "content": ans, "type": "text"
     })
     st.session_state.generated_plan = None
+
+
+def _handle_greeting_result(response: str):
+    """
+    인사/잡담 응답 처리 (Smart Router greeting intent)
+
+    Router가 greeting으로 분류한 경우 호출됩니다.
+    기획서 생성 없이 채팅 응답만 표시합니다.
+    """
+    st.session_state.chat_history.append({
+        "role": "assistant", "content": response, "type": "text"
+    })
+    # 기획서 영역 초기화 (이전 기획서가 있어도 새 greeting에서는 표시 안 함)
+    # st.session_state.generated_plan = None  # 이전 기획서는 유지
 
 
 def _handle_plan_result(generated_plan: str, final_result: dict, status_data: dict = None):
