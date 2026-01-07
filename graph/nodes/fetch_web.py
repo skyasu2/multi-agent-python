@@ -25,8 +25,25 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
     user_input = state.get("user_input", "")
     rag_context = state.get("rag_context")
     
+    # [NEW] Analyzer 분석 결과가 있으면 검색 쿼리 최적화
+    analysis = state.get("analysis")
+    search_input = user_input
+    
+    if analysis:
+        # Pydantic 모델 또는 Dict 처리
+        if hasattr(analysis, "model_dump"):
+            analysis = analysis.model_dump()
+            
+        if isinstance(analysis, dict):
+            topic = analysis.get("topic")
+            if topic and topic != user_input:
+                # 주제가 명확해졌으므로 더 정확한 쿼리 생성 가능
+                # 예: "그거..." -> "생성형 AI 트렌드"
+                search_input = f"{topic} 시장 동향 및 성공 사례"
+                print(f"[FetchWeb] 쿼리 최적화: '{user_input}' -> '{search_input}'")
+
     # 1. 웹 검색 실행 (Executor 위임)
-    result = execute_web_search(user_input, rag_context)
+    result = execute_web_search(search_input, rag_context)
 
     # [DEBUG] 웹 검색 결과 상세 로그
     print(f"[FETCH_WEB DEBUG] urls={len(result.get('urls', []))}, sources={len(result.get('sources', []))}, context_len={len(result.get('context') or '')}, error={result.get('error')}")

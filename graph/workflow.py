@@ -158,7 +158,7 @@ from graph.interrupt_utils import create_option_interrupt, handle_user_response
 
 # [REFACTOR] Extracted Nodes
 from graph.nodes.analyzer_node import run_analyzer_node
-from graph.nodes.fetch_web import fetch_web_context
+from graph.nodes.fetch_web import fetch_web_context  # [NEW] fetch_web_context 임포트
 from graph.nodes.structurer_node import run_structurer_node
 from graph.nodes.writer_node import run_writer_node
 from graph.nodes.reviewer_node import run_reviewer_node
@@ -424,7 +424,7 @@ def should_ask_user(state: PlanCraftState) -> AnalyzerRoutes:
     ├────────────────────────┼───────────────────────┼────────────────────────┤
     │ need_more_info == True │ RouteKey.OPTION_PAUSE │ option_pause (HITL)    │
     │ is_general_query       │ RouteKey.GENERAL_RESP │ general_response       │
-    │ (기본)                 │ RouteKey.CONTINUE     │ structure (기획서 생성)│
+    │ (기본)                 │ RouteKey.CONTINUE     │ web_search (기획서 생성 준비)│
     └────────────────────────┴───────────────────────┴────────────────────────┘
 
     Returns:
@@ -442,7 +442,7 @@ def should_ask_user(state: PlanCraftState) -> AnalyzerRoutes:
     if is_general:
         logger.info("[ROUTING] → general_response")
         return RouteKey.GENERAL_RESPONSE
-    logger.info("[ROUTING] → structure (continue)")
+    logger.info("[ROUTING] → web_search (continue)")
     return RouteKey.CONTINUE
 
 
@@ -547,9 +547,13 @@ def create_workflow() -> StateGraph:
     # [NEW] Greeting Response (인사/잡담 전용, context 스킵)
     workflow.add_node("greeting_response", general_response_node)
 
-    # [UPDATE] 컨텍스트 수집 단계 병렬화 (Sub-graph Node)
-    from graph.subgraphs import run_context_subgraph
-    workflow.add_node("context_gathering", run_context_subgraph)
+    # [UPDATE] 컨텍스트 수집 단계 분리 (RAG → Analyze → Web Search)
+    # 기존 병렬 서브그래프(run_context_subgraph) 대신 RAG만 먼저 수행
+    # from graph.subgraphs import run_context_subgraph
+    # workflow.add_node("context_gathering", run_context_subgraph)
+    
+    # 1. RAG (Internal Knowledge)
+    workflow.add_node("context_gathering", retrieve_context)
 
     workflow.add_node("analyze", run_analyzer_node)
 
@@ -557,6 +561,9 @@ def create_workflow() -> StateGraph:
     workflow.add_node("option_pause", option_pause_node)
     workflow.add_node("general_response", general_response_node)
     
+    # [NEW] 3. Web Search (Analyze 결과 기반 정밀 검색)
+    workflow.add_node("web_search", fetch_web_context)
+
     workflow.add_node("structure", run_structurer_node)
 
     # [DEPRECATED] Dynamic Q&A 노드 - Writer ReAct 패턴으로 대체됨
@@ -598,9 +605,12 @@ def create_workflow() -> StateGraph:
         {
             RouteKey.OPTION_PAUSE: "option_pause",
             RouteKey.GENERAL_RESPONSE: "general_response",
-            RouteKey.CONTINUE: "structure"
+            RouteKey.CONTINUE: "web_search"  # [UPDATE] Analyze -> Web Search
         }
     )
+    
+    # [NEW] Web Search -> Structure
+    workflow.add_edge("web_search", "structure")
     
     # 분기 노드 후 처리 (Streamlit 앱 제어를 위해 END로 이동)
     workflow.add_edge("option_pause", END)
