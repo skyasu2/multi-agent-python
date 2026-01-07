@@ -198,14 +198,26 @@ def run(state: PlanCraftState) -> PlanCraftState:
                     {"title": "직접 내용 입력", "description": "더 구체적인 요구사항 입력하기"}
                 ]
 
-        if need_info and not is_general:
-            input_len = len(user_input.strip())
+        # [HITL 정책] 입력 길이 기반 분기
+        input_len = len(user_input.strip())
+
+        if not is_general:
             if input_len >= 20:
-                # 구체적 입력이므로 Fast Track 적용
+                # 구체적 입력(20자 이상): Fast Track 적용
                 get_file_logger().info(f"[HITL] Fast Track: 입력 길이({input_len}자) >= 20자, 바로 진행")
                 analysis_dict["need_more_info"] = False
                 analysis_dict["option_question"] = None
                 analysis_dict["options"] = []
+            elif input_len < 20 and not analysis_dict.get("options"):
+                # 짧은 입력(20자 미만): Propose & Confirm 강제 활성화
+                get_file_logger().info(f"[HITL] Propose & Confirm: 입력 길이({input_len}자) < 20자, 재확인 필요")
+                analysis_dict["need_more_info"] = True
+                topic = analysis_dict.get("topic", user_input)
+                analysis_dict["option_question"] = f"'{topic}'에 대한 기획을 진행할까요?"
+                analysis_dict["options"] = [
+                    {"id": "yes", "title": "네, 진행합니다", "description": f"'{topic}' 컨셉으로 기획서 생성"},
+                    {"id": "retry", "title": "아니요, 다시 입력할게요", "description": "더 구체적인 요구사항 입력하기"}
+                ]
 
         # [HITL 정책] 옵션이 있으면 사용자 확인 필요
         # LLM이 옵션을 제공했다면 이는 사용자에게 선택권을 주려는 의도이므로 HITL 활성화
