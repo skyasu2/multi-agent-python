@@ -256,7 +256,9 @@ def poll_workflow_status(
                     "summary": f"[{icon}] {step_name} 완료: {summary} ({exec_time})",
                     "timestamp": time.time()
                 }
-                status_widget.write(log_entry["summary"])
+                if not on_log_callback:
+                     status_widget.write(log_entry["summary"])
+                
                 execution_log.append(log_entry)
                 
                 if on_log_callback:
@@ -278,7 +280,9 @@ def poll_workflow_status(
             for event in new_events:
                 msg = event.get("message", "")
                 if msg:
-                     status_widget.write(f"  ↳ {msg}")
+                     if not on_log_callback:
+                         status_widget.write(f"  ↳ {msg}")
+                     
                      if on_log_callback:
                          # [FIX] Real-time event도 Dict 형태로 전달
                          on_log_callback({
@@ -536,15 +540,15 @@ def run_pending_workflow(pending_text: str, status_placeholder):
                     
                     # placeholder 완전히 지우고 다시 렌더링
                     with log_placeholder.container():
-                        # 3개 초과 시 "이전 로그 보기" 표시
-                        if len(visible_logs) > 3:
-                            with st.expander(f"📜 이전 단계 ({len(visible_logs) - 3}개)", expanded=False):
-                                for old_log in visible_logs[:-3]:
+                        # 5개 초과 시 "이전 로그 보기" 표시
+                        if len(visible_logs) > 5:
+                            with st.expander(f"📜 이전 단계 ({len(visible_logs) - 5}개)", expanded=False):
+                                for old_log in visible_logs[:-5]:
                                     summary_short = old_log['summary'][:40] + "..." if len(old_log['summary']) > 40 else old_log['summary']
                                     st.caption(f"✓ {old_log['step']} — {summary_short}")
                         
-                        # 최근 3개 로그만 표시
-                        recent_logs = visible_logs[-3:]
+                        # 최근 5개 로그만 표시
+                        recent_logs = visible_logs[-5:]
                         for log in recent_logs:
                             st.markdown(f"**{log['icon']} {log['step'].upper()}** — {log['summary']}")
 
