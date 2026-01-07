@@ -104,6 +104,11 @@ class AgentSpec:
     # [NEW] 클래스 경로 (Factory Registry용)
     class_path: str = ""        # 예: "agents.specialists.market_agent.MarketAgent"
 
+    # [NEW] 버전 관리 (future-proof)
+    version: str = "1.0.0"      # Semantic versioning (major.minor.patch)
+    deprecated: bool = False    # True면 경고 로그 출력, 향후 제거 예정
+    deprecated_message: str = ""  # deprecation 안내 메시지
+
     # 실행 정책
     execution_mode: ExecutionMode = ExecutionMode.CONDITIONAL
     approval_mode: ApprovalMode = ApprovalMode.AUTO
@@ -133,12 +138,21 @@ class AgentSpec:
             "description": self.description,
             "result_key": self.result_key,
             "class_path": self.class_path,
+            "version": self.version,
+            "deprecated": self.deprecated,
             "execution_mode": self.execution_mode.value,
             "approval_mode": self.approval_mode.value,
             "depends_on": self.depends_on,
             "provides": self.provides,
             "routing_keywords": self.routing_keywords,
         }
+
+    def check_deprecation(self) -> None:
+        """deprecated 에이전트 사용 시 경고 로그 출력"""
+        if self.deprecated:
+            import warnings
+            msg = self.deprecated_message or f"Agent '{self.id}' v{self.version} is deprecated and will be removed in a future version."
+            warnings.warn(msg, DeprecationWarning, stacklevel=2)
 
 
 # =============================================================================
