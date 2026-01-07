@@ -502,7 +502,22 @@ def run_pending_workflow(pending_text: str, status_placeholder):
                     generation_preset, file_content,
                     current_refine_count, previous_plan
                 )
-                
+
+                # [FIX] Resume 후 상태가 변경될 때까지 대기
+                # Background task가 시작되어 상태가 "running"으로 변경될 때까지 기다림
+                if resume_cmd:
+                    status.write("⏳ 재개 처리 중...")
+                    for _ in range(10):  # 최대 5초 대기
+                        time.sleep(0.5)
+                        check_res = httpx.get(
+                            f"{Config.API_BASE_URL}/workflow/status/{thread_id}",
+                            timeout=5.0
+                        )
+                        if check_res.status_code == 200:
+                            check_status = check_res.json().get("status", "")
+                            if check_status == "running":
+                                break  # 상태가 running으로 변경됨
+
                 # 스켈레톤 제거
                 skeleton_placeholder.empty()
 
