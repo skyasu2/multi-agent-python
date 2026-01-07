@@ -102,6 +102,7 @@ class PlanCraftInput(TypedDict, total=False):
     previous_plan: Optional[str]
     thread_id: str
     generation_preset: str  # [NEW] 생성 모드 프리셋 (fast/balanced/quality)
+    intent: Optional[str]  # [NEW] Router intent 리셋용
 
 
 # =============================================================================

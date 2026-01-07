@@ -882,7 +882,9 @@ def run_plancraft(
             "refine_count": refine_count,
             "previous_plan": previous_plan,
             "thread_id": thread_id,
-            "generation_preset": generation_preset or DEFAULT_PRESET,  # [NEW]
+            "generation_preset": generation_preset or DEFAULT_PRESET,
+            # [FIX] 새 요청마다 intent 리셋 (이전 세션 상태 오염 방지)
+            "intent": None,
         }
 
     # 워크플로우 실행설정
