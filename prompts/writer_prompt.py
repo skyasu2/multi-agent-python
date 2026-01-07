@@ -1,8 +1,21 @@
 """
 PlanCraft Agent - Writer 프롬프트
 
+Version: 2.0.0
+Last Updated: 2025-01-07
+Author: PlanCraft Team
+
+Changelog:
+- v2.0.0 (2025-01-07): ReAct 패턴 도입 (자율적 도구 호출 - RAG/Web/Specialist)
+- v1.4.0 (2025-01-05): Mermaid Gantt 비활성화, 마크다운 테이블 대체
+- v1.3.0 (2025-01-04): Strategic Web Context 활용, 검색 정밀도 개선
+- v1.2.0 (2025-01-03): FAIL 조건 강화 (User Journey, 경쟁사 분석, BEP)
+- v1.1.0 (2025-01-02): 섹션별 상세 작성 가이드 추가
+- v1.0.0 (2024-12-27): 초기 버전
+
+Description:
 10년 경력의 기획서 작성 전문가 페르소나로 내용을 작성합니다.
-웹/앱 서비스에 최적화된 9개 섹션별 상세 작성 가이드를 제공합니다.
+ReAct 패턴을 통해 필요 시 RAG/웹검색/전문가 분석을 자율 호출합니다.
 """
 
 WRITER_SYSTEM_PROMPT = """당신은 **10년 경력의 웹/앱 서비스 기획서 작성 전문가**입니다.

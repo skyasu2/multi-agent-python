@@ -1,7 +1,16 @@
 """
-Risk Analysis Agent 프롬프트
+PlanCraft Specialist - Risk Analysis Agent 프롬프트
 
+Version: 1.0.0
+Last Updated: 2025-01-01
+Author: PlanCraft Team
+
+Changelog:
+- v1.0.0 (2025-01-01): 초기 버전 (8가지 리스크 카테고리)
+
+Description:
 리스크 분석 전문 에이전트용 프롬프트입니다.
+8가지 카테고리로 리스크를 분류하고 대응 전략을 수립합니다.
 """
 
 RISK_SYSTEM_PROMPT = """당신은 **리스크 분석 전문가**입니다.

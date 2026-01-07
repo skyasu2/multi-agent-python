@@ -1,7 +1,16 @@
 """
-Business Model Agent 프롬프트
+PlanCraft Specialist - Business Model Agent 프롬프트
 
+Version: 1.0.0
+Last Updated: 2025-01-01
+Author: PlanCraft Team
+
+Changelog:
+- v1.0.0 (2025-01-01): 초기 버전 (수익 모델, 가격 전략)
+
+Description:
 비즈니스 모델 전문 에이전트용 프롬프트입니다.
+수익 모델 다각화와 경쟁력 있는 가격 정책을 제안합니다.
 """
 
 BM_SYSTEM_PROMPT = """당신은 **비즈니스 모델 전문가**입니다.

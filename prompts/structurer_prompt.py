@@ -1,8 +1,18 @@
 """
 PlanCraft Agent - Structurer 프롬프트
 
+Version: 1.2.0
+Last Updated: 2025-01-04
+Author: PlanCraft Team
+
+Changelog:
+- v1.2.0 (2025-01-04): JSON 파싱 안정성 개선, 섹션 우선순위 재정렬
+- v1.1.0 (2025-01-02): 프리셋별 섹션 수 동적 조정 (Fast:9, Balanced:11, Quality:13)
+- v1.0.0 (2024-12-27): 초기 버전 (9개 표준 섹션)
+
+Description:
 기획서의 섹션 구조를 설계하는 전문가 프롬프트입니다.
-웹/앱 서비스에 최적화된 9개 표준 섹션을 기반으로 구조를 설계합니다.
+웹/앱 서비스에 최적화된 9-13개 표준 섹션을 기반으로 구조를 설계합니다.
 """
 
 STRUCTURER_SYSTEM_PROMPT = """당신은 **기획서 구조 설계 전문가**입니다.

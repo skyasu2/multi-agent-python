@@ -1,6 +1,19 @@
 """
 PlanCraft Agent - Analyzer 프롬프트
 
+Version: 2.1.0
+Last Updated: 2025-01-07
+Author: PlanCraft Team
+
+Changelog:
+- v2.1.0 (2025-01-07): 2-Tier Gate System 도입 (Source Gate + Ambiguity Gate)
+- v2.0.0 (2025-01-06): Slot-based Intent Clarity Check (intent_slots, missing_slots)
+- v1.3.0 (2025-01-05): Intelligent HITL 정책 구현
+- v1.2.0 (2025-01-04): min_key_features 동적 조정
+- v1.1.0 (2025-01-03): 잡담 분류 개선, Few-shot 예시 추가
+- v1.0.0 (2024-12-27): 초기 버전
+
+Description:
 기획 컨설턴트 페르소나로 사용자 입력을 분석합니다.
 RAG, 웹 검색 결과를 활용하여 사용자 의도에 맞는 최적의 기획서를 작성합니다.
 

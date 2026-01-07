@@ -1,7 +1,16 @@
 """
-Financial Agent 프롬프트
+PlanCraft Specialist - Financial Agent 프롬프트
 
+Version: 1.0.0
+Last Updated: 2025-01-01
+Author: PlanCraft Team
+
+Changelog:
+- v1.0.0 (2025-01-01): 초기 버전 (초기 투자, BEP, 5년 재무 예측)
+
+Description:
 재무 시뮬레이션 전문 에이전트용 프롬프트입니다.
+초기 투자 비용, 손익분기점(BEP), 5년 재무 예측을 제공합니다.
 """
 
 FINANCIAL_SYSTEM_PROMPT = """당신은 **재무 시뮬레이션 전문가**입니다.

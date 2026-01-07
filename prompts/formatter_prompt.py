@@ -1,6 +1,14 @@
 """
 PlanCraft Agent - Formatter 프롬프트
 
+Version: 1.0.0
+Last Updated: 2024-12-27
+Author: PlanCraft Team
+
+Changelog:
+- v1.0.0 (2024-12-27): 초기 버전 (핵심 요약 + 전체 기획서 출력)
+
+Description:
 최종 기획서를 사용자 친화적인 채팅 응답으로 변환합니다.
 전체 기획서는 그대로 유지하면서, 핵심 요약을 생성합니다.
 """

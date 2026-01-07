@@ -1,6 +1,17 @@
 """
 PlanCraft Agent - Reviewer(Judge) 프롬프트
 
+Version: 1.3.0
+Last Updated: 2025-01-06
+Author: PlanCraft Team
+
+Changelog:
+- v1.3.0 (2025-01-06): target_sections 필드 추가, actionable 피드백 강화
+- v1.2.0 (2025-01-05): P0/P1/P2 우선순위 체계 도입, 엄격한 FAIL 로직
+- v1.1.0 (2025-01-04): 품질 검증 강화, RAG 연동 피드백
+- v1.0.0 (2024-12-27): 초기 버전 (PASS/REVISE/FAIL 3단계)
+
+Description:
 냉정한 내부 품질 심사용 프롬프트입니다.
 PASS/REVISE/FAIL 판정을 통해 Refiner가 적절한 수준의 개선을 수행합니다.
 

@@ -1,6 +1,16 @@
-
 """
-Refiner Agent Prompts
+PlanCraft Agent - Refiner 프롬프트
+
+Version: 1.1.0
+Last Updated: 2025-01-06
+Author: PlanCraft Team
+
+Changelog:
+- v1.1.0 (2025-01-06): 전략적 개선 방향 제시 강화, target_sections 연동
+- v1.0.0 (2024-12-27): 초기 버전
+
+Description:
+Reviewer 피드백을 분석하여 Writer가 개선할 수 있는 구체적 전략을 수립합니다.
 """
 
 REFINER_SYSTEM_PROMPT = """

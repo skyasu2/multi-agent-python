@@ -1,8 +1,17 @@
 """
 PlanCraft Agent - Discussion Prompts
 
+Version: 1.1.0
+Last Updated: 2025-01-06
+Author: PlanCraft Team
+
+Changelog:
+- v1.1.0 (2025-01-06): Co-authoring 패턴 도입, LLM 기반 합의 로직
+- v1.0.0 (2025-01-05): 초기 버전 (Reviewer ↔ Writer 대화)
+
+Description:
 Reviewer와 Writer 간 대화를 위한 프롬프트 정의
-에이전트 간 협업을 통해 기획서 품질을 개선합니다.
+에이전트 간 협업(Co-authoring)을 통해 기획서 품질을 개선합니다.
 """
 
 # =============================================================================

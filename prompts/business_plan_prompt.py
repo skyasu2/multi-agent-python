@@ -1,6 +1,15 @@
 """
 PlanCraft Agent - Business Plan Writer 프롬프트 (비IT 일반 기업용)
 
+Version: 1.1.0
+Last Updated: 2025-01-04
+Author: PlanCraft Team
+
+Changelog:
+- v1.1.0 (2025-01-04): FAIL 조건 강화 (Customer Journey, 경쟁사 분석, BEP)
+- v1.0.0 (2025-01-03): 초기 버전 (비IT 사업계획서 템플릿)
+
+Description:
 일반 사업 기획서, 서비스 기획서 등 비IT 프로젝트를 위한 프롬프트입니다.
 IT 프로젝트(web_app_plan)와 달리 기술 스택 대신 운영 체계에 초점을 맞춥니다.
 """

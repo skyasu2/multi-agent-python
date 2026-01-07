@@ -1,7 +1,16 @@
 """
-Market Analysis Agent 프롬프트
+PlanCraft Specialist - Market Analysis Agent 프롬프트
 
+Version: 1.0.0
+Last Updated: 2025-01-01
+Author: PlanCraft Team
+
+Changelog:
+- v1.0.0 (2025-01-01): 초기 버전 (TAM/SAM/SOM, 경쟁사 분석)
+
+Description:
 시장 분석 전문 에이전트용 프롬프트입니다.
+TAM/SAM/SOM 시장 규모 분석과 경쟁사 비교 분석을 제공합니다.
 """
 
 MARKET_SYSTEM_PROMPT = """당신은 **시장 분석 전문가**입니다.
