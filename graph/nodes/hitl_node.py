@@ -1,11 +1,12 @@
 """
 Human-in-the-Loop (HITL) Nodes
 
-Version: 2.0.0
-Last Updated: 2025-01-07
+Version: 2.0.1
+Last Updated: 2026-01-07
 Author: PlanCraft Team
 
 Changelog:
+- v2.0.1 (2026-01-07): Resume flow 디버깅 로그 개선, id="yes" 조건 추가
 - v2.0.0 (2025-01-07): Dynamic interrupt() 패턴으로 전환 (LangGraph Best Practice)
 - v1.0.0 (2025-01-06): interrupt_before 패턴 (Static)
 
@@ -87,7 +88,7 @@ def option_pause_node(state: PlanCraftState) -> Command[Literal["analyze", "stru
     # [Phase 3] interrupt() 후 - Side-Effect 허용
     # =========================================================================
 
-    logger.info(f"[HITL] Resume 수신: {type(user_response)}")
+    logger.info(f"[HITL] Resume 수신: {type(user_response)} = {user_response}")
 
     # 사용자 응답 처리
     if isinstance(user_response, dict):
@@ -95,9 +96,15 @@ def option_pause_node(state: PlanCraftState) -> Command[Literal["analyze", "stru
 
         # 사용자가 "자동 진행" 선택한 경우
         selected = user_response.get("selected_option", {})
+        logger.info(f"[HITL] selected_option: {selected}")
+
         if isinstance(selected, dict):
             title = selected.get("title", "")
-            if "AI가 알아서" in title or "진행" in title or "네" in title:
+            opt_id = selected.get("id", "")
+            logger.info(f"[HITL] 선택 분석: id='{opt_id}', title='{title}'")
+
+            # "yes" ID 또는 진행 관련 키워드
+            if opt_id == "yes" or "AI가 알아서" in title or "진행" in title or "네" in title:
                 logger.info("[HITL] 사용자 선택: 자동 진행 → structure")
                 final_state = update_state(
                     updated_state,

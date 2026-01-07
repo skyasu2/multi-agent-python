@@ -187,13 +187,14 @@ def render_option_selector(current_state):
                     "role": "user", "content": f"'{title}' 선택", "type": "text"
                 })
 
-                # 입력 구성 (dict-access)
-                original_input = current_state.get("user_input", "")
-                new_input = f"{original_input}\n\n[선택: {title} - {description}]"
+                # [FIX] OPTION: 프리픽스로 resume 명령 생성 (HITL Resume 패턴)
+                # workflow_runner.py의 parse_resume_command()가 이를 인식
+                import json
+                option_payload = {"id": opt_id, "title": title, "description": description}
 
                 # 상태 업데이트 및 재실행 준비
                 st.session_state.current_state = None
-                st.session_state.pending_input = new_input
+                st.session_state.pending_input = f"OPTION:{json.dumps(option_payload, ensure_ascii=False)}"
                 st.rerun()
 
     st.markdown("""
