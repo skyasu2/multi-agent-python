@@ -35,6 +35,11 @@ def init_session_state():
         st.session_state.trigger_notification = False
     if "generation_preset" not in st.session_state:
         st.session_state.generation_preset = "balanced"
+    # 파일 업로드 관련 상태 (ChatGPT 스타일 UI)
+    if "attached_files" not in st.session_state:
+        st.session_state.attached_files = []
+    if "show_upload_panel" not in st.session_state:
+        st.session_state.show_upload_panel = False
 
 
 @st.cache_resource
