@@ -20,7 +20,40 @@ PlanCraft Agent - MCP 통합 클라이언트
 
 import os
 import asyncio
+import ipaddress
 from typing import Optional, List, Dict, Any
+from urllib.parse import urlparse
+
+
+# =============================================================================
+# SSRF 방어: URL 검증
+# =============================================================================
+
+BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"}
+ALLOWED_SCHEMES = {"http", "https"}
+
+
+def _is_safe_url(url: str) -> bool:
+    """
+    URL이 안전한지 검증합니다 (SSRF 방어).
+    내부 IP, localhost, 비표준 프로토콜 차단.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme.lower() not in ALLOWED_SCHEMES:
+            return False
+        hostname = parsed.hostname
+        if not hostname or hostname.lower() in BLOCKED_HOSTS:
+            return False
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+        except ValueError:
+            pass  # 도메인명 - 허용
+        return True
+    except Exception:
+        return False
 
 
 class MCPToolkit:
@@ -197,13 +230,17 @@ class MCPToolkit:
         return self._fallback_search(query, max_results)
     
     def _fallback_fetch(self, url: str, max_length: int = 5000) -> str:
-        """Fallback: requests로 URL fetch"""
+        """Fallback: requests로 URL fetch (SSRF 보호 적용)"""
+        # [보안] SSRF 방어
+        if not _is_safe_url(url):
+            return "[보안 오류: 접근할 수 없는 URL입니다]"
+
         try:
             import requests
             from bs4 import BeautifulSoup
-            
+
             headers = {"User-Agent": "Mozilla/5.0 (compatible; PlanCraftBot/1.0)"}
-            response = requests.get(url, headers=headers, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10, verify=True)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')

@@ -1,31 +1,25 @@
 """
-[DEPRECATED] Dynamic Q&A Node - Writer ReAct 패턴으로 대체됨
+██████████████████████████████████████████████████████████████████████████████
+█  [DEPRECATED] Dynamic Q&A Node - Writer ReAct 패턴으로 대체됨                █
+█  이 모듈은 테스트 호환성을 위해서만 유지됩니다.                              █
+█  새로운 코드에서는 절대 사용하지 마세요!                                     █
+██████████████████████████████████████████████████████████████████████████████
 
-이 모듈은 더 이상 workflow에서 사용되지 않습니다.
-Writer가 작성 중 자율적으로 도구를 호출하는 ReAct 패턴으로 대체되었습니다.
+대체 구현:
+    - agents/writer.py → _run_with_react_loop()
+    - tools/writer_tools.py → request_specialist_analysis()
 
-새로운 구현: agents/writer.py의 _run_with_react_loop()
-새로운 도구: tools/writer_tools.py
-
-기존 테스트 호환성을 위해 함수들은 유지됩니다.
-새로운 코드에서는 이 모듈을 사용하지 마세요.
-
-[기존 흐름 - DEPRECATED]
-    structure → [data_gap_analysis] → (has_gaps?)
-                    ↓ Yes                    ↓ No
-            [specialist_request]         [write]
-                    ↓
-            [collect_responses]
-                    ↓
-                [write]
-
-[새로운 흐름 - ACTIVE]
-    structure → write (ReAct 내장)
-               [Thought] "데이터 부족"
-               [Action]  request_specialist_analysis(...)
-               [Observation] {...}
-               [Continue] 작성 계속
+삭제 예정: 테스트 마이그레이션 완료 후 제거될 수 있습니다.
 """
+import warnings
+
+# 모듈 import 시 경고 발생
+warnings.warn(
+    "graph.nodes.dynamic_qa는 DEPRECATED입니다. "
+    "Writer ReAct 패턴(agents/writer.py)을 사용하세요.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 from typing import List, Dict, Any, Literal, Union
 from langgraph.types import Send
