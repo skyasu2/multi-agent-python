@@ -35,11 +35,6 @@ def init_session_state():
         st.session_state.trigger_notification = False
     if "generation_preset" not in st.session_state:
         st.session_state.generation_preset = "balanced"
-    # 파일 업로드 관련 상태 (ChatGPT 스타일 UI)
-    if "attached_files" not in st.session_state:
-        st.session_state.attached_files = []
-    if "show_upload_panel" not in st.session_state:
-        st.session_state.show_upload_panel = False
 
 
 @st.cache_resource
@@ -47,44 +42,22 @@ def init_resources():
     """
     앱 실행 시 무거운 리소스를 초기화합니다.
     st.cache_resource를 사용하여 프로세스당 1회만 실행되도록 합니다.
-
-    Returns:
-        tuple: (port, is_server_running) - 포트 번호와 서버 상태
     """
-    import threading
-
-    actual_port = 8000
-    server_running = False
-
     try:
         # 0. FastAPI 백엔드 서버 시작 (Thread)
-        from api.main import start_api_server, stop_api_server
-
-        # [UPDATED] 개발 환경에서만 서버 정리 (프로덕션에서는 워크플로우 상태 보존)
-        # 환경변수 CHECKPOINTER_TYPE이 memory이거나 미설정인 경우에만 정리 실행
-        is_dev_mode = os.getenv("CHECKPOINTER_TYPE", "memory").lower() == "memory"
-        if is_dev_mode:
-            print("[INIT] Dev mode: Cleaning up previous server instance...")
-            stop_api_server()
-
+        from api.main import start_api_server
         print("[INIT] Starting FastAPI Backend Server...")
         actual_port = start_api_server(start_port=8000)
-        server_running = True
-
+        
         # [Update Config] Update API URL based on actual port
         Config.API_BASE_URL = f"http://127.0.0.1:{actual_port}/api/v1"
         print(f"[INIT] FastAPI Backend Server Started on http://127.0.0.1:{actual_port}")
 
-    except Exception as e:
-        print(f"[ERROR] FastAPI Server Start Failed: {e}")
-        # 서버 시작 실패 - 포트 기본값 유지, 상태는 False
-        Config.API_BASE_URL = f"http://127.0.0.1:{actual_port}/api/v1"
-
-    try:
         # 1. Config 검증
         Config.validate()
 
         # 2. RAG 벡터스토어 로드 (Background)
+        import threading
         def _init_rag_bg():
             from rag.vectorstore import load_vectorstore, rebuild_index_if_needed
             print("[INIT] Checking RAG Vectorstore...")
@@ -96,10 +69,11 @@ def init_resources():
         rag_thread = threading.Thread(target=_init_rag_bg, daemon=True)
         rag_thread.start()
 
+        return actual_port
+
     except Exception as e:
         print(f"[WARN] Resource Initialization Warning: {e}")
-
-    return actual_port, server_running
+        return 8000 # Default fallback
 
 
 def render_header():
