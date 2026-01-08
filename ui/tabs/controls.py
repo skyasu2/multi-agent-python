@@ -37,6 +37,33 @@ MODE_CONFIG = {
 # =============================================================================
 CONTROLS_CSS = """
 <style>
+/* ===== 툴바 (채팅 입력창 위) ===== */
+.chat-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.98), rgba(248,250,252,0.95));
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+/* ===== 좌측 그룹 (+ 버튼 + 파일 개수) ===== */
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ===== 우측 그룹 (모드 버튼들) ===== */
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
 /* ===== 파일 칩 스타일 ===== */
 .file-chip {
     display: inline-flex;
@@ -78,56 +105,77 @@ CONTROLS_CSS = """
 }
 
 /* ===== + 버튼 스타일 ===== */
-.plus-btn-container button {
-    width: 42px !important;
-    height: 42px !important;
+.plus-btn button {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
     border-radius: 50% !important;
     border: 1.5px solid #e2e8f0 !important;
     background: white !important;
     color: #64748b !important;
-    font-size: 1.4rem !important;
+    font-size: 1.5rem !important;
     font-weight: 300 !important;
     padding: 0 !important;
     transition: all 0.2s ease !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.04) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
-.plus-btn-container button:hover {
+.plus-btn button:hover {
     background: #f1f5f9 !important;
     border-color: #94a3b8 !important;
     color: #475569 !important;
-    transform: scale(1.05) !important;
+    transform: scale(1.08) !important;
 }
-.plus-btn-container.has-files button {
-    background: #dbeafe !important;
+.plus-btn.has-files button {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%) !important;
     border-color: #60a5fa !important;
     color: #2563eb !important;
 }
 
-/* ===== 모드 버튼 스타일 ===== */
-.mode-btn-group {
-    display: flex;
-    gap: 4px;
-    background: #f1f5f9;
-    padding: 4px;
-    border-radius: 12px;
-}
-.mode-btn-group button {
-    border: none !important;
-    background: transparent !important;
-    padding: 8px 12px !important;
-    border-radius: 8px !important;
-    font-size: 1.1rem !important;
-    transition: all 0.15s ease !important;
-    color: #64748b !important;
-}
-.mode-btn-group button:hover {
-    background: rgba(255,255,255,0.7) !important;
-    color: #334155 !important;
-}
-.mode-btn-group button[kind="primary"] {
+/* ===== 모드 버튼 스타일 (가로 배치) ===== */
+.mode-btn button {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: 12px !important;
+    border: 1.5px solid #e2e8f0 !important;
     background: white !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-    color: #1e40af !important;
+    font-size: 1.4rem !important;
+    padding: 0 !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+.mode-btn button:hover {
+    background: #f8fafc !important;
+    border-color: #94a3b8 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+}
+.mode-btn.active button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border: none !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35) !important;
+}
+.mode-btn.active button:hover {
+    transform: translateY(-2px) scale(1.02) !important;
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.45) !important;
+}
+
+/* ===== 파일 개수 배지 ===== */
+.file-count-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: -4px;
 }
 
 /* ===== 업로드 패널 ===== */
@@ -138,24 +186,6 @@ CONTROLS_CSS = """
     margin-bottom: 12px;
     border: 1px solid #e2e8f0;
     box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-}
-.upload-panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-}
-.upload-panel-title {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #1e293b;
-}
-
-/* ===== 입력 영역 래퍼 ===== */
-.input-row {
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
 }
 
 /* ===== Prefill 확인 박스 ===== */
@@ -399,49 +429,50 @@ def render_input_area():
         render_upload_panel()
 
     # =========================================================================
-    # 입력 영역: [+] 버튼 + 모드 선택 + 채팅 입력
+    # 툴바: [+] 버튼 (좌측) + 모드 선택 버튼들 (우측) - 가로 한 줄 배치
     # =========================================================================
-    col_plus, col_modes = st.columns([0.8, 9.2])
+    col_plus, col_spacer, col_mode1, col_mode2, col_mode3 = st.columns([0.6, 5, 0.7, 0.7, 0.7])
 
-    # [+] 버튼
+    file_count = len(st.session_state.attached_files)
+    current_mode = st.session_state.get("generation_preset", "balanced")
+
+    # [+] 버튼 (좌측)
     with col_plus:
-        file_count = len(st.session_state.attached_files)
         btn_class = "has-files" if file_count > 0 else ""
-        st.markdown(f'<div class="plus-btn-container {btn_class}">', unsafe_allow_html=True)
-
+        st.markdown(f'<div class="plus-btn {btn_class}">', unsafe_allow_html=True)
+        
         btn_icon = "✕" if st.session_state.show_upload_panel else "+"
         if st.button(btn_icon, key="btn_plus", help="파일 첨부" if not st.session_state.show_upload_panel else "닫기"):
             st.session_state.show_upload_panel = not st.session_state.show_upload_panel
             st.rerun()
-
+        
         st.markdown('</div>', unsafe_allow_html=True)
-
+        
         # 파일 개수 배지
         if file_count > 0 and not st.session_state.show_upload_panel:
-            st.caption(f"📎 {file_count}")
+            st.markdown(f'<span class="file-count-badge">{file_count}</span>', unsafe_allow_html=True)
 
-    # 모드 선택 버튼
-    with col_modes:
-        st.markdown('<div class="mode-btn-group">', unsafe_allow_html=True)
-        mode_cols = st.columns([1, 1, 1, 7])
-
-        current_mode = st.session_state.get("generation_preset", "balanced")
-
-        for idx, (mode_key, mode_info) in enumerate(MODE_CONFIG.items()):
-            with mode_cols[idx]:
-                is_active = (current_mode == mode_key)
-                btn_type = "primary" if is_active else "secondary"
-
-                if st.button(
-                    mode_info["icon"],
-                    key=f"mode_{mode_key}",
-                    type=btn_type,
-                    help=f"{mode_info['label']}: {mode_info['desc']}"
-                ):
-                    st.session_state.generation_preset = mode_key
-                    st.rerun()
-
-        st.markdown('</div>', unsafe_allow_html=True)
+    # 모드 버튼들 (우측, 가로 배치)
+    mode_keys = list(MODE_CONFIG.keys())
+    mode_columns = [col_mode1, col_mode2, col_mode3]
+    
+    for col, mode_key in zip(mode_columns, mode_keys):
+        mode_info = MODE_CONFIG[mode_key]
+        is_active = (current_mode == mode_key)
+        
+        with col:
+            active_class = "active" if is_active else ""
+            st.markdown(f'<div class="mode-btn {active_class}">', unsafe_allow_html=True)
+            
+            if st.button(
+                mode_info["icon"],
+                key=f"mode_{mode_key}",
+                help=f"{mode_info['label']}: {mode_info['desc']}"
+            ):
+                st.session_state.generation_preset = mode_key
+                st.rerun()
+            
+            st.markdown('</div>', unsafe_allow_html=True)
 
     # 채팅 입력창
     placeholder_text = "💬 메시지를 입력하세요..."

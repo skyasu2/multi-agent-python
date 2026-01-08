@@ -14,7 +14,13 @@ def render_chat_and_state():
     """채팅 히스토리와 현재 상태 UI 렌더링"""
     # 채팅 히스토리
     for msg in st.session_state.chat_history:
-        render_chat_message(msg["role"], msg["content"], msg.get("type", "text"))
+        render_chat_message(
+            role=msg["role"],
+            content=msg["content"],
+            msg_type=msg.get("type", "text"),
+            files=msg.get("files"),
+            timestamp=msg.get("timestamp")
+        )
 
     # 현재 상태 기반 UI
     if st.session_state.current_state:

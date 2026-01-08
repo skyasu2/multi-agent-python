@@ -19,7 +19,7 @@ from ui.modules.progress import (
     render_specialist_agents_status, 
     render_timeline
 )
-from ui.modules.chat import render_chat_message
+from ui.modules.chat import render_chat_message, render_chat_history
 from ui.modules.interaction import (
     render_error_state, 
     render_human_interaction, 
