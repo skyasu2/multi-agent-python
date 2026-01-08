@@ -471,7 +471,7 @@ def _handle_plan_result(generated_plan: str, final_result: dict, status_data: di
 
     st.session_state.chat_history.append({
         "role": "assistant",
-        "content": f"✅ 기획서가 완성되었습니다!{usage_info}",
+        "content": f"기획서가 완성되었습니다!{usage_info}",
         "type": "plan"
     })
 

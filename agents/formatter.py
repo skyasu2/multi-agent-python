@@ -114,6 +114,10 @@ class FormatterAgent:
         try:
             response = self.llm.invoke(messages)
             chat_summary = response.content
+            
+            # [FIX] 마크다운 코드 블록 제거 (UI 렌더링 오류 방지)
+            if chat_summary.startswith("```"):
+                chat_summary = chat_summary.strip().removeprefix("```markdown").removeprefix("```").removesuffix("```").strip()
         except Exception as e:
             # 실패 시 기본 요약 생성
             chat_summary = self._generate_fallback_summary(
