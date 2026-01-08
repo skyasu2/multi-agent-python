@@ -87,6 +87,22 @@ def render_input_area():
 
     user_input = st.chat_input(placeholder_text, key=f"chat_input_{st.session_state.input_key}")
 
+    # [NEW] 채팅 입력창 자동 포커스 (JavaScript via components.html)
+    import streamlit.components.v1 as components
+    components.html("""
+    <script>
+    const focusChatInput = () => {
+        const input = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+        if (input) {
+            input.focus();
+        } else {
+            setTimeout(focusChatInput, 100);
+        }
+    };
+    setTimeout(focusChatInput, 50);
+    </script>
+    """, height=0)
+
     if user_input:
         st.session_state.prefill_prompt = None
         st.session_state.chat_history.append({"role": "user", "content": user_input, "type": "text"})
