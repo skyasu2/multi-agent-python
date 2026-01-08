@@ -572,12 +572,71 @@ CUSTOM_CSS = """
     .step-item.completed::after { background: var(--color-success); }
 
     /* =================================================================
-       Mobile Responsive
+       Accessibility (접근성)
        ================================================================= */
+
+    /* 포커스 상태 강조 */
+    *:focus-visible {
+        outline: 2px solid var(--color-primary) !important;
+        outline-offset: 2px !important;
+    }
+
+    /* 버튼 포커스 */
+    button:focus-visible,
+    .stButton button:focus-visible {
+        outline: 2px solid var(--color-primary) !important;
+        outline-offset: 2px !important;
+        box-shadow: 0 0 0 4px var(--color-primary-shadow) !important;
+    }
+
+    /* 입력 필드 포커스 */
+    input:focus-visible,
+    textarea:focus-visible,
+    select:focus-visible {
+        outline: 2px solid var(--color-primary) !important;
+        outline-offset: 1px !important;
+    }
+
+    /* 고대비 모드 지원 */
+    @media (prefers-contrast: high) {
+        :root {
+            --color-border: #333;
+            --color-text-muted: #555;
+        }
+
+        button, .stButton button {
+            border: 2px solid currentColor !important;
+        }
+    }
+
+    /* 움직임 감소 모드 */
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+
+    /* =================================================================
+       Mobile Responsive (개선)
+       ================================================================= */
+
+    /* 태블릿 (768px ~ 1024px) */
+    @media (max-width: 1024px) {
+        .block-container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+    }
+
+    /* 모바일 (768px 이하) */
     @media (max-width: 768px) {
         .block-container {
             padding-top: 2rem;
             padding-bottom: 6rem;
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
         }
 
         .stChatInput {
@@ -586,7 +645,7 @@ CUSTOM_CSS = """
 
         .stChatInput textarea {
             padding: 10px 16px !important;
-            font-size: 0.95rem !important;
+            font-size: 16px !important; /* iOS 확대 방지 */
         }
 
         .stChatInput > div {
@@ -604,6 +663,79 @@ CUSTOM_CSS = """
 
         .step-item::after {
             display: none;
+        }
+
+        /* 터치 영역 최소 크기 보장 (44x44px) */
+        button,
+        .stButton button,
+        [role="button"] {
+            min-height: 44px !important;
+            min-width: 44px !important;
+        }
+
+        /* 모바일 카드 스타일 */
+        .idea-cards-row [data-testid="stButton"] > button {
+            min-height: 80px !important;
+            padding: 12px !important;
+        }
+
+        /* 모드 버튼 그룹 */
+        .mode-btn-group {
+            gap: 2px !important;
+        }
+        .mode-btn-group button {
+            padding: 6px 8px !important;
+        }
+    }
+
+    /* 소형 모바일 (480px 이하) */
+    @media (max-width: 480px) {
+        .block-container {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+
+        /* 브레인스토밍 카드 세로 배치 */
+        .idea-cards-row {
+            flex-direction: column !important;
+        }
+
+        /* 헤더 간소화 */
+        .brainstorm-header {
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .brainstorm-title {
+            font-size: 1.1rem;
+        }
+
+        /* 파일 칩 작게 */
+        .file-chip {
+            max-width: 120px;
+            font-size: 0.8rem;
+        }
+    }
+
+    /* =================================================================
+       Touch Optimization (터치 최적화)
+       ================================================================= */
+    @media (hover: none) and (pointer: coarse) {
+        /* 터치 기기에서 호버 효과 제거 */
+        button:hover,
+        .stButton button:hover {
+            transform: none !important;
+        }
+
+        /* 터치 피드백 */
+        button:active,
+        .stButton button:active {
+            transform: scale(0.98) !important;
+            opacity: 0.9;
+        }
+
+        /* 스크롤 개선 */
+        .stChatMessageContainer {
+            -webkit-overflow-scrolling: touch;
         }
     }
 </style>
