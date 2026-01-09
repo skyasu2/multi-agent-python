@@ -70,24 +70,30 @@ def create_context_subgraph() -> StateGraph:
 def create_generation_subgraph() -> StateGraph:
     """
     Generation Sub-graph 생성
-    
-    책임: 분석 → 구조 설계 → 초안 작성
+
+    책임: 분석 → 구조 설계 → 전문가 분석 → 초안 작성
     입력: rag_context, web_context, user_input
-    출력: analysis, structure, draft
+    출력: analysis, structure, specialist_analysis, draft
+
+    [REFACTOR] structure → run_specialists → write 흐름으로 변경
     """
+    from graph.nodes.supervisor_node import run_supervisor_node
+
     subgraph = StateGraph(PlanCraftState)
-    
+
     # 노드 등록
     subgraph.add_node("analyze", analyzer.run)
     subgraph.add_node("structure", structurer.run)
+    subgraph.add_node("run_specialists", run_supervisor_node)  # [NEW] Supervisor 노드
     subgraph.add_node("write", writer.run)
-    
-    # 흐름 정의
+
+    # 흐름 정의: analyze → structure → run_specialists → write
     subgraph.set_entry_point("analyze")
     subgraph.add_edge("analyze", "structure")
-    subgraph.add_edge("structure", "write")
+    subgraph.add_edge("structure", "run_specialists")  # [UPDATE]
+    subgraph.add_edge("run_specialists", "write")      # [UPDATE]
     subgraph.add_edge("write", END)
-    
+
     return subgraph
 
 
@@ -524,23 +530,29 @@ def run_context_subgraph(state: PlanCraftState) -> PlanCraftState:
 
 
 def run_generation_subgraph(state: PlanCraftState) -> PlanCraftState:
-    """생성 서브그래프 (분석 -> 구조화 -> 작성)"""
+    """
+    생성 서브그래프 (분석 → 구조화 → 전문가 분석 → 작성)
+
+    [REFACTOR] structure → run_specialists → write 흐름으로 변경
+    """
     from graph.workflow import run_analyzer_node, run_structurer_node, run_writer_node
+    from graph.nodes.supervisor_node import run_supervisor_node  # [NEW]
     from graph.state import update_state
-    
+
     s1 = run_analyzer_node(state)
-    
+
     # 분기 로직 처리 (Interrupt 등)은 Main Graph에서 담당하므로
-    # 여기서는 순차적으로 Happy Path만 시뮬레이션하거나, 
+    # 여기서는 순차적으로 Happy Path만 시뮬레이션하거나,
     # 실제로는 Graph를 리턴해야 함. (구조 변경 필요)
-    
+
     # 현재 구조상 함수 직접 호출로 진행
     if s1.get("need_more_info"):
-        return s1 # 인터럽트 필요 시 바로 반환
-        
+        return s1  # 인터럽트 필요 시 바로 반환
+
     s2 = run_structurer_node(s1)
-    s3 = run_writer_node(s2)
-    
+    s2_1 = run_supervisor_node(s2)  # [NEW] Supervisor 노드 추가
+    s3 = run_writer_node(s2_1)
+
     return s3
 
 

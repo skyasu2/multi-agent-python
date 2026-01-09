@@ -28,12 +28,12 @@ from utils.file_logger import get_file_logger
 from agents.writer_helpers import (
     get_prompts_by_doc_type,
     execute_web_search,
-    execute_specialist_agents,
     build_visual_instruction,
     build_visual_feedback,
     build_review_context,
     build_refinement_context,
-    validate_draft
+    validate_draft,
+    get_specialist_context,  # [NEW] Supervisor 노드 결과 활용
 )
 
 
@@ -70,10 +70,10 @@ def run(state: PlanCraftState) -> PlanCraftState:
     if not web_context:
         web_context = ""
 
-    # 전문 에이전트 분석
-    specialist_context, state = execute_specialist_agents(
-        state, user_input, web_context, refine_count, logger
-    )
+    # [REFACTOR] 전문 에이전트 분석 결과 가져오기 (Supervisor 노드에서 이미 실행됨)
+    # 기존: Writer 내부에서 execute_specialist_agents() 호출
+    # 변경: workflow의 run_specialists 노드에서 실행된 결과를 state에서 가져옴
+    specialist_context = get_specialist_context(state, logger)
 
     # 4. 프롬프트 구성
     system_prompt, user_prompt_template = get_prompts_by_doc_type(state)

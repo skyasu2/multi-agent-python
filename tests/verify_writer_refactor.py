@@ -24,14 +24,12 @@ except ImportError as e:
 
 class TestWriterRefactor(unittest.TestCase):
     @patch('agents.writer.get_llm')
-    @patch('agents.writer.execute_web_search')
-    @patch('agents.writer.execute_specialist_agents')
-    def test_writer_run_success(self, mock_specialist, mock_web_search, mock_get_llm):
+    @patch('agents.writer.get_specialist_context')
+    def test_writer_run_success(self, mock_specialist_ctx, mock_get_llm):
         """Writer Agent 리팩토링 검증 테스트"""
-        
-        # 1. Mock 설정
-        mock_web_search.return_value = "Mock Web Context"
-        mock_specialist.return_value = ("Mock Specialist Context", {})
+
+        # 1. Mock 설정 [REFACTOR] Supervisor 노드 분리로 인한 Mock 변경
+        mock_specialist_ctx.return_value = "Mock Specialist Context"
         
         mock_chain = MagicMock()
         mock_llm_instance = MagicMock()
@@ -82,8 +80,8 @@ class TestWriterRefactor(unittest.TestCase):
         print(">> Writer Agent executed successfully!")
         print(f">> Result Step: {current_step}")
 
-        mock_web_search.assert_called_once()
-        mock_specialist.assert_called_once()
+        # [REFACTOR] Supervisor 노드 분리로 mock 검증 변경
+        mock_specialist_ctx.assert_called_once()
 
 if __name__ == "__main__":
     unittest.main()

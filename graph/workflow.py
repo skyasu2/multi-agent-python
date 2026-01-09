@@ -171,6 +171,7 @@ from graph.nodes.common import update_step_history
 from graph.nodes.hitl_node import option_pause_node
 from graph.nodes.utility_nodes import general_response_node, chat_response_node
 from graph.nodes.router_node import smart_router_node, Intent
+from graph.nodes.supervisor_node import run_supervisor_node  # [NEW] Supervisor 노드
 
 # [DEPRECATED] Dynamic Q&A Nodes - Writer ReAct 패턴으로 대체됨
 # data_gap_analysis 노드는 제거됨. Writer가 작성 중 자율적으로 도구 호출.
@@ -578,10 +579,10 @@ def create_workflow() -> StateGraph:
 
     workflow.add_node("structure", run_structurer_node)
 
-    # [DEPRECATED] Dynamic Q&A 노드 - Writer ReAct 패턴으로 대체됨
-    # Writer가 작성 중 데이터 부족 시 자율적으로 도구를 호출합니다.
-    # workflow.add_node("data_gap_analysis", analyze_data_gaps)
-    # workflow.add_node("collect_specialist_responses", collect_specialist_responses)
+    # [NEW] Supervisor 노드 - 전문 에이전트 오케스트레이션 (그래프 가시성 향상)
+    # 기존: Writer 내부에서 암묵적으로 호출
+    # 변경: structure → run_specialists → write 명시적 흐름
+    workflow.add_node("run_specialists", run_supervisor_node)
 
     workflow.add_node("write", run_writer_node)
     workflow.add_node("review", run_reviewer_node)
@@ -631,10 +632,11 @@ def create_workflow() -> StateGraph:
     workflow.add_edge("general_response", END)
 
 
-    # [UPDATE] Structure -> Write (Writer ReAct 패턴으로 직접 연결)
-    # Writer가 작성 중 데이터 부족을 자율적으로 판단하고 도구를 호출합니다.
-    # 기존 data_gap_analysis 노드의 역할이 Writer 내부 ReAct 루프로 통합되었습니다.
-    workflow.add_edge("structure", "write")
+    # [UPDATE] Structure -> Supervisor -> Write (명시적 전문가 분석 단계)
+    # 기존: Writer 내부에서 Supervisor 암묵적 호출
+    # 변경: LangGraph 그래프에서 명시적으로 표시되는 노드로 분리
+    workflow.add_edge("structure", "run_specialists")
+    workflow.add_edge("run_specialists", "write")
 
     # [DEPRECATED] Data Gap Analysis 조건부 분기 - Writer ReAct로 대체
     # def should_request_more_data(state: PlanCraftState) -> DynamicQARoutes:

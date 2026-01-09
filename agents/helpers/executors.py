@@ -49,7 +49,15 @@ def execute_web_search(user_input: str, rag_context: str, web_context: str, logg
 def execute_specialist_agents(state: PlanCraftState, user_input: str,
                                 web_context: str, refine_count: int, logger) -> tuple:
     """
-    전문 에이전트(Supervisor) 실행
+    [DEPRECATED] 전문 에이전트(Supervisor) 실행
+
+    ⚠️ DEPRECATED: 이 함수는 더 이상 Writer에서 직접 호출되지 않습니다.
+    워크플로우의 run_specialists 노드(graph/nodes/supervisor_node.py)에서
+    Supervisor가 실행되며, Writer는 get_specialist_context()를 통해
+    state에서 결과를 읽어옵니다.
+
+    이 함수는 하위 호환성을 위해 유지되며, 호출 시 기존 분석 결과가
+    있으면 재사용하여 중복 실행(Double Cost)을 방지합니다.
 
     Args:
         state: 현재 상태
@@ -64,7 +72,29 @@ def execute_specialist_agents(state: PlanCraftState, user_input: str,
     specialist_context = ""
     use_specialist_agents = state.get("use_specialist_agents", True)
 
+    # [FIX] 기존 분석 결과 확인 - 중복 실행 방지 (Double Cost Prevention)
+    existing_analysis = state.get("specialist_analysis")
+
     if use_specialist_agents and refine_count == 0:
+        # 1. 이미 분석 결과가 있으면 재사용 (워크플로우 노드에서 이미 실행됨)
+        if existing_analysis:
+            logger.info("[Writer] ✅ 워크플로우에서 미리 수행된 전문 분석 결과를 재사용합니다.")
+            try:
+                from agents.supervisor import NativeSupervisor
+                supervisor = NativeSupervisor()
+                specialist_context = supervisor._integrate_results(existing_analysis)
+                return specialist_context, state
+            except ImportError:
+                # NativeSupervisor가 없으면 PlanSupervisor 시도 (호환성)
+                from agents.supervisor import PlanSupervisor
+                supervisor = PlanSupervisor()
+                specialist_context = supervisor._integrate_results(existing_analysis)
+                return specialist_context, state
+            except Exception as e:
+                logger.warning(f"[Writer] 분석 결과 통합 실패: {e}")
+                return "", state
+
+        # 2. 결과가 없을 때만 직접 실행 (Fallback - 워크플로우 노드 스킵된 경우)
         try:
             from agents.supervisor import PlanSupervisor
 

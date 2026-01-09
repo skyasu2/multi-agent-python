@@ -197,15 +197,13 @@ class TestWriterRun:
         assert "구조화 데이터" in result["error"]
 
     @patch('agents.writer.get_llm')
-    @patch('agents.writer.execute_web_search')
-    @patch('agents.writer.execute_specialist_agents')
-    def test_run_basic_flow(self, mock_specialist, mock_search, mock_llm):
+    @patch('agents.writer.get_specialist_context')
+    def test_run_basic_flow(self, mock_specialist_ctx, mock_llm):
         """기본 흐름 테스트 (Mocked)"""
         from agents.writer import run
 
         # Mock 설정
-        mock_search.return_value = ""
-        mock_specialist.return_value = ("", {"user_input": "테스트", "structure": {"title": "테스트"}})
+        mock_specialist_ctx.return_value = ""  # [REFACTOR] 노드 분리로 인한 Mock 변경
 
         mock_llm_instance = MagicMock()
         mock_result = MagicMock()
