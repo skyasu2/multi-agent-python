@@ -42,11 +42,11 @@ uvicorn api.main:app --reload --port 8000
 ### Multi-Agent Workflow (LangGraph StateGraph)
 
 ```
-START → context_gathering → analyze → structure → write (ReAct) → review → [discussion] → refine → format → END
-                              ↓                       ↓                        ↓                          ↑
-                        option_pause (HITL)   [Thought→Action→Obs]        [score < 9]─────────────────────┘
-                              ↓                       ↓                        ↓
-                            END              도구 자율 호출 (최대3회)    [score < 5] → analyze (restart)
+START → context_gathering → analyze → structure → run_specialists → write (ReAct) → review → refine → format → END
+                              ↓            │              ↓                ↓              ↓              ↑
+                        option_pause (HITL) │     Supervisor 오케스트레이션  │        [score < 9]─────────┘
+                              ↓            │       (Specialist 병렬 실행)   │              ↓
+                            END            └──────────────────────────────┘     [score < 5] → analyze
 ```
 
 **Multi-Agent Collaboration**:
@@ -59,9 +59,9 @@ START → context_gathering → analyze → structure → write (ReAct) → revi
 **10 Agents**:
 - **Analyzer**: Parses user requirements, detects ambiguity (triggers HITL)
 - **Structurer**: Designs document outline (9-13 sections based on preset)
-- **Supervisor**: Orchestrates Specialist Squad (Plan-and-Execute pattern)
+- **Supervisor**: Independent node (`run_specialists`) - Orchestrates Specialist Squad (Plan-and-Execute pattern)
 - **Specialists** (Market/BM/Risk/Tech): Parallel domain-specific analysis
-- **Writer**: Generates section content with ReAct pattern (autonomous tool calling)
+- **Writer**: Generates section content with ReAct pattern (uses pre-computed specialist results)
 - **Reviewer**: Evaluates quality (PASS ≥9 / REVISE 5-8 / FAIL <5)
 - **Refiner**: Creates improvement strategies based on feedback
 - **Formatter**: Produces final output with chat summary

@@ -89,9 +89,10 @@ flowchart TD
     
     HITL -->|user_response| ANALYZE
     GENERAL --> END_NODE
-    
-    STRUCTURE[📐 Structurer<br/>목차 설계] --> WRITE
-    
+
+    STRUCTURE[📐 Structurer<br/>목차 설계] --> SPECIALISTS
+    SPECIALISTS[🎖️ Supervisor<br/>전문가 분석 오케스트레이션] --> WRITE
+
     subgraph QA_LOOP["🔄 Quality Assurance Loop"]
         WRITE[✍️ Writer<br/>콘텐츠 작성]
         REVIEW[🔎 Reviewer<br/>품질 평가]
@@ -128,12 +129,13 @@ graph LR
     subgraph CORE_AGENTS["🤖 Core Agents"]
         A1[🔍 Analyzer]
         A2[📐 Structurer]
+        SUP[🎖️ Supervisor]
         A3[✍️ Writer]
         A4[🔎 Reviewer]
         A5[✨ Refiner]
         A6[📄 Formatter]
     end
-    
+
     subgraph SPECIALISTS["🎯 Specialist Squad"]
         S1[📈 Market Agent<br/>TAM/SAM/SOM 분석]
         S2[💼 BM Agent<br/>수익 모델 설계]
@@ -141,23 +143,25 @@ graph LR
         S4[🛠️ Tech Agent<br/>기술 스택 설계]
         S5[📝 Content Agent<br/>마케팅 전략]
     end
-    
+
     subgraph OUTPUT["📤 Output"]
         PLAN[📋 기획서]
     end
-    
+
     USER --> A1
     A1 --> A2
-    A2 --> A3
-    A3 --> S1 & S2 & S3 & S4 & S5
-    S1 & S2 & S3 & S4 & S5 --> A3
+    A2 --> SUP
+    SUP --> S1 & S2 & S3 & S4 & S5
+    S1 & S2 & S3 & S4 & S5 --> SUP
+    SUP --> A3
     A3 --> A4
     A4 -->|REVISE| A5
     A5 --> A2
     A4 -->|PASS| A6
     A6 --> PLAN
-    
+
     style A1 fill:#d29922,color:#fff
+    style SUP fill:#8957e5,color:#fff
     style A4 fill:#58a6ff,color:#fff
     style PLAN fill:#3fb950,color:#fff
 ```
