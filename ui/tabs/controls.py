@@ -480,15 +480,16 @@ def render_input_area():
     /* 툴바 영역도 입력창과 함께 고정 */
     div[data-testid="stHorizontalBlock"]:has(.toolbar-btn) {
         position: sticky !important;
-        bottom: 70px !important;
+        bottom: 74px !important;
         z-index: 99 !important;
         background: rgba(255, 255, 255, 0.95) !important;
         backdrop-filter: blur(8px) !important;
         -webkit-backdrop-filter: blur(8px) !important;
-        padding: 8px 0 !important;
+        padding: 4px 0 !important;
         margin-left: -1rem !important;
         margin-right: -1rem !important;
         padding-left: 1rem !important;
+        align-items: center !important;
     }
 
     /* Sticky 영역 위 그라데이션 효과 (스크롤 시 자연스러운 페이드) */
@@ -531,6 +532,17 @@ def render_input_area():
         flex: 0 0 auto !important;
         width: auto !important;
         min-width: auto !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    
+    /* 툴바 내 Selectbox 여백 제거 */
+    div[data-testid="stHorizontalBlock"]:has(.toolbar-btn) div[data-testid="stSelectbox"] {
+        margin-bottom: 0 !important;
+        margin-top: 0 !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.toolbar-btn) div[data-testid="stSelectbox"] > div {
+        margin-top: 0 !important;
     }
 
     /* 간격 컬럼 */
@@ -598,6 +610,18 @@ def render_input_area():
     }
     .toolbar-btn-mode button[data-testid="baseButton-primary"]:hover {
         background: #4338ca !important;
+    }
+
+    /* ===== Selectbox 입력 필드 숨김 처리 (버튼처럼 보이게 개선) ===== */
+    div[data-testid="stSelectbox"] input {
+        caret-color: transparent !important; /* 커서 숨김 */
+        cursor: pointer !important;
+        opacity: 0 !important; /* 가짜 입력 필드 투명화 */
+    }
+    
+    div[data-testid="stSelectbox"] > div[data-baseweb="select"] > div:focus-within {
+        box-shadow: none !important; /* 포커스 링 제거 */
+        border-color: #6366f1 !important; /* 대신 테두리 색상만 유지 */
     }
 
     /* ===== 채팅 입력창 스타일 (접근성 개선) ===== */
@@ -705,11 +729,41 @@ def render_input_area():
         const observer = new MutationObserver(addTooltips);
         observer.observe(document.body, { childList: true, subtree: true });
     })();
+
+    // 채팅 입력창 자동 포커스
+    (function() {
+        function focusChatInput() {
+            const chatInput = document.querySelector('[data-testid="stChatInputTextArea"]');
+            if (chatInput && document.activeElement !== chatInput) {
+                // 약간의 지연 후 포커스 (Streamlit 렌더링 완료 대기)
+                setTimeout(() => {
+                    chatInput.focus();
+                }, 100);
+            }
+        }
+
+        // 페이지 로드 시 포커스
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', focusChatInput);
+        } else {
+            focusChatInput();
+        }
+
+        // Streamlit 리렌더링 후 포커스 복원
+        const focusObserver = new MutationObserver(() => {
+            // 모달이 열려있지 않을 때만 포커스
+            const modal = document.querySelector('[data-testid="stModal"]');
+            if (!modal) {
+                focusChatInput();
+            }
+        });
+        focusObserver.observe(document.body, { childList: true, subtree: true });
+    })();
     </script>
     """, unsafe_allow_html=True)
 
-    # 버튼들을 한 줄에 배치 (파일 | 간격 | 모드 3개)
-    col_file, col_gap, col_m1, col_m2, col_m3, space = st.columns([1, 0.3, 1, 1, 1, 16])
+    # 버튼들을 한 줄에 배치 (파일 | 간격 | 모드 드롭다운)
+    col_file, col_gap, col_mode, space = st.columns([1, 0.3, 1.2, 16], vertical_alignment="center")
 
     # 📁 파일 첨부 버튼 (레이블 + 접근성)
     with col_file:
@@ -727,34 +781,30 @@ def render_input_area():
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 모드 선택 버튼들 (레이블 + 접근성)
-    mode_config = [
-        ("⚡", "속도", "speed", "속도 모드: 빠른 응답 (gpt-4o-mini)"),
-        ("⚖️", "균형", "balanced", "균형 모드: 속도와 품질의 균형 (gpt-4o)"),
-        ("💎", "품질", "quality", "품질 모드: 최고 품질 분석 (gpt-4o + RAG)")
-    ]
-    mode_cols = [col_m1, col_m2, col_m3]
+    # 모드 선택 드롭다운 (3개 버튼 → 1개 셀렉트박스)
+    with col_mode:
+        mode_options = {
+            "balanced": "⚖️ 균형",
+            "speed": "⚡ 속도",
+            "quality": "💎 품질"
+        }
+        mode_keys = list(mode_options.keys())
+        current_index = mode_keys.index(current_mode) if current_mode in mode_keys else 0
 
-    for col, (icon, label, mode_key, tooltip) in zip(mode_cols, mode_config):
-        with col:
-            is_active = current_mode == mode_key
-            active_status = "선택됨" if is_active else "선택 안됨"
-            # ARIA 속성을 포함한 래퍼
-            st.markdown(f'''
-            <div class="toolbar-btn toolbar-btn-mode"
-                 role="radio"
-                 aria-checked="{str(is_active).lower()}"
-                 aria-label="{label} 모드, {active_status}">
-            ''', unsafe_allow_html=True)
-            # 레이블 포함 버튼 (⚡속도 형태)
-            btn_text = f"{icon}{label}"
-            if st.button(btn_text, key=f"mode_{mode_key}", type="primary" if is_active else "secondary", help=tooltip):
-                if not is_active:
-                    st.session_state.generation_preset = mode_key
-                    # 파일 모달이 열려있으면 닫기 (버그 방지)
-                    st.session_state.show_upload_panel = False
-                    st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+        selected_mode = st.selectbox(
+            "모드",
+            options=mode_keys,
+            index=current_index,
+            format_func=lambda x: mode_options[x],
+            key="mode_selector",
+            label_visibility="collapsed",
+            help="속도: gpt-4o-mini | 균형: gpt-4o | 품질: gpt-4o + RAG"
+        )
+
+        if selected_mode != current_mode:
+            st.session_state.generation_preset = selected_mode
+            st.session_state.show_upload_panel = False
+            st.rerun()
 
     # 채팅 입력창
     placeholder_text = "메시지를 입력하세요..."
