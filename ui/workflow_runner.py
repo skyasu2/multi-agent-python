@@ -295,7 +295,8 @@ def poll_workflow_status(
                     on_log_callback({
                         "step": step_name,
                         "icon": icon,
-                        "summary": summary
+                        "summary": summary,
+                        "execution_time": exec_time  # [FIX] 실행 시간 전달
                     })
 
         # 2. Execution Log (Real-time Events) 처리
@@ -590,7 +591,8 @@ def run_pending_workflow(pending_text: str, status_placeholder):
                         # 최근 5개 로그만 표시
                         recent_logs = visible_logs[-5:]
                         for log in recent_logs:
-                            st.markdown(f"**{log['icon']} {log['step'].upper()}** — {log['summary']}")
+                            time_str = f" ({log.get('execution_time')})" if log.get('execution_time') else ""
+                            st.markdown(f"**{log['icon']} {log['step'].upper()}** — {log['summary']}{time_str}")
 
                 # 폴링
                 final_result, execution_log = poll_workflow_status(
