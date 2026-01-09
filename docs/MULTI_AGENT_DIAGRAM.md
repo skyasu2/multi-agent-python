@@ -208,7 +208,79 @@ graph TB
 
 ---
 
-## 📊 5. Human-in-the-Loop (HITL) 상세 흐름
+## 📊 5. LangGraph Custom Events (Event Streaming)
+
+> **Supervisor 노드의 커스텀 이벤트**: 전문가 분석 진행 상황을 실시간으로 스트리밍합니다.
+
+### 이벤트 목록
+
+| Event Name | Trigger | Payload |
+|------------|---------|---------|
+| `supervisor_start` | 전문가 분석 시작 | `service_overview`, `target_market`, `timestamp` |
+| `supervisor_agent_complete` | 개별 에이전트 완료 | `agent_id`, `duration_ms`, `success`, `error?` |
+| `supervisor_complete` | 전체 분석 완료 | `agent_count`, `executed_agents`, `duration_sec` |
+
+### 이벤트 흐름
+
+```mermaid
+%%{init: {'theme': 'base'}}%%
+
+sequenceDiagram
+    participant UI as 🖥️ Streamlit UI
+    participant LG as 🧠 LangGraph
+    participant SUP as 🎖️ Supervisor Node
+    participant S1 as 📈 Market Agent
+    participant S2 as 💼 BM Agent
+
+    UI->>LG: stream_events()
+    LG->>SUP: run_supervisor_node()
+
+    SUP-->>LG: 🎯 supervisor_start
+    LG-->>UI: Event: supervisor_start
+
+    par Parallel Execution
+        SUP->>S1: analyze()
+        SUP->>S2: analyze()
+    end
+
+    S1-->>SUP: Result
+    SUP-->>LG: 🎯 supervisor_agent_complete (market)
+    LG-->>UI: Event: agent_complete
+
+    S2-->>SUP: Result
+    SUP-->>LG: 🎯 supervisor_agent_complete (bm)
+    LG-->>UI: Event: agent_complete
+
+    SUP-->>LG: 🎯 supervisor_complete
+    LG-->>UI: Event: supervisor_complete
+
+    SUP->>LG: Return State
+```
+
+### 클라이언트 사용 예시
+
+```python
+# LangGraph stream_events를 통한 이벤트 수신
+async for event in graph.astream_events(input, version="v2"):
+    if event["event"] == "on_custom_event":
+        name = event["name"]
+        data = event["data"]
+
+        if name == "supervisor_start":
+            print(f"🎯 전문가 분석 시작: {data['target_market']}")
+        elif name == "supervisor_agent_complete":
+            agent = data["agent_id"]
+            if data["success"]:
+                print(f"✅ {agent} 완료 ({data['duration_ms']}ms)")
+            else:
+                print(f"❌ {agent} 실패: {data['error']}")
+        elif name == "supervisor_complete":
+            print(f"🏁 전체 완료: {data['agent_count']}개 에이전트")
+```
+
+---
+
+## 📊 6. Human-in-the-Loop (HITL) 상세 흐름
 
 > **Side-Effect Free 원칙**: `interrupt` 이전에 DB 저장을 절대 하지 않음!
 
@@ -246,7 +318,7 @@ sequenceDiagram
 
 ---
 
-## 📊 6. 품질 루프 (QA Loop) 상태 전이
+## 📊 7. 품질 루프 (QA Loop) 상태 전이
 
 ```mermaid
 %%{init: {'theme': 'base'}}%%
@@ -274,7 +346,7 @@ stateDiagram-v2
 
 ---
 
-## 📊 7. PlanCraftState 데이터 흐름
+## 📊 8. PlanCraftState 데이터 흐름
 
 ```mermaid
 %%{init: {'theme': 'base'}}%%

@@ -91,6 +91,18 @@ LangGraph `interrupt()` is used for user interaction. **Critical rules**:
 2. Side-effects (DB writes, API calls) must come AFTER interrupt()
 3. Interrupt payloads defined in `graph/interrupt_utils.py`
 
+### Event Streaming (LangGraph Custom Events)
+
+Supervisor node emits custom events via `dispatch_custom_event()` for real-time progress tracking:
+
+| Event | Trigger | Key Data |
+|-------|---------|----------|
+| `supervisor_start` | Analysis begins | `target_market`, `timestamp` |
+| `supervisor_agent_complete` | Agent finishes | `agent_id`, `success`, `duration_ms` |
+| `supervisor_complete` | All agents done | `agent_count`, `executed_agents` |
+
+Usage: `graph.astream_events(input, version="v2")` → filter `event["event"] == "on_custom_event"`
+
 ### Directory Structure Notes
 
 - `agents/`: Agent implementations (each has `.run()` method)

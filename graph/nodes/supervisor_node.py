@@ -10,13 +10,36 @@ structure 노드 후, write 노드 전에 실행됩니다.
 
 [출력]
 - specialist_analysis: 전문 에이전트 분석 결과 딕셔너리
+
+[LangGraph 커스텀 이벤트]
+- supervisor_start: 전문가 분석 시작
+- supervisor_agent_complete: 개별 에이전트 완료
+- supervisor_complete: 전문가 분석 완료
 """
 import time
+from typing import List
 from graph.state import PlanCraftState, update_state, ensure_dict
 from graph.nodes.common import update_step_history
 from utils.tracing import trace_node
 from utils.error_handler import handle_node_error
 from utils.file_logger import get_file_logger
+
+# LangGraph 커스텀 이벤트 dispatch
+try:
+    from langchain_core.callbacks.manager import dispatch_custom_event
+    HAS_CUSTOM_EVENT = True
+except ImportError:
+    HAS_CUSTOM_EVENT = False
+    dispatch_custom_event = None
+
+
+def _emit_event(event_name: str, data: dict) -> None:
+    """LangGraph 커스텀 이벤트 발송 (실패 시 무시)"""
+    if HAS_CUSTOM_EVENT and dispatch_custom_event:
+        try:
+            dispatch_custom_event(event_name, data)
+        except Exception:
+            pass  # 이벤트 발송 실패는 무시
 
 
 @trace_node("run_specialists", tags=["supervisor", "specialists"])
@@ -85,6 +108,29 @@ def run_supervisor_node(state: PlanCraftState) -> PlanCraftState:
 
         logger.info("[Supervisor Node] 🤖 전문 에이전트 분석 시작...")
 
+        # [LangGraph Event] 전문가 분석 시작
+        _emit_event("supervisor_start", {
+            "service_overview": user_input[:100],
+            "target_market": target_market,
+            "timestamp": time.time()
+        })
+
+        # 에이전트 이벤트 콜백 (LangGraph 이벤트로 브릿지)
+        def on_agent_event(event: dict):
+            event_type = event.get("type", "")
+            if event_type == "agent_success":
+                _emit_event("supervisor_agent_complete", {
+                    "agent_id": event.get("agent_id"),
+                    "duration_ms": event.get("duration_ms"),
+                    "success": True
+                })
+            elif event_type == "agent_error":
+                _emit_event("supervisor_agent_complete", {
+                    "agent_id": event.get("agent_id"),
+                    "error": event.get("error"),
+                    "success": False
+                })
+
         supervisor = NativeSupervisor()
         specialist_results = supervisor.run(
             service_overview=user_input,
@@ -94,17 +140,25 @@ def run_supervisor_node(state: PlanCraftState) -> PlanCraftState:
             development_scope="MVP 3개월",
             web_search_results=web_search_list,
             user_constraints=user_constraints,
-            deep_analysis_mode=state.get("deep_analysis_mode", False)
+            deep_analysis_mode=state.get("deep_analysis_mode", False),
+            event_callback=on_agent_event  # [NEW] 이벤트 콜백 연결
         )
 
         # 실행된 에이전트 수 계산
-        executed_agents = []
+        executed_agents: List[str] = []
         for key in ["market_analysis", "business_model", "financial_plan", "risk_analysis", "tech_analysis", "content_strategy"]:
             if specialist_results.get(key):
                 executed_agents.append(key.split("_")[0])
 
         agent_count = len(executed_agents)
         logger.info(f"[Supervisor Node] ✓ 전문 에이전트 분석 완료 ({agent_count}개 에이전트)")
+
+        # [LangGraph Event] 전문가 분석 완료
+        _emit_event("supervisor_complete", {
+            "agent_count": agent_count,
+            "executed_agents": executed_agents,
+            "duration_sec": time.time() - start_time
+        })
 
         new_state = update_state(state, specialist_analysis=specialist_results)
 
