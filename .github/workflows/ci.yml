@@ -113,11 +113,11 @@ jobs:
       run: |
         pytest tests/test_interrupt_types.py -v --tb=short
 
-    - name: Run Unit Tests (Interrupt & Schema)
+    - name: Run Unit Tests (Interrupt Safety & Multi)
       env:
         PYTHONPATH: ${{ github.workspace }}
       run: |
-        pytest tests/test_interrupt_unit.py tests/test_ui_integration.py -v --tb=short
+        pytest tests/test_interrupt_safety.py tests/test_multi_interrupt.py -v --tb=short
 
     - name: Run Time Travel Tests
       env:
@@ -135,7 +135,7 @@ jobs:
         LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
         LANGCHAIN_PROJECT: "PlanCraft-CI"
       run: |
-        pytest tests/test_scenarios.py -v
+        pytest tests/test_e2e_interrupt_timetravel.py -v
 
     - name: Run Routing Tests
       env:
