@@ -1,7 +1,7 @@
 # 🏗️ PlanCraft System Design Document
 
-**Version**: 2.5
-**Date**: 2026-01-03
+**Version**: 2.6
+**Date**: 2026-01-23
 **Framework**: LangGraph, LangChain, Streamlit
 **Standards**: MCP (Model Context Protocol), A2A (Agent-to-Agent)
 
@@ -122,19 +122,25 @@ flowchart LR
         REFINE[Refiner<br/>피드백 반영]
     end
 
+    style REFINE fill:#fce4ec
+    style VAL fill:#fce4ec
+
     RAG --> LLM[LLM 생성]
     WEB --> LLM
-    LLM --> REV
-    LLM --> SCHEMA
+    LLM --> VAL[Citation Validator<br/>자동 검증]
+    VAL --> REV[Reviewer<br/>품질 심사]
+    REV --> SCHEMA[Schema Validator]
     REV --> REFINE
     REFINE --> LLM
 ```
 
 | 방어 계층 | 전략 | 구현 위치 |
 |----------|------|----------|
-| **1차 (입력)** | RAG로 내부 가이드 제공 + Web Search로 실시간 팩트 주입 | `rag/retriever.py`, `tools/web_search.py` |
-| **2차 (출력)** | Reviewer의 팩트 체크 + Pydantic 스키마 검증 | `agents/reviewer.py`, `with_structured_output()` |
-| **3차 (반복)** | Refiner의 피드백 반영 후 재생성 | `agents/refiner.py`, `agents/writer.py` |
+| **1차 (입력)** | **Metadata-aware RAG** (Header Breadcrumbs)로 정확한 문맥 제공 | `rag/retriever.py`, `rag/reranker.py` |
+| **2차 (자동 검증)** | **Citation Validator**가 위조된 인용(Hallucination) 자동 감지 | `rag/validator.py` |
+| **3차 (품질 심사)** | **Reviewer**의 팩트 체크 및 논리 검증 | `agents/reviewer.py` |
+| **4차 (구조 검증)** | **Pydantic Schema**로 출력 형식 강제 | `utils/schemas.py` |
+| **5차 (반복)** | **Refiner**의 피드백 반영 후 재생성 | `agents/refiner.py` |
 
 **LLM 단독 사용 vs RAG 비교:**
 

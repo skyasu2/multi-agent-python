@@ -38,10 +38,14 @@ class TestRetrieverBasic:
         from rag.retriever import Retriever
         assert Retriever is not None
 
-    def test_retriever_initialization(self):
+    @patch('rag.retriever.load_vectorstore')
+    def test_retriever_initialization(self, mock_load):
         """Retriever 초기화 검증"""
         from rag.retriever import Retriever
 
+        # Mock vectorstore
+        mock_load.return_value = MagicMock()
+        
         retriever = Retriever(k=5)
         assert retriever.k == 5
 
