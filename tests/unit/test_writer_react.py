@@ -164,22 +164,7 @@ class TestWriterReactPrompt:
 class TestWorkflowIntegration:
     """Workflow 통합 테스트"""
 
-    def test_workflow_structure_to_write_direct(self):
-        """structure → write 직접 연결 확인"""
-        # workflow 생성 시 data_gap_analysis 노드 없이 동작하는지 확인
-        # 실제 workflow 생성은 무거우므로 import만 테스트
-        from graph.workflow import create_workflow
 
-        # create_workflow가 오류 없이 호출되는지 확인
-        # (실제 생성은 시간이 오래 걸릴 수 있음)
-        assert callable(create_workflow)
-
-    def test_dynamic_qa_deprecated(self):
-        """Dynamic Q&A 모듈 deprecated 확인"""
-        from graph.nodes.dynamic_qa import __doc__ as module_doc
-
-        assert "DEPRECATED" in module_doc
-        assert "Writer ReAct" in module_doc
 
 
 # =============================================================================

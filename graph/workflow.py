@@ -104,9 +104,6 @@ ReviewerRoutes = Literal["discussion", "refine", "format", "analyze"]
 # Refiner 분기 후 가능한 목적지
 RefinerRoutes = Literal["structure", "format"]
 
-# Dynamic Q&A 분기 후 가능한 목적지
-DynamicQARoutes = Literal["request_specialist", "write"]
-
 # option_pause_node의 Command 반환 타입
 OptionPauseCommand = Command[Literal["analyze"]]
 
@@ -146,10 +143,6 @@ class RouteKey(str, Enum):
 
     # Refiner 분기
     RETRY = "retry"
-
-    # Dynamic Q&A 분기 (Writer ↔ Specialist)
-    REQUEST_SPECIALIST = "request_specialist"
-    WRITE = "write"
 from agents import analyzer, structurer, writer, reviewer, refiner, formatter
 from utils.config import Config
 from utils.tracing import trace_node
@@ -175,11 +168,6 @@ from graph.nodes.supervisor_node import run_supervisor_node  # [NEW] Supervisor 
 
 # [DEPRECATED] Dynamic Q&A Nodes - Writer ReAct 패턴으로 대체됨
 # data_gap_analysis 노드는 제거됨. Writer가 작성 중 자율적으로 도구 호출.
-# from graph.nodes.dynamic_qa import (
-#     analyze_data_gaps,
-#     should_request_specialist,
-#     collect_specialist_responses,
-# )
 
 # =============================================================================
 # LangSmith 트레이싱 활성화 (Observability)
@@ -639,10 +627,7 @@ def create_workflow() -> StateGraph:
     workflow.add_edge("run_specialists", "write")
 
     # [DEPRECATED] Data Gap Analysis 조건부 분기 - Writer ReAct로 대체
-    # def should_request_more_data(state: PlanCraftState) -> DynamicQARoutes:
-    #     ... (제거됨)
-    # workflow.add_conditional_edges("data_gap_analysis", ...)
-    # workflow.add_edge("collect_specialist_responses", "write")
+    # data_gap_analysis 노드는 제거됨
 
     workflow.add_edge("write", "review")
 

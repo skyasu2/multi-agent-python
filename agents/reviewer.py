@@ -52,6 +52,36 @@ def run(state: PlanCraftState) -> PlanCraftState:
     if specialist_context:
         context += f"\n\n=== [전문 에이전트 분석 결과 (Fact Check 기준)] ===\n{specialist_context}"
     
+    # 2.5 인용 검증 (Validator)
+    # [NEW] Phase 2: RAG 인용 신뢰도 자동 검증
+    try:
+        from rag.validator import CitationValidator
+        validator = CitationValidator(model_type="gpt-4o-mini")
+        # Quality/Balanced 모드에서만 내용 검증(LLM check) 수행
+        do_content_check = (preset.name in ["quality", "balanced"])
+        citation_result = validator.validate(full_text, context, check_content=do_content_check)
+        
+        validator_report = ""
+        if not citation_result["valid"]:
+            validator_report = f"""
+=== [⚠️ 치명적 오류: 인용 검증 실패] ===
+AI가 작성한 인용구에 심각한 오류가 감지되었습니다. 위조된 인용(Hallucination)일 가능성이 높습니다.
+이 결과를 'Critical Issues'에 포함시키고, 점수를 대폭 감점하세요 (최대 5점).
+- 오류 내역: {chr(10).join(['• ' + issue for issue in citation_result['issues']])}
+"""
+        elif citation_result.get("score", 1.0) < 1.0:
+            validator_report = f"""
+=== [⚠️ 인용 검증 경고] ===
+인용된 내용 중 일부가 원본과 일치하지 않을 수 있습니다.
+- 경고 내역: {chr(10).join(['• ' + issue for issue in citation_result['issues']])}
+"""
+        
+        if validator_report:
+            context += f"\n\n{validator_report}"
+            
+    except Exception as e:
+        get_file_logger().warning(f"[Reviewer] Validator 실행 실패: {e}")
+
     # 2. 프롬프트 구성
     # REVIEWER_USER_PROMPT는 {draft}, {context}를 요구함
     

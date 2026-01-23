@@ -53,111 +53,7 @@ class TestConsensusResultSchema:
             ConsensusResult(consensus_reached=True, confidence=-0.1)
 
 
-class TestDataGapSchemas:
-    """Dynamic Q&A 스키마 테스트"""
 
-    def test_data_gap_request(self):
-        """데이터 갭 요청 스키마"""
-        from utils.schemas import DataGapRequest
-
-        request = DataGapRequest(
-            requesting_section="시장 분석",
-            target_specialist="market",
-            query="2024년 국내 배달 앱 시장 규모 데이터",
-            priority="high",
-            context="TAM/SAM/SOM 계산에 필요"
-        )
-
-        assert request.target_specialist == "market"
-        assert request.priority == "high"
-
-    def test_data_gap_analysis(self):
-        """데이터 갭 분석 결과 스키마"""
-        from utils.schemas import DataGapAnalysis, DataGapRequest
-
-        # 갭이 있는 경우
-        analysis = DataGapAnalysis(
-            has_gaps=True,
-            gap_requests=[
-                DataGapRequest(
-                    requesting_section="재무 계획",
-                    target_specialist="financial",
-                    query="초기 개발 비용 산정"
-                )
-            ],
-            can_proceed_with_assumptions=True,
-            assumptions_if_proceed=["개발 비용 3억원 가정"]
-        )
-
-        assert analysis.has_gaps is True
-        assert len(analysis.gap_requests) == 1
-        assert analysis.can_proceed_with_assumptions is True
-
-    def test_specialist_response(self):
-        """Specialist 응답 스키마"""
-        from utils.schemas import SpecialistResponse
-
-        response = SpecialistResponse(
-            request_id="gap_req_0",
-            specialist_id="market",
-            data={"market_size": "15조원", "growth_rate": "12%"},
-            confidence=0.9,
-            sources=["통계청", "업계 리포트"]
-        )
-
-        assert response.specialist_id == "market"
-        assert response.confidence == 0.9
-        assert len(response.sources) == 2
-
-
-# =============================================================================
-# Routing Tests
-# =============================================================================
-
-class TestDynamicQARouting:
-    """Dynamic Q&A 라우팅 테스트"""
-
-    def test_routing_no_gaps(self):
-        """데이터 갭 없을 때 바로 write로 진행"""
-        from graph.nodes.dynamic_qa import should_request_specialist
-
-        state = {
-            "data_gap_analysis": {"has_gaps": False},
-            "pending_specialist_requests": []
-        }
-
-        result = should_request_specialist(state)
-        assert result == "write"
-
-    def test_routing_can_proceed_with_assumptions(self):
-        """가정으로 진행 가능할 때 write로 진행"""
-        from graph.nodes.dynamic_qa import should_request_specialist
-
-        state = {
-            "data_gap_analysis": {
-                "has_gaps": True,
-                "can_proceed_with_assumptions": True
-            },
-            "pending_specialist_requests": [{"query": "test"}]
-        }
-
-        result = should_request_specialist(state)
-        assert result == "write"
-
-    def test_routing_request_specialist(self):
-        """데이터 갭이 있고 진행 불가능할 때 specialist 요청"""
-        from graph.nodes.dynamic_qa import should_request_specialist
-
-        state = {
-            "data_gap_analysis": {
-                "has_gaps": True,
-                "can_proceed_with_assumptions": False
-            },
-            "pending_specialist_requests": [{"query": "test"}]
-        }
-
-        result = should_request_specialist(state)
-        assert result == "request_specialist"
 
 
 # =============================================================================
@@ -274,34 +170,9 @@ class TestWorkflowIntegration:
         from graph.workflow import (
             create_workflow,
             RouteKey,
-            DynamicQARoutes,
         )
 
-        assert RouteKey.REQUEST_SPECIALIST == "request_specialist"
-        assert RouteKey.WRITE == "write"
-
-    def test_dynamic_qa_nodes_import(self):
-        """Dynamic Q&A 노드 임포트 테스트"""
-        from graph.nodes.dynamic_qa import (
-            analyze_data_gaps,
-            should_request_specialist,
-            collect_specialist_responses,
-        )
-
-        assert callable(analyze_data_gaps)
-        assert callable(should_request_specialist)
-        assert callable(collect_specialist_responses)
-
-    def test_state_includes_dynamic_qa_fields(self):
-        """State에 Dynamic Q&A 필드 포함 확인"""
-        from graph.state import create_initial_state
-
-        state = create_initial_state("테스트 서비스 기획")
-
-        assert "data_gap_analysis" in state
-        assert "pending_specialist_requests" in state
-        assert "specialist_responses" in state
-        assert state["pending_specialist_requests"] == []
+        assert RouteKey.RETRY == "retry"
 
 
 # =============================================================================
@@ -321,12 +192,4 @@ class TestDiscussionPrompts:
         assert "합의 판정" in CONSENSUS_JUDGE_SYSTEM_PROMPT
         assert "{discussion_history}" in CONSENSUS_JUDGE_USER_PROMPT
 
-    def test_dynamic_qa_prompts_exist(self):
-        """Dynamic Q&A 프롬프트 존재 확인"""
-        from prompts.discussion_prompt import (
-            DATA_GAP_ANALYSIS_PROMPT,
-            SPECIALIST_QUERY_PROMPT,
-        )
 
-        assert "데이터 완전성" in DATA_GAP_ANALYSIS_PROMPT
-        assert "{specialist_id}" in SPECIALIST_QUERY_PROMPT

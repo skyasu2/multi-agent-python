@@ -94,7 +94,20 @@ def rerank_documents(
         return documents[:top_k]
 
     # Query-Document 쌍 생성
-    pairs = [(query, doc.page_content) for doc in documents]
+    pairs = []
+    for doc in documents:
+        # 헤더 메타데이터가 있으면 본문 앞에 추가하여 문맥 보강
+        content = doc.page_content
+        headers = []
+        if "Header 1" in doc.metadata: headers.append(doc.metadata["Header 1"])
+        if "Header 2" in doc.metadata: headers.append(doc.metadata["Header 2"])
+        if "Header 3" in doc.metadata: headers.append(doc.metadata["Header 3"])
+        
+        if headers:
+            header_text = " > ".join(headers)
+            content = f"[{header_text}]\n{content}"
+            
+        pairs.append((query, content))
 
     # 점수 계산
     try:

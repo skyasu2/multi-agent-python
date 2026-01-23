@@ -253,7 +253,20 @@ class Retriever:
             return ""
 
         # 각 문서 내용을 구분자로 연결
-        return "\n\n---\n\n".join([d.page_content for d in docs])
+        # 각 문서 내용을 헤더 정보와 함께 포맷팅
+        formatted_docs = []
+        for i, doc in enumerate(docs, 1):
+            headers = []
+            if "Header 1" in doc.metadata: headers.append(doc.metadata["Header 1"])
+            if "Header 2" in doc.metadata: headers.append(doc.metadata["Header 2"])
+            if "Header 3" in doc.metadata: headers.append(doc.metadata["Header 3"])
+            
+            header_str = f" ({' > '.join(headers)})" if headers else ""
+            source_str = f"Source {i}{header_str}"
+            
+            formatted_docs.append(f"[{source_str}]\n{doc.page_content}")
+
+        return "\n\n---\n\n".join(formatted_docs)
 
 
 # =============================================================================

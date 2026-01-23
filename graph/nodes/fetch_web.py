@@ -29,13 +29,17 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
 
     start_time = time.time()
 
+    # [NEW] 로거 초기화
+    from utils.file_logger import get_file_logger
+    logger = get_file_logger()
+
     # [NEW] 프리셋 설정 로드
     preset_key = state.get("generation_preset", "balanced")
     preset = get_preset(preset_key)
 
     # [NEW] 웹 검색 비활성화 체크
     if not preset.web_search_enabled:
-        print(f"[FetchWeb] 웹 검색 비활성화 (preset={preset_key})")
+        logger.info(f"[FetchWeb] 웹 검색 비활성화 (preset={preset_key})")
         return update_step_history(
             update_state(state, web_context=None, web_urls=[], web_sources=[]),
             "fetch_web", "SKIPPED", "웹 검색 비활성화됨",
@@ -60,11 +64,12 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
                 # 주제가 명확해졌으므로 더 정확한 쿼리 생성 가능
                 # 예: "그거..." -> "생성형 AI 트렌드"
                 search_input = f"{topic} 시장 동향 및 성공 사례"
-                print(f"[FetchWeb] 쿼리 최적화: '{user_input}' -> '{search_input}'")
+                logger.debug(f"[FetchWeb] 쿼리 최적화: '{user_input}' -> '{search_input}'")
 
     # 1. 웹 검색 실행 (Executor 위임)
     # [NEW] 프리셋 기반 파라미터 전달
-    print(f"[FetchWeb] Preset={preset_key}, max_queries={preset.web_search_max_queries}, depth={preset.web_search_depth}")
+    logger.info(f"[FetchWeb] Search Start: Preset={preset_key}, max_queries={preset.web_search_max_queries}, depth={preset.web_search_depth}")
+    
     result = execute_web_search(
         search_input,
         rag_context,
@@ -72,8 +77,16 @@ def fetch_web_context(state: PlanCraftState) -> PlanCraftState:
         search_depth=preset.web_search_depth
     )
 
-    # [DEBUG] 웹 검색 결과 상세 로그
-    print(f"[FETCH_WEB DEBUG] urls={len(result.get('urls', []))}, sources={len(result.get('sources', []))}, context_len={len(result.get('context') or '')}, error={result.get('error')}")
+    # [OBSERVABILITY] 웹 검색 결과 상세 로깅
+    result_context_len = len(result.get('context') or '')
+    result_urls = len(result.get('urls', []))
+    result_sources = len(result.get('sources', []))
+    result_error = result.get('error')
+    
+    if result_error:
+        logger.error(f"[FetchWeb] Search Failed: {result_error}")
+    else:
+        logger.info(f"[FetchWeb] Search Success: {result_urls} URLs, {result_sources} Sources, {result_context_len} chars")
 
     # 2. 상태 업데이트
     existing_context = state.get("web_context")
